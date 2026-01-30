@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion - Le Palais de la Beauté</title>
+    <style>
+        :root {
+            --primary: #e8b4b8;
+            --primary-dark: #d4a5a5;
+            --secondary: #c9a86a;
+            --text-dark: #8b5a5a;
+            --bg-light: #fdfbfb;
+            --border: rgba(232, 180, 184, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Cormorant Garamond', serif;
+            background: linear-gradient(135deg, var(--bg-light) 0%, #f5f0f0 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 24px;
+            padding: 50px 60px;
+            box-shadow: 0 10px 40px rgba(212, 175, 122, 0.15);
+            border: 1px solid var(--border);
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .logo img {
+            max-width: 150px;
+            height: auto;
+            border-radius: 16px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--text-dark);
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 40px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            color: var(--text-dark);
+            font-weight: 500;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 14px 18px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            transition: all 0.3s ease;
+            background: var(--bg-light);
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(232, 180, 184, 0.1);
+            background: white;
+        }
+
+        .pin-container {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .pin-input {
+            width: 50px;
+            height: 55px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 600;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            background: var(--bg-light);
+        }
+
+        .pin-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(232, 180, 184, 0.1);
+            background: white;
+            transform: scale(1.05);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 30px;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(232, 180, 184, 0.4);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            border: 1px solid #fcc;
+        }
+
+        .required {
+            color: #c33;
+        }
+
+        @media (max-width: 600px) {
+            .login-container {
+                padding: 40px 30px;
+            }
+
+            .pin-input {
+                width: 45px;
+                height: 50px;
+                font-size: 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+        }
+
+        @media (max-width: 375px) {
+            body {
+                padding: 10px;
+            }
+
+            .login-container {
+                padding: 30px 20px;
+                border-radius: 16px;
+            }
+
+            .logo img {
+                max-width: 100px;
+            }
+
+            h1 {
+                font-size: 20px;
+                margin-bottom: 30px;
+            }
+
+            .pin-container {
+                gap: 8px;
+            }
+
+            .pin-input {
+                width: 40px;
+                height: 45px;
+                font-size: 18px;
+            }
+
+            select, input {
+                padding: 12px 14px;
+                font-size: 14px;
+            }
+
+            .btn-login {
+                padding: 14px;
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <img src="/static/images/logo.jpg" alt="Le Palais de la Beauté" onerror="this.style.display='none'">
+        </div>
+
+        <h1>Connexion</h1>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="error-message">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="POST" id="loginForm">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label for="user_id">Sélectionner un compte <span class="required">*</span></label>
+                <select name="user_id" id="user_id" required>
+                    <option value="">-- Choisir un utilisateur --</option>
+                    {% for util in utilisateurs %}
+                        <option value="{{ util.id }}">
+                            {{ util.user.first_name }} {{ util.user.last_name }}
+                            {% if util.institut %}({{ util.institut.nom }}){% else %}(Patron){% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Code PIN (6 chiffres) <span class="required">*</span></label>
+                <div class="pin-container">
+                    <input type="password" class="pin-input" maxlength="1" data-index="0" inputmode="numeric" pattern="[0-9]" required>
+                    <input type="password" class="pin-input" maxlength="1" data-index="1" inputmode="numeric" pattern="[0-9]" required>
+                    <input type="password" class="pin-input" maxlength="1" data-index="2" inputmode="numeric" pattern="[0-9]" required>
+                    <input type="password" class="pin-input" maxlength="1" data-index="3" inputmode="numeric" pattern="[0-9]" required>
+                    <input type="password" class="pin-input" maxlength="1" data-index="4" inputmode="numeric" pattern="[0-9]" required>
+                    <input type="password" class="pin-input" maxlength="1" data-index="5" inputmode="numeric" pattern="[0-9]" required>
+                </div>
+                <input type="hidden" name="pin" id="pin">
+            </div>
+
+            <button type="submit" class="btn-login">Se connecter</button>
+        </form>
+    </div>
+
+    <script>
+        // Gestion des inputs PIN
+        const pinInputs = document.querySelectorAll('.pin-input');
+        const pinHidden = document.getElementById('pin');
+        const form = document.getElementById('loginForm');
+
+        pinInputs.forEach((input, index) => {
+            // Focus automatique sur le premier champ
+            if (index === 0) {
+                input.focus();
+            }
+
+            // Accepter uniquement les chiffres
+            input.addEventListener('input', (e) => {
+                const value = e.target.value;
+
+                // Vérifier que c'est un chiffre
+                if (!/^[0-9]$/.test(value)) {
+                    e.target.value = '';
+                    return;
+                }
+
+                // Passer au champ suivant automatiquement
+                if (value && index < pinInputs.length - 1) {
+                    pinInputs[index + 1].focus();
+                }
+
+                // Mettre à jour le champ caché
+                updatePinValue();
+            });
+
+            // Gérer le backspace
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                    pinInputs[index - 1].focus();
+                }
+            });
+
+            // Gérer le paste
+            input.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const pastedData = e.clipboardData.getData('text');
+                const digits = pastedData.match(/\d/g);
+
+                if (digits) {
+                    digits.slice(0, 6).forEach((digit, i) => {
+                        if (pinInputs[i]) {
+                            pinInputs[i].value = digit;
+                        }
+                    });
+                    updatePinValue();
+                    // Focus sur le dernier champ rempli
+                    const lastIndex = Math.min(digits.length - 1, 5);
+                    pinInputs[lastIndex].focus();
+                }
+            });
+        });
+
+        // Mettre à jour le champ PIN caché
+        function updatePinValue() {
+            const pin = Array.from(pinInputs).map(input => input.value).join('');
+            pinHidden.value = pin;
+        }
+
+        // Validation avant soumission
+        form.addEventListener('submit', (e) => {
+            updatePinValue();
+            const pin = pinHidden.value;
+
+            if (pin.length !== 6) {
+                e.preventDefault();
+                alert('Veuillez saisir les 6 chiffres du code PIN');
+                pinInputs[0].focus();
+                return false;
+            }
+
+            const userId = document.getElementById('user_id').value;
+            if (!userId) {
+                e.preventDefault();
+                alert('Veuillez sélectionner un utilisateur');
+                return false;
+            }
+        });
+    </script>
+</body>
+</html>

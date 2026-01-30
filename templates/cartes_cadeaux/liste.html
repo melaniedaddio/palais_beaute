@@ -1,0 +1,680 @@
+{% extends "base.html" %}
+
+{% block title %}Cartes Cadeaux - Le Palais de la Beauté{% endblock %}
+
+{% block extra_css %}
+.stats-row {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+}
+
+.stat-card {
+    flex: 1;
+    min-width: 200px;
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(212, 175, 122, 0.12);
+    border: 1px solid var(--border);
+    text-align: center;
+}
+
+.stat-card .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.stat-card .stat-label {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-top: 5px;
+}
+
+.filters-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.filters-row select,
+.filters-row input {
+    width: auto;
+    min-width: 180px;
+}
+
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.badge-active {
+    background: #d4edda;
+    color: #155724;
+}
+
+.badge-soldee {
+    background: #e2e3e5;
+    color: #383d41;
+}
+
+.badge-annulee {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Modal styles */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal {
+    background: white;
+    border-radius: 20px;
+    padding: 30px;
+    max-width: 550px;
+    width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-light);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-close:hover {
+    background: var(--bg-section);
+}
+
+.checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+.checkbox-row input[type="checkbox"] {
+    width: auto;
+}
+
+.radio-group {
+    display: flex;
+    gap: 15px;
+    margin-top: 8px;
+}
+
+.radio-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.radio-option input[type="radio"] {
+    width: auto;
+}
+
+.confirmation-box {
+    text-align: center;
+    padding: 20px;
+}
+
+.confirmation-code {
+    background: var(--bg-section);
+    border: 2px dashed var(--secondary);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+    font-family: 'Courier New', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-dark);
+    letter-spacing: 3px;
+}
+
+.confirmation-details {
+    text-align: left;
+    margin: 15px 0;
+    font-size: 14px;
+    color: var(--text-light);
+}
+
+.confirmation-details strong {
+    color: var(--text-dark);
+}
+
+.btn-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.btn-group .btn {
+    flex: 1;
+}
+
+/* Vérification carte */
+.carte-info-box {
+    background: var(--bg-section);
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 15px;
+}
+
+.carte-info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+}
+
+.carte-info-row:last-child {
+    border-bottom: none;
+}
+
+.carte-solde {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--secondary-dark);
+    text-align: center;
+    margin: 15px 0;
+}
+
+.historique-item {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.actions-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+    .stats-row {
+        flex-direction: column;
+    }
+    .filters-row {
+        flex-direction: column;
+    }
+    .filters-row select,
+    .filters-row input {
+        width: 100%;
+    }
+    .actions-row {
+        flex-direction: column;
+    }
+    .btn-group {
+        flex-direction: column;
+    }
+}
+{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <h1 class="page-title">Cartes Cadeaux</h1>
+    <p class="page-subtitle">Gestion des cartes cadeaux du groupe</p>
+</div>
+
+<div class="actions-row">
+    <button class="btn btn-secondary" onclick="ouvrirModalVente()">
+        Vendre une carte cadeau
+    </button>
+    <button class="btn btn-outline" onclick="ouvrirModalVerification()">
+        Vérifier une carte
+    </button>
+</div>
+
+<!-- Filtres -->
+<div class="card">
+    <form method="GET" class="filters-row">
+        <select name="statut" onchange="this.form.submit()">
+            <option value="">Tous les statuts</option>
+            <option value="active" {% if statut_filtre == 'active' %}selected{% endif %}>Active</option>
+            <option value="soldee" {% if statut_filtre == 'soldee' %}selected{% endif %}>Soldée</option>
+            <option value="annulee" {% if statut_filtre == 'annulee' %}selected{% endif %}>Annulée</option>
+        </select>
+        <input type="text" name="search" placeholder="Rechercher (code, nom...)" value="{{ search }}">
+        <button type="submit" class="btn btn-primary">Rechercher</button>
+    </form>
+</div>
+
+<!-- Liste des cartes -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Liste des cartes cadeaux ({{ cartes|length }})</h2>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Code</th>
+                <th>Bénéficiaire</th>
+                <th>Montant</th>
+                <th>Solde</th>
+                <th>Statut</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for carte in cartes %}
+            <tr>
+                <td><strong>{{ carte.code }}</strong></td>
+                <td>{{ carte.beneficiaire.get_full_name }}</td>
+                <td>{{ carte.montant_initial|floatformat:0 }} CFA</td>
+                <td>{{ carte.solde|floatformat:0 }} CFA</td>
+                <td>
+                    <span class="badge badge-{{ carte.statut }}{% if carte.statut == 'active' %}active{% elif carte.statut == 'soldee' %}soldee{% else %}annulee{% endif %}">
+                        {{ carte.get_statut_display }}
+                    </span>
+                </td>
+                <td>{{ carte.date_achat|date:"d/m/Y" }}</td>
+                <td>
+                    <a href="{% url 'core:imprimer_carte_cadeau' carte_id=carte.id %}" target="_blank" class="btn btn-outline" style="padding: 6px 12px; font-size: 12px;">Imprimer</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" style="text-align: center; padding: 30px; color: var(--text-light);">
+                    Aucune carte cadeau trouvée
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal Vente -->
+<div id="modalVente" class="modal-backdrop" style="display: none;">
+    <div class="modal">
+        <!-- Étape 1 : Formulaire -->
+        <div id="venteFormulaire">
+            <div class="modal-header">
+                <h2 class="modal-title">Vendre une carte cadeau</h2>
+                <button class="modal-close" onclick="fermerModalVente()">&times;</button>
+            </div>
+
+            <div class="form-group">
+                <label>Personne qui offre *</label>
+                <input type="text" id="searchAcheteur" placeholder="Rechercher un client..." autocomplete="off">
+                <div id="resultsAcheteur" style="position: relative;"></div>
+                <input type="hidden" id="acheteurId">
+                <div id="acheteurSelected" style="display: none; margin-top: 8px; padding: 8px; background: var(--bg-section); border-radius: 8px; font-size: 13px;"></div>
+            </div>
+
+            <div class="form-group">
+                <label>Bénéficiaire *</label>
+                <div class="checkbox-row">
+                    <input type="checkbox" id="memePersonne" onchange="toggleBeneficiaire()">
+                    <label for="memePersonne" style="margin-bottom: 0;">Même personne que l'acheteur</label>
+                </div>
+                <div id="beneficiaireSection">
+                    <input type="text" id="searchBeneficiaire" placeholder="Rechercher un client..." autocomplete="off">
+                    <div id="resultsBeneficiaire" style="position: relative;"></div>
+                    <input type="hidden" id="beneficiaireId">
+                    <div id="beneficiaireSelected" style="display: none; margin-top: 8px; padding: 8px; background: var(--bg-section); border-radius: 8px; font-size: 13px;"></div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Montant de la carte (CFA) *</label>
+                <input type="number" id="montantCarte" min="1000" step="1000" placeholder="Ex: 50000">
+                <small style="color: var(--text-light);">Montant libre - minimum conseillé : 10 000 CFA</small>
+            </div>
+
+            <div class="form-group">
+                <label>Mode de paiement *</label>
+                <div class="radio-group" style="flex-wrap: wrap;">
+                    <label class="radio-option">
+                        <input type="radio" name="modePaiement" value="especes" checked>
+                        Espèces
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="modePaiement" value="carte">
+                        Carte bancaire
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="modePaiement" value="cheque">
+                        Chèque
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="modePaiement" value="om">
+                        Orange Money
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="modePaiement" value="wave">
+                        Wave
+                    </label>
+                </div>
+            </div>
+
+            {% if request.user.utilisateur.is_patron %}
+            <div class="form-group">
+                <label>Institut *</label>
+                <select id="institutId">
+                    <option value="">-- Choisir un institut --</option>
+                    {% for institut in instituts %}
+                    <option value="{{ institut.id }}">{{ institut.nom }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <button class="btn btn-secondary" style="width: 100%;" onclick="validerVente()">
+                Valider la vente
+            </button>
+        </div>
+
+        <!-- Étape 2 : Confirmation -->
+        <div id="venteConfirmation" style="display: none;">
+            <div class="modal-header">
+                <h2 class="modal-title">Carte cadeau créée !</h2>
+                <button class="modal-close" onclick="fermerModalVente()">&times;</button>
+            </div>
+            <div class="confirmation-box">
+                <div class="confirmation-code" id="confirmCode"></div>
+                <div class="confirmation-details">
+                    <p>Montant : <strong id="confirmMontant"></strong></p>
+                    <p>Bénéficiaire : <strong id="confirmBeneficiaire"></strong></p>
+                    <p>Acheteur : <strong id="confirmAcheteur"></strong></p>
+                    <p>Validité : <strong>Illimitée</strong></p>
+                </div>
+                <div class="btn-group">
+                    <a id="btnImprimer" href="#" target="_blank" class="btn btn-primary">Imprimer le bon</a>
+                    <button class="btn btn-outline" onclick="fermerModalVente()">Fermer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Vérification -->
+<div id="modalVerification" class="modal-backdrop" style="display: none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">Vérifier une carte cadeau</h2>
+            <button class="modal-close" onclick="fermerModalVerification()">&times;</button>
+        </div>
+
+        <div class="form-group">
+            <label>Code de la carte</label>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="codeVerification" placeholder="CG-2025-XXXXXX" style="text-transform: uppercase;">
+                <button class="btn btn-primary" onclick="rechercherCarte()">Rechercher</button>
+            </div>
+        </div>
+
+        <div id="resultatVerification"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// === Autocomplete clients ===
+function setupAutocomplete(inputId, resultsId, hiddenId, selectedId) {
+    const input = document.getElementById(inputId);
+    const resultsContainer = document.getElementById(resultsId);
+    const hiddenInput = document.getElementById(hiddenId);
+    const selectedDiv = document.getElementById(selectedId);
+    let timeout;
+
+    input.addEventListener('input', function() {
+        clearTimeout(timeout);
+        const q = this.value.trim();
+        if (q.length < 2) {
+            resultsContainer.innerHTML = '';
+            return;
+        }
+        timeout = setTimeout(async () => {
+            const resp = await fetch(`/api/clients/search/?q=${encodeURIComponent(q)}`);
+            const data = await resp.json();
+            let html = '';
+            if (data.clients.length > 0) {
+                html = '<div style="position: absolute; z-index: 100; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-height: 200px; overflow-y: auto; width: 100%;">';
+                data.clients.forEach(c => {
+                    html += `<div style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--border);"
+                                  onmouseover="this.style.background='var(--bg-section)'"
+                                  onmouseout="this.style.background='white'"
+                                  onclick="selectClient('${hiddenId}', '${selectedId}', '${inputId}', '${resultsId}', ${c.id}, '${c.full_name}', '${c.telephone}')">
+                                <div style="font-weight: 500;">${c.full_name}</div>
+                                <div style="font-size: 12px; color: var(--text-light);">${c.telephone}</div>
+                             </div>`;
+                });
+                html += '</div>';
+            }
+            resultsContainer.innerHTML = html;
+        }, 300);
+    });
+}
+
+function selectClient(hiddenId, selectedId, inputId, resultsId, id, name, tel) {
+    document.getElementById(hiddenId).value = id;
+    document.getElementById(selectedId).textContent = `${name} - ${tel}`;
+    document.getElementById(selectedId).style.display = 'block';
+    document.getElementById(inputId).value = '';
+    document.getElementById(resultsId).innerHTML = '';
+}
+
+function toggleBeneficiaire() {
+    const checked = document.getElementById('memePersonne').checked;
+    document.getElementById('beneficiaireSection').style.display = checked ? 'none' : 'block';
+}
+
+// === Vente ===
+function ouvrirModalVente() {
+    document.getElementById('modalVente').style.display = 'flex';
+    document.getElementById('venteFormulaire').style.display = 'block';
+    document.getElementById('venteConfirmation').style.display = 'none';
+    // Reset
+    document.getElementById('acheteurId').value = '';
+    document.getElementById('beneficiaireId').value = '';
+    document.getElementById('searchAcheteur').value = '';
+    document.getElementById('searchBeneficiaire').value = '';
+    document.getElementById('acheteurSelected').style.display = 'none';
+    document.getElementById('beneficiaireSelected').style.display = 'none';
+    document.getElementById('montantCarte').value = '';
+    document.getElementById('memePersonne').checked = false;
+    toggleBeneficiaire();
+}
+
+function fermerModalVente() {
+    document.getElementById('modalVente').style.display = 'none';
+}
+
+async function validerVente() {
+    const acheteurId = document.getElementById('acheteurId').value;
+    const memePersonne = document.getElementById('memePersonne').checked;
+    const beneficiaireId = document.getElementById('beneficiaireId').value;
+    const montant = document.getElementById('montantCarte').value;
+    const modePaiement = document.querySelector('input[name="modePaiement"]:checked').value;
+
+    if (!acheteurId) {
+        alert('Veuillez sélectionner la personne qui offre');
+        return;
+    }
+    if (!memePersonne && !beneficiaireId) {
+        alert('Veuillez sélectionner un bénéficiaire');
+        return;
+    }
+    if (!montant || parseInt(montant) <= 0) {
+        alert('Veuillez entrer un montant valide');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('acheteur_id', acheteurId);
+    formData.append('meme_personne', memePersonne);
+    if (!memePersonne) formData.append('beneficiaire_id', beneficiaireId);
+    formData.append('montant', montant);
+    formData.append('mode_paiement', modePaiement);
+
+    const institutSelect = document.getElementById('institutId');
+    if (institutSelect) {
+        if (!institutSelect.value) {
+            alert('Veuillez sélectionner un institut');
+            return;
+        }
+        formData.append('institut_id', institutSelect.value);
+    }
+
+    const resp = await fetch('{% url "core:api_vendre_carte_cadeau" %}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+        body: formData
+    });
+
+    const data = await resp.json();
+
+    if (data.success) {
+        document.getElementById('venteFormulaire').style.display = 'none';
+        document.getElementById('venteConfirmation').style.display = 'block';
+        document.getElementById('confirmCode').textContent = data.carte.code;
+        document.getElementById('confirmMontant').textContent = new Intl.NumberFormat('fr-FR').format(data.carte.montant) + ' CFA';
+        document.getElementById('confirmBeneficiaire').textContent = data.carte.beneficiaire;
+        document.getElementById('confirmAcheteur').textContent = data.carte.acheteur;
+        document.getElementById('btnImprimer').href = `/cartes-cadeaux/${data.carte.id}/imprimer/`;
+    } else {
+        alert(data.message || 'Erreur lors de la création');
+    }
+}
+
+// === Vérification ===
+function ouvrirModalVerification() {
+    document.getElementById('modalVerification').style.display = 'flex';
+    document.getElementById('codeVerification').value = '';
+    document.getElementById('resultatVerification').innerHTML = '';
+}
+
+function fermerModalVerification() {
+    document.getElementById('modalVerification').style.display = 'none';
+}
+
+async function rechercherCarte() {
+    const code = document.getElementById('codeVerification').value.trim();
+    if (!code) {
+        alert('Veuillez entrer un code');
+        return;
+    }
+
+    const resp = await fetch(`{% url "core:api_verifier_carte_cadeau" %}?code=${encodeURIComponent(code)}`);
+    const data = await resp.json();
+
+    const container = document.getElementById('resultatVerification');
+
+    if (!data.found) {
+        container.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--danger);">
+            ${data.message || 'Carte non trouvée'}
+        </div>`;
+        return;
+    }
+
+    const c = data.carte;
+    let statutClass = c.statut === 'active' ? 'badge-active' : c.statut === 'soldee' ? 'badge-soldee' : 'badge-annulee';
+
+    let html = `
+        <div class="carte-info-box">
+            <div style="text-align: center; margin-bottom: 10px;">
+                <span class="badge ${statutClass}" style="font-size: 14px; padding: 6px 14px;">${c.statut_display}</span>
+            </div>
+            <div class="carte-solde">${new Intl.NumberFormat('fr-FR').format(c.solde)} CFA</div>
+            <div style="text-align: center; font-size: 12px; color: var(--text-light); margin-bottom: 15px;">Solde restant</div>
+            <div class="carte-info-row">
+                <span>Code</span>
+                <strong>${c.code}</strong>
+            </div>
+            <div class="carte-info-row">
+                <span>Bénéficiaire</span>
+                <strong>${c.beneficiaire}</strong>
+            </div>
+            <div class="carte-info-row">
+                <span>Acheté par</span>
+                <span>${c.acheteur}</span>
+            </div>
+            <div class="carte-info-row">
+                <span>Date d'achat</span>
+                <span>${c.date_achat} - ${c.institut_achat}</span>
+            </div>
+            <div class="carte-info-row">
+                <span>Montant initial</span>
+                <span>${new Intl.NumberFormat('fr-FR').format(c.montant_initial)} CFA</span>
+            </div>
+            <div class="carte-info-row">
+                <span>Utilisé</span>
+                <span>${new Intl.NumberFormat('fr-FR').format(c.utilise)} CFA</span>
+            </div>
+        </div>`;
+
+    if (c.utilisations.length > 0) {
+        html += `<div style="margin-top: 15px;"><strong>Historique d'utilisation :</strong>`;
+        c.utilisations.forEach(u => {
+            html += `<div class="historique-item">
+                ${u.date} - ${u.institut} - ${new Intl.NumberFormat('fr-FR').format(u.montant)} CFA
+                ${u.prestation ? '<br><small style="color: var(--text-light);">(' + u.prestation + ')</small>' : ''}
+            </div>`;
+        });
+        html += '</div>';
+    }
+
+    container.innerHTML = html;
+}
+
+// Fermer les modals en cliquant sur le backdrop
+document.getElementById('modalVente').addEventListener('click', function(e) {
+    if (e.target === this) fermerModalVente();
+});
+document.getElementById('modalVerification').addEventListener('click', function(e) {
+    if (e.target === this) fermerModalVerification();
+});
+
+// Initialiser autocomplete
+setupAutocomplete('searchAcheteur', 'resultsAcheteur', 'acheteurId', 'acheteurSelected');
+setupAutocomplete('searchBeneficiaire', 'resultsBeneficiaire', 'beneficiaireId', 'beneficiaireSelected');
+</script>
+{% endblock %}

@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Le Palais de la Beauté{% endblock %}</title>
+
+    <style>
+        :root {
+            /* Couleurs principales */
+            --primary: #e8b4b8;
+            --primary-dark: #d4a5a5;
+            --secondary: #c9a86a;
+            --secondary-dark: #b89858;
+
+            /* Texte */
+            --text-dark: #8b5a5a;
+            --text-light: #a67c7c;
+
+            /* Fonds */
+            --bg-light: #fdfbfb;
+            --bg-card: #faf8f8;
+            --bg-section: #f5f0f0;
+
+            /* États */
+            --success: #28a745;
+            --warning: #ffc107;
+            --danger: #dc3545;
+            --info: #17a2b8;
+
+            /* Bordures */
+            --border: rgba(232, 180, 184, 0.3);
+            --border-dark: rgba(212, 175, 122, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Cormorant Garamond', serif;
+            font-size: 14px;
+            line-height: 1.5;
+            background: var(--bg-light);
+            color: var(--text-dark);
+        }
+
+        /* Layout principal */
+        .main-layout {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: white;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            transform: translateX(0);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .sidebar.hidden {
+            transform: translateX(-100%);
+        }
+
+        .sidebar-header {
+            padding: 30px 20px;
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .sidebar-logo {
+            max-width: 120px;
+            height: auto;
+            border-radius: 12px;
+            margin-bottom: 15px;
+        }
+
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 5px;
+        }
+
+        .sidebar-subtitle {
+            font-size: 13px;
+            color: var(--text-light);
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 20px 0;
+        }
+
+        .nav-section {
+            margin-bottom: 30px;
+        }
+
+        .nav-section-title {
+            padding: 0 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-light);
+            margin-bottom: 10px;
+        }
+
+        .nav-item {
+            display: block;
+            padding: 12px 20px;
+            color: var(--text-dark);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: var(--bg-section);
+            border-left-color: var(--primary);
+            color: var(--primary-dark);
+        }
+
+        .nav-item.active {
+            background: var(--bg-section);
+            border-left-color: var(--primary-dark);
+            color: var(--primary-dark);
+            font-weight: 500;
+        }
+
+        .sidebar-footer {
+            padding: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .user-details {
+            flex: 1;
+        }
+
+        .user-name {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-dark);
+        }
+
+        .user-role {
+            font-size: 12px;
+            color: var(--text-light);
+        }
+
+        .btn-logout {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-section);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-dark);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            text-decoration: none;
+            display: block;
+        }
+
+        .btn-logout:hover {
+            background: var(--danger);
+            color: white;
+            border-color: var(--danger);
+        }
+
+        /* Contenu principal */
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 30px;
+            max-width: 100%;
+            transition: margin-left 0.3s ease;
+        }
+
+        .main-content.expanded {
+            margin-left: 0;
+            padding: 80px 30px 30px 30px;
+        }
+
+        .content-header {
+            margin-bottom: 30px;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 10px;
+        }
+
+        .page-subtitle {
+            font-size: 14px;
+            color: var(--text-light);
+        }
+
+        /* Messages */
+        .messages {
+            margin-bottom: 20px;
+        }
+
+        .message {
+            padding: 14px 18px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .message.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 15px rgba(212, 175, 122, 0.12);
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        /* Boutons */
+        .btn {
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(232, 180, 184, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--secondary-dark) 100%);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(201, 168, 106, 0.4);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+
+        /* Inputs */
+        input, select, textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            background: var(--bg-light);
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(232, 180, 184, 0.1);
+            background: white;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-dark);
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: var(--bg-section);
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-dark);
+            border-bottom: 2px solid var(--border);
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tr:hover {
+            background: var(--bg-light);
+        }
+
+        /* Mobile menu button */
+        .mobile-menu-btn {
+            display: flex;
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 1001;
+            width: 45px;
+            height: 45px;
+            border-radius: 12px;
+            background: white;
+            border: 1px solid var(--border);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            cursor: pointer;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .mobile-menu-btn:hover {
+            background: var(--bg-section);
+            transform: scale(1.05);
+        }
+
+        .mobile-menu-btn span {
+            display: block;
+            width: 22px;
+            height: 2px;
+            background: var(--text-dark);
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .mobile-menu-btn.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+
+        .mobile-menu-btn.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .mobile-menu-btn.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(5px, -5px);
+        }
+
+        /* Overlay */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+            opacity: 1;
+        }
+
+        /* Responsive - Tablette paysage */
+        @media (max-width: 1024px) {
+            .page-title {
+                font-size: 24px;
+            }
+        }
+
+        /* Responsive - Tablette portrait */
+        @media (max-width: 900px) {
+            .main-content {
+                padding: 80px 20px 20px 20px;
+            }
+
+            .content-header {
+                margin-bottom: 20px;
+            }
+        }
+
+        /* Responsive - Mobile */
+        @media (max-width: 600px) {
+            .sidebar {
+                width: 85%;
+                max-width: 300px;
+            }
+
+            .main-content {
+                padding: 70px 15px 15px 15px;
+            }
+
+            .page-title {
+                font-size: 20px;
+            }
+
+            .page-subtitle {
+                font-size: 13px;
+            }
+
+            .card {
+                padding: 16px;
+                border-radius: 12px;
+            }
+
+            .btn {
+                padding: 12px 16px;
+                font-size: 14px;
+                width: 100%;
+                text-align: center;
+            }
+
+            input, select, textarea {
+                padding: 12px 14px;
+                font-size: 16px; /* Évite le zoom auto sur iOS */
+            }
+
+            /* Navigation mobile - items plus grands */
+            .nav-item {
+                padding: 16px 20px;
+                font-size: 15px;
+            }
+
+            /* Tables responsive */
+            table {
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+
+            th, td {
+                padding: 10px 8px;
+                font-size: 13px;
+            }
+
+            /* Modals plein écran sur mobile */
+            .modal {
+                width: 100%;
+                height: 100%;
+                max-height: 100%;
+                border-radius: 0;
+                padding: 20px;
+            }
+
+            .modal-backdrop {
+                align-items: flex-end;
+            }
+
+            /* Sidebar footer compact */
+            .sidebar-footer {
+                padding: 15px;
+            }
+
+            .user-info {
+                margin-bottom: 10px;
+            }
+        }
+
+        /* iPhone SE et petits écrans */
+        @media (max-width: 375px) {
+            .main-content {
+                padding: 65px 10px 10px 10px;
+            }
+
+            .page-title {
+                font-size: 18px;
+            }
+
+            .card {
+                padding: 12px;
+            }
+
+            .sidebar-header {
+                padding: 20px 15px;
+            }
+
+            .sidebar-logo {
+                max-width: 80px;
+            }
+
+            .sidebar-title {
+                font-size: 16px;
+            }
+        }
+
+        /* Amélioration touch targets */
+        @media (hover: none) and (pointer: coarse) {
+            .btn {
+                min-height: 44px;
+                min-width: 44px;
+            }
+
+            .nav-item {
+                min-height: 48px;
+            }
+
+            input, select {
+                min-height: 44px;
+            }
+        }
+
+        /* Utilitaires */
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .mt-10 { margin-top: 10px; }
+        .mt-20 { margin-top: 20px; }
+        .mb-10 { margin-bottom: 10px; }
+        .mb-20 { margin-bottom: 20px; }
+
+        {% block extra_css %}{% endblock %}
+    </style>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Bouton menu mobile -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Menu">
+        <span></span>
+        <span></span>
+        <span></span>
+    </button>
+
+    <!-- Overlay pour fermer le menu -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <div class="main-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <img src="/static/images/logo.jpg" alt="Logo" class="sidebar-logo" onerror="this.style.display='none'">
+                <div class="sidebar-title">Le Palais de la Beauté</div>
+                <div class="sidebar-subtitle">
+                    {% if request.user.is_authenticated %}
+                        {% if request.user.utilisateur.is_patron %}
+                            Vue globale
+                        {% else %}
+                            {{ request.user.utilisateur.institut.nom }}
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                {% if request.user.is_authenticated %}
+                    {% if request.user.utilisateur.is_patron %}
+                        <!-- Navigation Patron -->
+                        <div class="nav-section">
+                            <div class="nav-section-title">Principal</div>
+                            <a href="{% url 'dashboard:index' %}" class="nav-item {% if request.resolver_match.app_name == 'dashboard' %}active{% endif %}">
+                                Dashboard
+                            </a>
+                        </div>
+
+                        <div class="nav-section">
+                            <div class="nav-section-title">Agendas</div>
+                            <a href="{% url 'agenda:index' institut_code='palais' %}" class="nav-item">
+                                Agenda Le Palais
+                            </a>
+                            <a href="{% url 'agenda:index' institut_code='klinic' %}" class="nav-item">
+                                Agenda La Klinic
+                            </a>
+                            <a href="{% url 'express:index' %}" class="nav-item">
+                                Express (Caisse)
+                            </a>
+                        </div>
+
+                        <div class="nav-section">
+                            <div class="nav-section-title">Clôture Caisse</div>
+                            <a href="{% url 'agenda:cloture_caisse' institut_code='palais' %}" class="nav-item">
+                                Clôture Le Palais
+                            </a>
+                            <a href="{% url 'agenda:cloture_caisse' institut_code='klinic' %}" class="nav-item">
+                                Clôture La Klinic
+                            </a>
+                        </div>
+
+                        <div class="nav-section">
+                            <div class="nav-section-title">Gestion</div>
+                            <a href="{% url 'core:clients_list' %}" class="nav-item {% if request.resolver_match.url_name == 'clients_list' %}active{% endif %}">
+                                Clients
+                            </a>
+                            <a href="{% url 'core:employes_list' %}" class="nav-item {% if request.resolver_match.url_name == 'employes_list' %}active{% endif %}">
+                                Employés
+                            </a>
+                            <a href="{% url 'core:cartes_cadeaux_list' %}" class="nav-item {% if request.resolver_match.url_name == 'cartes_cadeaux_list' %}active{% endif %}">
+                                Cartes Cadeaux
+                            </a>
+                        </div>
+
+                        <div class="nav-section">
+                            <div class="nav-section-title">Crédits</div>
+                            <a href="{% url 'credits:index' institut_code='palais' %}" class="nav-item">
+                                Crédits Le Palais
+                            </a>
+                            <a href="{% url 'credits:index' institut_code='klinic' %}" class="nav-item">
+                                Crédits La Klinic
+                            </a>
+                            <a href="{% url 'credits:index' institut_code='express' %}" class="nav-item">
+                                Crédits Express
+                            </a>
+                        </div>
+
+                    {% else %}
+                        <!-- Navigation Manager -->
+                        <div class="nav-section">
+                            <div class="nav-section-title">Principal</div>
+                            {% if request.user.utilisateur.institut.code == 'express' %}
+                                <a href="{% url 'express:index' %}" class="nav-item active">
+                                    Caisse Express
+                                </a>
+                            {% else %}
+                                <a href="{% url 'agenda:index' institut_code=request.user.utilisateur.institut.code %}" class="nav-item active">
+                                    Agenda
+                                </a>
+                            {% endif %}
+                        </div>
+
+                        <div class="nav-section">
+                            <div class="nav-section-title">Gestion</div>
+                            <a href="{% url 'core:clients_list' %}" class="nav-item {% if request.resolver_match.url_name == 'clients_list' %}active{% endif %}">
+                                Clients
+                            </a>
+                            <a href="{% url 'core:cartes_cadeaux_list' %}" class="nav-item {% if request.resolver_match.url_name == 'cartes_cadeaux_list' %}active{% endif %}">
+                                Cartes Cadeaux
+                            </a>
+                            <a href="{% url 'credits:index' institut_code=request.user.utilisateur.institut.code %}" class="nav-item">
+                                Crédits
+                            </a>
+                            {% if request.user.utilisateur.institut.code != 'express' %}
+                            <a href="{% url 'agenda:cloture_caisse' institut_code=request.user.utilisateur.institut.code %}" class="nav-item">
+                                Clôture Caisse
+                            </a>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% endif %}
+            </nav>
+
+            {% if request.user.is_authenticated %}
+                <div class="sidebar-footer">
+                    <div class="user-info">
+                        <div class="user-avatar">
+                            {{ request.user.first_name.0|default:"U" }}{{ request.user.last_name.0|default:"" }}
+                        </div>
+                        <div class="user-details">
+                            <div class="user-name">{{ request.user.first_name }} {{ request.user.last_name }}</div>
+                            <div class="user-role">{{ request.user.utilisateur.get_role_display }}</div>
+                        </div>
+                    </div>
+                    <a href="{% url 'core:logout' %}" class="btn-logout">Déconnexion</a>
+                </div>
+            {% endif %}
+        </aside>
+
+        <!-- Contenu principal -->
+        <main class="main-content">
+            {% if messages %}
+                <div class="messages">
+                    {% for message in messages %}
+                        <div class="message {{ message.tags }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% block content %}
+            {% endblock %}
+        </main>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+
+    <!-- Script menu mobile -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        const mainContent = document.querySelector('.main-content');
+
+        function toggleMenu() {
+            const isHidden = sidebar.classList.contains('hidden');
+
+            if (isHidden) {
+                // Ouvrir le menu
+                mobileMenuBtn.classList.add('active');
+                sidebar.classList.remove('hidden');
+                overlay.classList.add('active');
+                mainContent.classList.remove('expanded');
+                document.body.style.overflow = 'hidden';
+                localStorage.setItem('menuOpen', 'true');
+            } else {
+                // Fermer le menu
+                mobileMenuBtn.classList.remove('active');
+                sidebar.classList.add('hidden');
+                overlay.classList.remove('active');
+                mainContent.classList.add('expanded');
+                document.body.style.overflow = '';
+                localStorage.setItem('menuOpen', 'false');
+            }
+        }
+
+        function closeMenu() {
+            mobileMenuBtn.classList.remove('active');
+            sidebar.classList.add('hidden');
+            overlay.classList.remove('active');
+            mainContent.classList.add('expanded');
+            document.body.style.overflow = '';
+            localStorage.setItem('menuOpen', 'false');
+        }
+
+        function openMenu() {
+            mobileMenuBtn.classList.add('active');
+            sidebar.classList.remove('hidden');
+            overlay.classList.remove('active');
+            mainContent.classList.remove('expanded');
+            document.body.style.overflow = '';
+        }
+
+        // Restaurer l'état du menu depuis localStorage
+        const menuState = localStorage.getItem('menuOpen');
+        if (menuState === 'false') {
+            // Menu fermé
+            closeMenu();
+        } else {
+            // Menu ouvert (défaut ou explicitement ouvert)
+            openMenu();
+        }
+
+        if (mobileMenuBtn) {
+            mobileMenuBtn.addEventListener('click', toggleMenu);
+        }
+
+        if (overlay) {
+            overlay.addEventListener('click', closeMenu);
+        }
+
+        // Fermer le menu quand on clique sur un lien de navigation
+        const navItems = document.querySelectorAll('.nav-item');
+        navItems.forEach(function(item) {
+            item.addEventListener('click', function() {
+                closeMenu();
+            });
+        });
+
+        // Gestion du swipe pour fermer le menu (mobile)
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        sidebar.addEventListener('touchstart', function(e) {
+            touchStartX = e.changedTouches[0].screenX;
+        }, false);
+
+        sidebar.addEventListener('touchend', function(e) {
+            touchEndX = e.changedTouches[0].screenX;
+            if (touchStartX - touchEndX > 50) {
+                closeMenu();
+            }
+        }, false);
+    });
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

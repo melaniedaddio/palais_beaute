@@ -1,0 +1,204 @@
+Institut;Famille_prestation;Prestation;Duree;Prix;Option;Forfait
+Palais;Ongle;Manucure;1h;5000;0;0
+Palais;Ongle;Manucure + pose vernis;1h;8000;0;0
+Palais;Ongle;Beauté des pieds;1h;5000;0;0
+Palais;Ongle;Beauté des pieds + pose vernis;1h;8000;0;0
+Palais;Ongle;Manucure + Beauté des pieds + pose vernis;1h;15000;0;0
+Palais;Ongle;Pose de vernis simple main ou pied;30 min;5000;0;0
+Palais;Ongle;Massage de main ou pied;15 min;6000;0;0
+Palais;Vernis semi permanent;Vernis semi permanent main ou pied couleur;1h;10000;0;0
+Palais;Vernis semi permanent;Vernis semi permanent main ou pied French;1h;15000;0;0
+Palais;Vernis semi permanent;Dépose de semi permanent;30 min;5000;0;0
+Palais;Gel;Pose gel des mains couleur ou French;2h;45000;0;0
+Palais;Gel;Pose gel des mains babyboomer;2h;60000;0;0
+Palais;Gel;Pose gel des mains couleur ou French avec capsule;2h;65000;0;0
+Palais;Gel;Pose gel des mains babyboomer avec capsule;2h;80000;0;0
+Palais;Gel;Pose gel des pieds couleur ou French;1h;35000;0;0
+Palais;Gel;Remplissage des mains couleur;2h;30000;0;0
+Palais;Gel;Remplissage des mains French;2h;35000;0;0
+Palais;Gel;Remplissage des mains babyboomer;2h;40000;0;0
+Palais;Gel;Remplissage des pieds couleur ou French;1h;25000;0;0
+Palais;Gel;Beauté des mains ou pieds couleur;1h;20000;0;0
+Palais;Gel;Beauté des mains ou pieds French;1h;25000;0;0
+Palais;Gel;Réparation un ongle;30 min;3000;0;0
+Palais;Gel;Dépose de gel;1h;10000;0;0
+Palais;Option;Strass (par strass);;1000;1;0
+Palais;Option;Dessin (par ongle);;1000;1;0
+Palais;Option;Effet miroir;;15000;1;0
+Palais;Option;Babyboomer;;15000;1;0
+Palais;Option;Deco spéciale (par ongle);;5000;1;0
+Palais;Option;Jelly spa;;5000;1;0
+Klinic;Laser femme;Lèvre supérieure;15 min;20000;0;0
+Klinic;Laser femme;Joue;15 min;20000;0;0
+Klinic;Laser femme;Menton;15 min;20000;0;0
+Klinic;Laser femme;Demi cou;15 min;20000;0;0
+Klinic;Laser femme;Cou;15 min;40000;0;0
+Klinic;Laser femme;Demi visage;15 min;40000;0;0
+Klinic;Laser femme;Visage complet;30 min;75000;0;0
+Klinic;Laser femme;Tout le corps;1h30;350000;0;0
+Klinic;Laser femme;Bras;30 min;60000;0;0
+Klinic;Laser femme;Aisselles;15 min;30000;0;0
+Klinic;Laser femme;Buste complet;30 min;100000;0;0
+Klinic;Laser femme;Poitrine;30 min;40000;0;0
+Klinic;Laser femme;Demi ventre;30 min;35000;0;0
+Klinic;Laser femme;Bas du dos;30 min;50000;0;0
+Klinic;Laser femme;Dos complet;30 min;100000;0;0
+Klinic;Laser femme;Ligne ombilicale;15 min;30000;0;0
+Klinic;Laser femme;Demi jambe;30 min;50000;0;0
+Klinic;Laser femme;Cuisses;30 min;50000;0;0
+Klinic;Laser femme;Jambes entières;30 min;100000;0;0
+Klinic;Laser femme;Maillot classique;15 min;30000;0;0
+Klinic;Laser femme;Maillot échancré;15 min;30000;0;0
+Klinic;Laser femme;Maillot intégrale;30 min;50000;0;0
+Klinic;Laser femme;Fesses;30 min;50000;0;0
+Klinic;Laser femme;Sif;15 min;20000;0;0
+Klinic;Laser homme;Tout le corps;2h;500000;0;0
+Klinic;Laser homme;Front;15 min;30000;0;0
+Klinic;Laser homme;Nuque;30 min;50000;0;0
+Klinic;Laser homme;Aisselle;15 min;50000;0;0
+Klinic;Laser homme;Avant bras;30 min;85000;0;0
+Klinic;Laser homme;Bras;30 min;150000;0;0
+Klinic;Laser homme;Joue;15 min;30000;0;0
+Klinic;Laser homme;Cou;30 min;60000;0;0
+Klinic;Laser homme;Buste;45 min;170000;0;0
+Klinic;Laser homme;Bas du dos;30 min;70000;0;0
+Klinic;Laser homme;Dos partiel;30 min;120000;0;0
+Klinic;Laser homme;Dos complet;30 min;175000;0;0
+Klinic;Laser homme;Demi jambe;30 min;140000;0;0
+Klinic;Laser homme;Cuisses;30 min;175000;0;0
+Klinic;Laser homme;Jambes entière;1h;250000;0;0
+Klinic;Laser homme;Epaule;30 min;50000;0;0
+Klinic;Soin médicaux corps amincissant;Radio fréquences une séance;30 min;50000;0;0
+Klinic;Soin médicaux corps amincissant;Radio fréquences 6 séances;30 min;250000;0;1
+Klinic;Soin médicaux corps amincissant;Laser froid coupe faim forfait 8 séances;30 min;300000;0;1
+Klinic;Soin médicaux corps amincissant;Ultra son/cavitation une séance;30 min;45000;0;0
+Klinic;Soin médicaux corps amincissant;Ultra son/cavitation 4 séances;30 min;150000;0;1
+Klinic;Soin médicaux corps amincissant;Cryo 1ère séance;1h;200000;0;0
+Klinic;Soin médicaux corps amincissant;Cryo 2ème séance;1h;170000;0;0
+Klinic;Soin médicaux corps amincissant;Cryo 3ème séance;1h;140000;0;0
+Klinic;Soin médicaux corps amincissant;Presso thérapie séance unique;30 min;25000;0;0
+Klinic;Soin médicaux corps amincissant;Presso thérapie 10 séances;30 min;200000;0;1
+Klinic;Vaccum;Cure 6 séances;1h;330000;0;1
+Klinic;Vaccum;Séance d'entretien;1h;40000;0;0
+Klinic;Body sculpt;Séance unique;1h;50000;0;0
+Klinic;Body sculpt;Forfait 10 séances;1h;60000;0;1
+Klinic;Infra bike;Séance unique;45 min;30000;0;0
+Klinic;Infra bike;Forfait 10 séances;45 min;250000;0;1
+Klinic;Traitement vergetures cicatrices et taches;Laser (par séance);1h;100000;0;0
+Klinic;Traitement vergetures cicatrices et taches;Bloomea cure 6 séances;1h;200000;0;1
+Klinic;Soins visage;Soins detox;1h;65000;0;0
+Klinic;Soins visage;Soins collagène;1h;50000;0;0
+Klinic;Soins visage;Soins hydratant;1h;85000;0;0
+Klinic;Soins visage;Soins anti âge;1h30;120000;0;0
+Klinic;Soins visage;Soin lightning;1h;85000;0;0
+Klinic;Soins visage;Radio fréquence visage une séance;45 min;55000;0;0
+Klinic;Soins visage;Radio fréquence visage 6 séances;45 min;275000;0;1
+Klinic;Bloomea Paris;Soin glow;1h;80000;0;0
+Klinic;Bloomea Paris;Cure corrective expert cicatrice/acné/tache 6 séances;1h;330000;0;1
+Klinic;Jetpeel;Visage + cou;1h;150000;0;0
+Klinic;Jetpeel;Décolleté;1h;60000;0;0
+Klinic;Jetpeel;Main;1h;60000;0;0
+Klinic;Jetpeel;Cuir chevelu;1h;100000;0;0
+Klinic;Morpheus 8;Visage + cou;1h;500000;0;0
+Klinic;Morpheus 8;Visage simple;1h;350000;0;0
+Klinic;Morpheus 8;Décolleté;1h;350000;0;0
+Klinic;Morpheus 8;Genoux;1h;350000;0;0
+Klinic;Morpheus 8;Cicatrice d'acné;1h;350000;0;0
+Klinic;Morpheus 8;Peau relâchée corps;1h;500000;0;0
+Klinic;Morpheus 8;Vergeture;1h;500000;0;0
+Klinic;LPG;Lift visage une séance;1h;35000;0;0
+Klinic;LPG;Lift visage 10 séances;1h;300000;0;1
+Klinic;LPG;Séance unique corps;1h;40000;0;0
+Klinic;LPG;Forfait 10 séances corps;1h;300000;0;1
+Klinic;LPG;Cure de 6 jours detox;1h;300000;0;1
+Klinic;Soin profond;Massage des mains;15 min;10000;0;0
+Klinic;Soin profond;Massage des pieds;15 min;10000;0;0
+Klinic;Soin profond;Massage relaxant;1h;30000;0;0
+Klinic;Soin profond;Massage du dos;30 min;15000;0;0
+Klinic;Soin profond;Massage des jambes;30 min;15000;0;0
+Klinic;Soin profond;Massage tonic;1h;35000;0;0
+Klinic;Soin profond;Massage amincissant;1h;40000;0;0
+Klinic;Soin profond;Massage pierre chaude;1h30;50000;0;0
+Klinic;Soin profond;Gommage du corps;30 min;30000;0;0
+Klinic;Soin profond;Gommage enveloppement + massage;1h30;55000;0;0
+Klinic;Soin profond;Gommage + massage;1h;50000;0;0
+Klinic;Soin profond;Drainage lymphatique;1h;40000;0;0
+Klinic;Soin profond;Medero une séance;1h;40000;0;0
+Klinic;Soin profond;Medero 8 séances;1h;230000;0;1
+Klinic;Epilation cire femme;Maillot intégral;30 min;17000;0;0
+Klinic;Epilation cire femme;Maillot classique;30 min;7000;0;0
+Klinic;Epilation cire femme;Maillot échancré;30 min;12000;0;0
+Klinic;Epilation cire femme;Sif;15 min;5000;0;0
+Klinic;Epilation cire femme;Fesses;15 min;10000;0;0
+Klinic;Epilation cire femme;Aisselles;15 min;5000;0;0
+Klinic;Epilation cire femme;Jambes entières;30 min;15000;0;0
+Klinic;Epilation cire femme;Demi jambe;30 min;10000;0;0
+Klinic;Epilation cire femme;Moustache;15 min;5000;0;0
+Klinic;Epilation cire femme;Barbe;15 min;5000;0;0
+Klinic;Epilation cire femme;Oreilles;15 min;5000;0;0
+Klinic;Epilation cire femme;Nez;15 min;5000;0;0
+Klinic;Epilation cire femme;Sourcils;15 min;5000;0;0
+Klinic;Epilation cire femme;Bras;30 min;15000;0;0
+Klinic;Epilation cire femme;Demi bras;30 min;10000;0;0
+Klinic;Epilation cire femme;Teinture sourcils;30 min;10000;0;0
+Klinic;Epilation cire femme;Teinture maillot;30 min;15000;0;0
+Klinic;Epilation cire femme;Visage;30 min;20000;0;0
+Klinic;Epilation cire femme;Dos;30 min;20000;0;0
+Klinic;Epilation cire femme;Soin vajacial;45 min;30000;0;0
+Klinic;Epilation cire homme;Aisselles;15 min;10000;0;0
+Klinic;Epilation cire homme;Jambes entières;30 min;30000;0;0
+Klinic;Epilation cire homme;Demi jambe;30 min;20000;0;0
+Klinic;Epilation cire homme;Moustache;15 min;10000;0;0
+Klinic;Epilation cire homme;Barbe;15 min;10000;0;0
+Klinic;Epilation cire homme;Oreilles;15 min;10000;0;0
+Klinic;Epilation cire homme;Nez;15 min;10000;0;0
+Klinic;Epilation cire homme;Sourcils;15 min;10000;0;0
+Klinic;Epilation cire homme;Bras;30 min;30000;0;0
+Klinic;Epilation cire homme;Demi bras;30 min;20000;0;0
+Klinic;Epilation cire homme;Visage;30 min;40000;0;0
+Klinic;Epilation cire homme;Dos;30 min;30000;0;0
+Klinic;Option;LPG Collant;;15000;1;0
+Express;Coiffure;Petite coupe;;20000;0;0
+Express;Coiffure;Grosse coupe;;30000;0;0
+Express;Coiffure;Brushing cheveux court;;10000;0;0
+Express;Coiffure;Brushing + fer;;13000;0;0
+Express;Coiffure;Brushing cheveux long;;15000;0;0
+Express;Coiffure;Boucles;;13000;0;0
+Express;Coiffure;Shampoing;;5000;0;0
+Express;Coiffure;Racine;;30000;0;0
+Express;Coiffure;Couleur cheveux court;;40000;0;0
+Express;Coiffure;Couleur cheveux long;;60000;0;0
+Express;Coiffure;Conturing;;30000;0;0
+Express;Coiffure;Rinçage;;25000;0;0
+Express;Coiffure;Low light cheveux court;;60000;0;0
+Express;Coiffure;Low light cheveux long;;80000;0;0
+Express;Coiffure;High light cheveux court;;80000;0;0
+Express;Coiffure;High light cheveux long;;160000;0;0
+Express;Coiffure;Chignon;;40000;0;0
+Express;Coiffure;Demi relevé;;25000;0;0
+Express;Coiffure;Coiffure engagement;;80000;0;0
+Express;Coiffure;Mariage;;150000;0;0
+Express;Coiffure;Soin olaplex;;30000;0;0
+Express;Coiffure;Bain d'huile;;20000;0;0
+Express;Coiffure afro;Fer;;20000;0;0
+Express;Coiffure afro;Shampoing + brushing;;15000;0;0
+Express;Coiffure afro;Défrisage;;30000;0;0
+Express;Coiffure afro;Défaire tresses simples;;5000;0;0
+Express;Coiffure afro;Défaire tresses compliquées;;10000;0;0
+Express;Coiffure afro;Napo;;10000;0;0
+Express;Coiffure afro;Shampoing traitement;;20000;0;0
+Express;Coiffure afro;Shampoing simple;;5000;0;0
+Express;Coiffure afro;Tissage (par boule);;15000;0;0
+Express;Coiffure afro;Nattes simples;;10000;0;0
+Express;Coiffure afro;Nattes modèles;;20000;0;0
+Express;Coiffure afro;Mise en forme;;10000;0;0
+Express;Coiffure afro;Coupe;;25000;0;0
+Express;Coiffure afro;Couleur;;45000;0;0
+Express;Coiffure afro;Couleur + extensions;;80000;0;0
+Express;Lissage keratine;Cheveux courts;;100000;0;0
+Express;Lissage keratine;Cheveux mi-long;;160000;0;0
+Express;Lissage keratine;Cheveux long;;200000;0;0
+Express;Extensions;Un paquet;;150000;0;0
+Express;Extensions;Dépose (par mèche);;700;0;0
+Express;Extensions;Colle + pose (par mèche);;1000;0;0
+Express;Extensions;Colle (par mèche);;700;0;0

@@ -1,0 +1,1761 @@
+{% extends 'base.html' %}
+
+{% block title %}Agenda {{ institut.nom }} - Le Palais de la Beauté{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="page-title">Agenda {{ institut.nom }}</h1>
+            <p class="page-subtitle">Gestion des rendez-vous</p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <!-- Navigation date -->
+            <button onclick="changeDate(-1)" class="btn btn-secondary" style="padding: 8px 12px;">
+                &larr; Jour précédent
+            </button>
+            <input type="date" id="date-selector" value="{{ date_selectionnee|date:'Y-m-d' }}"
+                   onchange="changeDate(0)" class="form-control" style="width: 160px;">
+            <button onclick="changeDate(1)" class="btn btn-secondary" style="padding: 8px 12px;">
+                Jour suivant &rarr;
+            </button>
+            <button onclick="changeDate('today')" class="btn btn-primary" style="padding: 8px 15px;">
+                Aujourd'hui
+            </button>
+            {% if institut.code == 'klinic' %}
+            <button onclick="ouvrirModalForfait()" class="btn" style="padding: 8px 15px; background-color: #9b59b6; color: white;">
+                Vendre un forfait
+            </button>
+            {% endif %}
+            <a href="{% url 'agenda:cloture_caisse' institut.code %}?date={{ date_selectionnee|date:'Y-m-d' }}"
+               class="btn btn-success" style="padding: 8px 15px; text-decoration: none;">
+                Clôture caisse
+            </a>
+        </div>
+    </div>
+</div>
+
+
+<!-- Stats du jour -->
+<div class="stats-grid" style="margin-bottom: 20px;">
+    <div class="stat-card">
+        <div class="stat-label">RDV du jour</div>
+        <div class="stat-value" id="stat-total">0</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">RDV validés</div>
+        <div class="stat-value" id="stat-valides">0</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">En attente</div>
+        <div class="stat-value" id="stat-attente">0</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Absents / Annulés</div>
+        <div class="stat-value" id="stat-absents" style="color: #dc3545;">0</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Chiffre d'affaires</div>
+        <div class="stat-value" id="stat-ca">0 <span class="stat-unit">CFA</span></div>
+    </div>
+</div>
+
+<!-- Légende des couleurs -->
+<div class="card" style="margin-bottom: 20px;">
+    <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap; padding: 10px;">
+        <strong>Légende :</strong>
+        {% for famille in familles %}
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 20px; height: 20px; background-color: {{ famille.couleur }}; border-radius: 3px; border: 1px solid #ddd;"></div>
+            <span style="font-size: 14px;">{{ famille.nom }}</span>
+        </div>
+        {% endfor %}
+        {% if institut.code == 'klinic' %}
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 20px; height: 20px; background-color: #9b59b6; border-radius: 3px; border: 1px solid #ddd;"></div>
+            <span style="font-size: 14px;">Séance forfait</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Grille de l'agenda -->
+<div class="card" style="padding: 0; overflow: hidden;">
+    <div class="agenda-container" style="overflow-x: auto;">
+        <table class="agenda-table">
+            <thead>
+                <tr>
+                    <th class="heure-col" style="position: sticky; left: 0; z-index: 12; background-color: #fff; min-width: 80px;">Heure</th>
+                    {% for employe in employes %}
+                    <th class="employe-col" style="min-width: 200px; text-align: center;">
+                        {{ employe.nom }}
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for creneau in creneaux %}
+                <tr class="creneau-row" data-heure="{{ creneau|time:'H:i' }}">
+                    <td class="heure-cell" style="position: sticky; left: 0; z-index: 10; background-color: #f9f9f9; font-weight: 500; text-align: center;">
+                        {{ creneau|time:'H:i' }}
+                    </td>
+                    {% for employe in employes %}
+                    <td class="employe-cell" data-employe-id="{{ employe.id }}" data-heure="{{ creneau|time:'H:i' }}"
+                        onclick="nouvelRdv('{{ employe.id }}', '{{ creneau|time:'H:i' }}')"
+                        style="cursor: pointer; position: relative; height: 40px; border: 1px solid #e0e0e0;">
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Nouveau RDV -->
+<div id="modal-rdv" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <h2 id="modal-rdv-title">Nouveau rendez-vous</h2>
+            <button class="modal-close" onclick="fermerModalRdv()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="form-rdv">
+                <input type="hidden" id="rdv-id" name="rdv_id">
+                <input type="hidden" id="rdv-employe" name="employe_id">
+
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="rdv-date" name="date" required class="form-control"
+                               value="{{ date_selectionnee|date:'Y-m-d' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Heure</label>
+                        <input type="time" id="rdv-heure" name="heure" required class="form-control" step="900">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Client</label>
+                    <input type="text" id="rdv-client-search" class="form-control"
+                           placeholder="Rechercher un client..." autocomplete="off">
+                    <input type="hidden" id="rdv-client" name="client_id" required>
+                    <input type="hidden" id="rdv-seance-forfait" name="seance_forfait_id">
+                    <div id="rdv-client-results" class="autocomplete-results"></div>
+                </div>
+
+                {% if institut.code == 'klinic' %}
+                <!-- Forfaits actifs du client -->
+                <div id="forfaits-client-container" class="form-group" style="display: none;">
+                    <label style="color: #9b59b6; font-weight: 600;">Forfaits actifs du client</label>
+                    <div id="forfaits-client-list" style="background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); border: 2px solid #9b59b6; border-radius: 8px; padding: 12px;"></div>
+                </div>
+                {% endif %}
+
+                <div class="form-group">
+                    <label>Famille de prestation</label>
+                    <select id="rdv-famille" class="form-control" onchange="chargerPrestations()">
+                        <option value="">-- Sélectionner une famille --</option>
+                        {% for famille in familles %}
+                        <option value="{{ famille.id }}">{{ famille.nom }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Prestation</label>
+                    <select id="rdv-prestation" name="prestation_id" required class="form-control" onchange="calculerTotal()">
+                        <option value="">-- Sélectionner une prestation --</option>
+                    </select>
+                    <div id="prestation-info" style="margin-top: 8px; font-size: 13px; color: #666;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>Options</label>
+                    <div id="options-list" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                        {% for option in options %}
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="checkbox" name="options" value="{{ option.id }}"
+                                   data-prix="{{ option.prix }}" onchange="calculerTotal()">
+                            <span>{{ option.nom }} (+{{ option.prix }} CFA)</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Prix de base</label>
+                    <input type="number" id="rdv-prix-base" name="prix_base" class="form-control"
+                           onchange="calculerTotal()" step="0.01">
+                </div>
+
+                <div class="form-group">
+                    <label style="font-weight: 600; font-size: 16px;">Prix total</label>
+                    <div id="rdv-prix-total" style="font-size: 24px; font-weight: 700; color: #c9a86a;">
+                        0 CFA
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="fermerModalRdv()" style="padding: 8px 16px;">Annuler</button>
+            <button type="button" class="btn btn-primary" onclick="enregistrerRdv()" style="padding: 8px 16px;">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Validation -->
+<div id="modal-validation" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+            <h2>Valider le rendez-vous</h2>
+            <button class="modal-close" onclick="fermerModalValidation()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="form-validation">
+                <input type="hidden" id="validation-rdv-id">
+
+                <div class="card" style="background: #f9f9f9; margin-bottom: 20px;">
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; font-size: 14px;">
+                        <div><strong>Client :</strong> <span id="validation-client"></span></div>
+                        <div><strong>Prestation :</strong> <span id="validation-prestation"></span></div>
+                        <div><strong>Date :</strong> <span id="validation-date"></span></div>
+                        <div><strong>Heure :</strong> <span id="validation-heure"></span></div>
+                    </div>
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
+                        <strong style="font-size: 16px;">Prix total : </strong>
+                        <span id="validation-prix-total" style="font-size: 20px; font-weight: 700; color: #c9a86a;"></span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Type de paiement</label>
+                    <select id="validation-type-paiement" class="form-control" onchange="updateMontantPaiement()">
+                        <option value="complet">Paiement complet</option>
+                        <option value="partiel">Paiement partiel</option>
+                        <option value="differe">Paiement différé</option>
+                    </select>
+                </div>
+
+                <div id="montant-paiement-group" class="form-group" style="display: none;">
+                    <label>Montant payé</label>
+                    <input type="number" id="validation-montant" class="form-control" step="0.01"
+                           onchange="calculerReste()">
+                    <small id="reste-a-payer" style="display: block; margin-top: 5px; color: #c9a86a;"></small>
+                </div>
+
+                <!-- Section Cartes Cadeaux -->
+                <div id="section-cartes-cadeaux" class="form-group" style="display: none;">
+                    <label>Cartes cadeaux disponibles</label>
+                    <div id="liste-cartes-cadeaux" style="background: #f0f8f0; border-radius: 8px; padding: 12px; margin-bottom: 10px;">
+                    </div>
+                    <div id="recapitulatif-cartes" style="display: none; background: #fff8e1; border-radius: 8px; padding: 12px; margin-bottom: 10px; font-size: 13px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Carte(s) cadeau :</span>
+                            <strong id="total-cartes-cadeaux" style="color: #28a745;">0 CFA</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 5px;">
+                            <span>Reste à payer :</span>
+                            <strong id="reste-apres-cartes" style="color: #c9a86a;">0 CFA</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="section-moyen-paiement" class="form-group">
+                    <label>Moyen de paiement</label>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="moyen_paiement" value="especes" checked>
+                            <span>Espèces</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="moyen_paiement" value="carte">
+                            <span>Carte bancaire</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="moyen_paiement" value="cheque">
+                            <span>Chèque</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="moyen_paiement" value="om">
+                            <span>Orange Money</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="moyen_paiement" value="wave">
+                            <span>Wave</span>
+                        </label>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="fermerModalValidation()" style="padding: 8px 16px;">Annuler</button>
+            <button type="button" class="btn btn-success" onclick="validerRdv()" style="padding: 8px 16px;">Valider le RDV</button>
+        </div>
+    </div>
+</div>
+
+{% if institut.code == 'klinic' %}
+<!-- Modal Vente Forfait -->
+<div id="modal-forfait" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+            <h2>Vendre un forfait</h2>
+            <button class="modal-close" onclick="fermerModalForfait()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="form-forfait">
+                <!-- Recherche client -->
+                <div class="form-group">
+                    <label>Client</label>
+                    <input type="text" id="forfait-client-search" class="form-control"
+                           placeholder="Rechercher un client..." autocomplete="off">
+                    <input type="hidden" id="forfait-client-id" name="client_id" required>
+                    <div id="forfait-client-results" class="autocomplete-results"></div>
+                </div>
+
+                <!-- Sélection du forfait -->
+                <div class="form-group">
+                    <label>Forfait</label>
+                    <select id="forfait-prestation" name="prestation_id" class="form-control" required
+                            onchange="updateForfaitPrix()">
+                        <option value="">-- Choisir un forfait --</option>
+                    </select>
+                </div>
+
+                <!-- Détails du forfait sélectionné -->
+                <div id="forfait-details" style="display: none; background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div>
+                            <span style="color: #666; font-size: 13px;">Nombre de séances</span>
+                            <div id="forfait-nb-seances" style="font-weight: 600; font-size: 18px; color: #9b59b6;">-</div>
+                        </div>
+                        <div>
+                            <span style="color: #666; font-size: 13px;">Prix total</span>
+                            <div id="forfait-prix" style="font-weight: 600; font-size: 18px; color: #333;">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Type de paiement -->
+                <div class="form-group">
+                    <label>Type de paiement</label>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f9f9f9; border-radius: 8px; cursor: pointer;">
+                            <input type="radio" name="forfait_type_paiement" value="complet" checked onchange="toggleForfaitMontant()">
+                            <span>Paiement complet</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f9f9f9; border-radius: 8px; cursor: pointer;">
+                            <input type="radio" name="forfait_type_paiement" value="partiel" onchange="toggleForfaitMontant()">
+                            <span>Acompte</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f9f9f9; border-radius: 8px; cursor: pointer;">
+                            <input type="radio" name="forfait_type_paiement" value="differe" onchange="toggleForfaitMontant()">
+                            <span>Paiement différé</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Montant (pour paiement partiel) -->
+                <div id="forfait-montant-container" class="form-group" style="display: none;">
+                    <label>Montant payé maintenant</label>
+                    <input type="number" id="forfait-montant" name="montant" class="form-control"
+                           placeholder="0" min="0">
+                </div>
+
+                <!-- Moyen de paiement -->
+                <div class="form-group">
+                    <label>Moyen de paiement</label>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="forfait_mode_paiement" value="especes" checked>
+                            <span>Espèces</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="forfait_mode_paiement" value="carte">
+                            <span>Carte bancaire</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="forfait_mode_paiement" value="cheque">
+                            <span>Chèque</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="forfait_mode_paiement" value="om">
+                            <span>Orange Money</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="forfait_mode_paiement" value="wave">
+                            <span>Wave</span>
+                        </label>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="fermerModalForfait()" style="padding: 8px 16px;">Annuler</button>
+            <button type="button" class="btn" onclick="acheterForfait()" style="padding: 8px 16px; background-color: #9b59b6; color: white;">Vendre le forfait</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+.agenda-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.agenda-table th {
+    background-color: #f5f5f5;
+    padding: 12px 8px;
+    font-weight: 600;
+    border: 1px solid #e0e0e0;
+}
+
+.agenda-table td {
+    padding: 0;
+    vertical-align: top;
+}
+
+.employe-cell:hover {
+    background-color: #f9f9f9;
+}
+
+.rdv-card {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    right: 2px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    border-left: 3px solid;
+    background: rgba(255, 255, 255, 0.9);
+    transition: transform 0.2s;
+    z-index: 5;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.rdv-card:hover {
+    transform: translateX(2px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.rdv-card.statut-planifie {
+    opacity: 0.85;
+}
+
+.rdv-card.statut-valide {
+    opacity: 1;
+    font-weight: 500;
+    border-left-width: 4px !important;
+}
+
+.rdv-card.statut-annule {
+    opacity: 0.5;
+    text-decoration: line-through;
+}
+
+.rdv-card.statut-absent {
+    opacity: 0.7;
+    border-left-color: #dc3545 !important;
+}
+
+.rdv-card.statut-annule_client {
+    opacity: 0.7;
+    text-decoration: line-through;
+    border-left-color: #dc3545 !important;
+}
+
+.rdv-client {
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.rdv-prestation {
+    font-size: 11px;
+    color: #666;
+}
+
+.rdv-prix {
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 2px;
+    color: #c9a86a;
+}
+
+.autocomplete-results {
+    position: absolute;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    width: calc(100% - 2px);
+    margin-top: 2px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.autocomplete-item {
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.autocomplete-item:hover {
+    background-color: #f9f9f9;
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.form-control {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #c9a86a;
+    box-shadow: 0 0 0 3px rgba(201, 168, 106, 0.1);
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    font-size: 14px;
+    color: #333;
+}
+
+/* Modal styles */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 16px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-header h2 {
+    font-size: 18px;
+    color: var(--text-dark);
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-light);
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-footer {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    padding: 15px 20px;
+    border-top: 1px solid #e0e0e0;
+}
+
+/* Responsive - Tablette portrait */
+@media (max-width: 900px) {
+    .content-header > div:first-child > div:last-child {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .agenda-container {
+        margin: 0 -10px;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Responsive - Mobile */
+@media (max-width: 600px) {
+    .content-header > div:first-child {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 15px !important;
+    }
+
+    .content-header > div:first-child > div:last-child {
+        width: 100%;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .content-header button,
+    .content-header a.btn {
+        flex: 1 1 auto;
+        min-width: 100px;
+        font-size: 12px;
+        padding: 8px 10px !important;
+        white-space: nowrap;
+    }
+
+    .content-header input[type="date"] {
+        width: 100% !important;
+        margin-bottom: 10px;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+    }
+
+    .stat-card {
+        padding: 15px !important;
+    }
+
+    .stat-value {
+        font-size: 22px !important;
+    }
+
+    /* Légende sur mobile */
+    .card > div {
+        gap: 10px !important;
+    }
+
+    .card > div > div {
+        font-size: 12px !important;
+    }
+
+    /* Agenda table mobile */
+    .agenda-table th,
+    .agenda-table td {
+        min-width: 150px !important;
+    }
+
+    .heure-col {
+        min-width: 60px !important;
+        font-size: 12px !important;
+    }
+
+    .rdv-card {
+        font-size: 11px;
+        padding: 4px 6px;
+    }
+
+    .rdv-client {
+        font-size: 11px;
+    }
+
+    .rdv-prestation {
+        font-size: 10px;
+    }
+
+    .rdv-prix {
+        font-size: 10px;
+    }
+
+    /* Modal mobile */
+    .modal-content {
+        width: 95% !important;
+        max-width: 100% !important;
+        max-height: 95vh;
+        margin: auto 10px;
+        border-radius: 12px;
+    }
+
+    .modal-header {
+        padding: 15px;
+    }
+
+    .modal-header h2 {
+        font-size: 16px;
+    }
+
+    .modal-body {
+        padding: 15px;
+    }
+
+    .modal-footer {
+        padding: 15px;
+        flex-wrap: wrap;
+    }
+
+    .modal-footer .btn {
+        flex: 1;
+        min-width: 80px;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr !important;
+    }
+
+    #options-list {
+        grid-template-columns: 1fr !important;
+    }
+
+    #options-list label {
+        font-size: 13px;
+    }
+}
+
+/* Responsive - Petit mobile */
+@media (max-width: 375px) {
+    .content-header button,
+    .content-header a.btn {
+        font-size: 11px;
+        padding: 6px 8px !important;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .stat-value {
+        font-size: 20px !important;
+    }
+
+    .agenda-table th,
+    .agenda-table td {
+        min-width: 130px !important;
+    }
+
+    .modal-content {
+        width: 100% !important;
+        height: 100%;
+        max-height: 100%;
+        border-radius: 0;
+    }
+}
+</style>
+
+<script>
+// Version: 2026-01-20-10:45 - Use window object for global variables
+// Variables globales - IMPORTANT: déclaration en premier
+window.prestationsData = [];
+window.rdvData = {{ rdv_par_employe|safe }};
+window.currentRdvId = null;
+window.caisseCloturee = {{ caisse_cloturee|yesno:"true,false" }};
+window.isPatron = {{ request.user.utilisateur.is_patron|yesno:"true,false" }};
+
+console.log('=== AGENDA SCRIPT v2026-01-21-17:05 LOADED ===');
+console.log('currentRdvId initialisé:', window.currentRdvId);
+console.log('rdvData:', window.rdvData);
+// Debug: afficher les couleurs de chaque RDV
+Object.keys(window.rdvData).forEach(employeId => {
+    window.rdvData[employeId].forEach(rdv => {
+        console.log(`RDV ${rdv.id} - Statut: ${rdv.statut} - Couleur: ${rdv.couleur}`);
+    });
+});
+
+// Initialisation
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('=== DOMContentLoaded déclenché ===');
+    console.log('Appel de chargerPrestationsData()...');
+    chargerPrestationsData();
+    afficherRdvSurGrille();
+    calculerStats();
+});
+
+// Changer de date
+function changeDate(direction) {
+    const dateInput = document.getElementById('date-selector');
+    const currentDate = new Date(dateInput.value);
+
+    if (direction === 'today') {
+        dateInput.value = new Date().toISOString().split('T')[0];
+    } else {
+        currentDate.setDate(currentDate.getDate() + parseInt(direction));
+        dateInput.value = currentDate.toISOString().split('T')[0];
+    }
+
+    window.location.href = '?date=' + dateInput.value;
+}
+
+// Charger les prestations par AJAX
+function chargerPrestationsData() {
+    console.log('=== DEBUT chargerPrestationsData ===');
+    const url = '/agenda/{{ institut.code }}/api/prestations/';
+    console.log('URL appelée:', url);
+
+    fetch(url)
+        .then(response => {
+            console.log('Response reçue, status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            window.prestationsData = data;
+            console.log('✓ Prestations chargées avec SUCCES:', window.prestationsData.length, 'prestations');
+            console.log('Données:', data);
+        })
+        .catch(error => {
+            console.error('✗ ERREUR chargement prestations:', error);
+            alert('Erreur de chargement des prestations: ' + error.message);
+        });
+}
+
+function chargerPrestations(retryCount = 0) {
+    const familleId = document.getElementById('rdv-famille').value;
+    const prestationSelect = document.getElementById('rdv-prestation');
+    const infoDiv = document.getElementById('prestation-info');
+
+    console.log('chargerPrestations appelé - familleId:', familleId, 'retry:', retryCount);
+    console.log('window.prestationsData disponible:', window.prestationsData.length, 'prestations');
+
+    prestationSelect.innerHTML = '<option value="">-- Chargement... --</option>';
+    infoDiv.innerHTML = '';
+
+    if (!familleId) {
+        prestationSelect.innerHTML = '<option value="">-- Sélectionner une prestation --</option>';
+        return;
+    }
+
+    // Si les prestations ne sont pas encore chargées, attendre un peu et réessayer (max 50 fois = 5 secondes)
+    if (window.prestationsData.length === 0) {
+        if (retryCount < 50) {
+            console.log('Prestations pas encore chargées, attente...', retryCount);
+            setTimeout(() => chargerPrestations(retryCount + 1), 100);
+        } else {
+            console.error('TIMEOUT: Les prestations n\'ont pas pu être chargées après 5 secondes');
+            prestationSelect.innerHTML = '<option value="">Erreur de chargement des prestations</option>';
+        }
+        return;
+    }
+
+    const prestations = window.prestationsData.filter(p => p.famille_id == familleId);
+    console.log('Prestations filtrées pour famille', familleId, ':', prestations.length, 'prestations');
+
+    prestationSelect.innerHTML = '<option value="">-- Sélectionner une prestation --</option>';
+    prestations.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p.id;
+        option.textContent = p.nom + ' - ' + p.prix + ' CFA (' + p.duree + 'h)';
+        option.dataset.prix = p.prix;
+        option.dataset.duree = p.duree;
+        prestationSelect.appendChild(option);
+    });
+}
+
+// Calculer le prix total
+function calculerTotal() {
+    const prestationSelect = document.getElementById('rdv-prestation');
+    const selectedOption = prestationSelect.options[prestationSelect.selectedIndex];
+
+    if (!selectedOption || !selectedOption.value) {
+        document.getElementById('rdv-prix-total').textContent = '0 CFA';
+        return;
+    }
+
+    let prixBase = parseFloat(selectedOption.dataset.prix) || 0;
+    document.getElementById('rdv-prix-base').value = prixBase;
+
+    // Ajouter le prix des options
+    let prixOptions = 0;
+    document.querySelectorAll('input[name="options"]:checked').forEach(checkbox => {
+        prixOptions += parseFloat(checkbox.dataset.prix) || 0;
+    });
+
+    const prixTotal = prixBase + prixOptions;
+    document.getElementById('rdv-prix-total').textContent = prixTotal.toLocaleString('fr-FR') + ' CFA';
+
+    // Afficher info prestation
+    const duree = selectedOption.dataset.duree;
+    document.getElementById('prestation-info').innerHTML =
+        '<strong>Durée :</strong> ' + duree + 'h | <strong>Prix de base :</strong> ' + prixBase.toLocaleString('fr-FR') + ' CFA';
+}
+
+// Nouveau RDV
+function nouvelRdv(employeId, heure) {
+    console.log('=== nouvelRdv v2026-01-20-10:45 appelé ===');
+    console.log('Paramètres - employeId:', employeId, 'heure:', heure);
+    console.log('Type de currentRdvId:', typeof window.currentRdvId);
+
+    // Supprimer les boutons supplémentaires s'ils existent
+    const btnSupprimer = document.getElementById('btn-supprimer-rdv');
+    const btnValider = document.getElementById('btn-valider-rdv');
+    if (btnSupprimer) btnSupprimer.remove();
+    if (btnValider) btnValider.remove();
+
+    document.getElementById('modal-rdv-title').textContent = 'Nouveau rendez-vous';
+    document.getElementById('form-rdv').reset();
+    document.getElementById('rdv-id').value = '';
+    document.getElementById('rdv-employe').value = employeId;
+    document.getElementById('rdv-heure').value = heure;
+    document.getElementById('rdv-prix-total').textContent = '0 CFA';
+    document.getElementById('rdv-client').value = '';
+    document.getElementById('rdv-client-search').value = '';
+
+    {% if institut.code == 'klinic' %}
+    // Réinitialiser les forfaits
+    document.getElementById('rdv-seance-forfait').value = '';
+    const forfaitContainer = document.getElementById('forfaits-client-container');
+    if (forfaitContainer) {
+        forfaitContainer.style.display = 'none';
+        forfaitContainer.innerHTML = `
+            <label style="color: #9b59b6; font-weight: 600;">Forfaits actifs du client</label>
+            <div id="forfaits-client-list" style="background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); border: 2px solid #9b59b6; border-radius: 8px; padding: 12px;"></div>
+        `;
+    }
+    // Réactiver les champs
+    document.getElementById('rdv-famille').disabled = false;
+    document.getElementById('rdv-prestation').disabled = false;
+    document.getElementById('rdv-prix-base').disabled = false;
+    {% endif %}
+
+    window.currentRdvId = null;
+
+    const modal = document.getElementById('modal-rdv');
+    console.log('Modal trouvé:', modal);
+    modal.style.display = 'flex';
+    console.log('Modal display mis à flex');
+}
+
+function fermerModalRdv() {
+    document.getElementById('modal-rdv').style.display = 'none';
+
+    // Supprimer les boutons supplémentaires s'ils existent
+    const btnSupprimer = document.getElementById('btn-supprimer-rdv');
+    const btnValider = document.getElementById('btn-valider-rdv');
+    if (btnSupprimer) btnSupprimer.remove();
+    if (btnValider) btnValider.remove();
+}
+
+// Enregistrer RDV
+function enregistrerRdv() {
+    const form = document.getElementById('form-rdv');
+    const formData = new FormData(form);
+
+    // Vérifications
+    if (!formData.get('client_id')) {
+        alert('Veuillez sélectionner un client');
+        return;
+    }
+
+    // Si c'est une séance de forfait, la prestation sera déterminée côté serveur
+    const seanceForfaitId = formData.get('seance_forfait_id');
+    if (!formData.get('prestation_id') && !seanceForfaitId) {
+        alert('Veuillez sélectionner une prestation');
+        return;
+    }
+
+    // Si forfait sélectionné mais prestation disabled, récupérer la valeur manuellement
+    if (seanceForfaitId && !formData.get('prestation_id')) {
+        const prestationSelect = document.getElementById('rdv-prestation');
+        if (prestationSelect.value) {
+            formData.set('prestation_id', prestationSelect.value);
+        }
+    }
+
+    console.log('Envoi du formulaire:', Object.fromEntries(formData));
+
+    const url = window.currentRdvId ?
+        '/agenda/{{ institut.code }}/api/rdv/' + window.currentRdvId + '/modifier/' :
+        '/agenda/{{ institut.code }}/api/rdv/creer/';
+
+    fetch(url, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            fermerModalRdv();
+            location.reload();
+        } else {
+            alert('Erreur : ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Erreur réseau : ' + error);
+    });
+}
+
+// Afficher les RDV sur la grille
+function afficherRdvSurGrille() {
+    Object.keys(window.rdvData).forEach(employeId => {
+        window.rdvData[employeId].forEach(rdv => {
+            const cell = document.querySelector(
+                `.employe-cell[data-employe-id="${employeId}"][data-heure="${rdv.heure_debut.substring(0, 5)}"]`
+            );
+
+            if (cell) {
+                const card = document.createElement('div');
+                card.className = 'rdv-card statut-' + rdv.statut;
+
+                // Couleur selon le statut et forfait
+                let couleurBordure = rdv.couleur; // Couleur de la famille par défaut
+                let couleurFond = 'rgba(255, 255, 255, 0.9)'; // Fond blanc par défaut
+
+                // Séance de forfait = violet
+                if (rdv.est_seance_forfait) {
+                    couleurBordure = '#9b59b6'; // Violet pour forfait
+                    couleurFond = 'rgba(155, 89, 182, 0.1)'; // Fond violet léger
+                }
+
+                if (rdv.statut === 'valide') {
+                    couleurBordure = '#28a745'; // Vert pour validé
+                    couleurFond = 'rgba(40, 167, 69, 0.1)'; // Fond vert léger
+                } else if (rdv.statut === 'annule') {
+                    couleurBordure = '#6c757d'; // Gris pour annulé
+                    couleurFond = 'rgba(108, 117, 125, 0.1)'; // Fond gris léger
+                } else if (rdv.statut === 'absent' || rdv.statut === 'annule_client') {
+                    couleurBordure = '#dc3545'; // Rouge pour absent/annulé client
+                    couleurFond = 'rgba(220, 53, 69, 0.1)'; // Fond rouge léger
+                }
+
+                card.style.borderLeftColor = couleurBordure;
+                card.style.backgroundColor = couleurFond;
+                card.style.height = (rdv.duree_creneaux * 40 - 4) + 'px';
+                card.onclick = function(e) {
+                    e.stopPropagation();
+                    afficherDetailsRdv(rdv.id);
+                };
+
+                let statutBadge = '';
+                if (rdv.statut === 'valide') {
+                    statutBadge = '<div style="position: absolute; top: 4px; right: 4px; color: #28a745; font-weight: bold;">✓</div>';
+                } else if (rdv.statut === 'absent' || rdv.statut === 'annule_client') {
+                    statutBadge = '<div style="position: absolute; top: 4px; right: 4px; color: #dc3545; font-weight: bold; font-size: 10px;">ANNULÉ</div>';
+                }
+
+                // Badge forfait
+                let forfaitBadge = '';
+                if (rdv.est_seance_forfait && rdv.label_forfait) {
+                    forfaitBadge = `<div style="font-size: 10px; color: #9b59b6; font-weight: 600;">${rdv.label_forfait}</div>`;
+                }
+
+                card.innerHTML = `
+                    <div class="rdv-client">${rdv.client}</div>
+                    <div class="rdv-prestation">${rdv.prestation}</div>
+                    ${forfaitBadge}
+                    <div class="rdv-prix">${rdv.prix_total.toLocaleString('fr-FR')} CFA</div>
+                    ${statutBadge}
+                `;
+
+                cell.appendChild(card);
+                cell.style.cursor = 'default';
+            }
+        });
+    });
+}
+
+// Afficher détails RDV (clic sur une card)
+function afficherDetailsRdv(rdvId) {
+    // Charger les détails du RDV
+    fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/')
+        .then(response => response.json())
+        .then(rdv => {
+            if (rdv.statut === 'planifie') {
+                ouvrirModalActions(rdv);
+            } else if (rdv.statut === 'valide') {
+                alert('RDV validé\n\nClient: ' + rdv.client + '\nPrestation: ' + rdv.prestation +
+                      '\nDate: ' + rdv.date + ' à ' + rdv.heure_debut + '\nPrix: ' + rdv.prix_total.toLocaleString('fr-FR') + ' CFA');
+            } else if (rdv.statut === 'absent' || rdv.statut === 'annule_client') {
+                alert('RDV annulé\n\nClient: ' + rdv.client + '\nPrestation: ' + rdv.prestation +
+                      '\nDate: ' + rdv.date + ' à ' + rdv.heure_debut);
+            }
+        })
+        .catch(error => {
+            alert('Erreur lors du chargement du RDV: ' + error);
+        });
+}
+
+// Modal d'actions pour un RDV planifié
+function ouvrirModalActions(rdv) {
+    // Supprimer l'ancien modal d'actions s'il existe
+    let modal = document.getElementById('modal-actions');
+    if (modal) modal.remove();
+
+    let patronButtons = '';
+    if (window.isPatron) {
+        patronButtons = `
+            <button class="btn" style="padding: 10px 16px; background: #dc3545; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;" onclick="marquerAnnule(${rdv.id})">
+                Annulé
+            </button>
+        `;
+    }
+
+    modal = document.createElement('div');
+    modal.id = 'modal-actions';
+    modal.className = 'modal';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2>Actions - ${rdv.client}</h2>
+                <button class="modal-close" onclick="document.getElementById('modal-actions').style.display='none'">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+                    <strong>${rdv.prestation}</strong> - ${rdv.prix_total.toLocaleString('fr-FR')} CFA
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button class="btn" style="padding: 10px 16px; background: #c9a86a; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;" onclick="document.getElementById('modal-actions').style.display='none'; modifierRdv(window._actionRdv)">
+                        Modifier le RDV
+                    </button>
+                    <button class="btn" style="padding: 10px 16px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;" onclick="document.getElementById('modal-actions').style.display='none'; ouvrirModalValidation(${rdv.id})">
+                        Valider le RDV
+                    </button>
+                    ${patronButtons}
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    window._actionRdv = rdv;
+
+    // Fermer en cliquant sur le fond
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) modal.style.display = 'none';
+    });
+}
+
+// Marquer un RDV comme annulé (patron uniquement)
+function marquerAnnule(rdvId) {
+    if (!confirm('Confirmer l\'annulation de ce rendez-vous ?')) return;
+    document.getElementById('modal-actions').style.display = 'none';
+
+    fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/annule-client/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Erreur : ' + data.message);
+        }
+    })
+    .catch(error => alert('Erreur réseau : ' + error));
+}
+
+// Modifier un RDV existant
+function modifierRdv(rdv) {
+    // Remplir le formulaire avec les données du RDV
+    document.getElementById('modal-rdv-title').textContent = 'Modifier le rendez-vous';
+    document.getElementById('rdv-id').value = rdv.id;
+    document.getElementById('rdv-employe').value = rdv.employe_id;
+    document.getElementById('rdv-date').value = rdv.date;
+    document.getElementById('rdv-heure').value = rdv.heure_debut;
+    document.getElementById('rdv-client').value = rdv.client_id;
+    document.getElementById('rdv-client-search').value = rdv.client;
+    document.getElementById('rdv-prix-base').value = rdv.prix_base;
+
+    // Charger la famille et la prestation
+    document.getElementById('rdv-famille').value = rdv.famille_id;
+    chargerPrestations();
+
+    // Attendre un peu que les prestations se chargent
+    setTimeout(() => {
+        document.getElementById('rdv-prestation').value = rdv.prestation_id;
+        calculerTotal();
+
+        // Cocher les options
+        document.querySelectorAll('input[name="options"]').forEach(checkbox => {
+            checkbox.checked = rdv.options.some(opt => opt.id == checkbox.value);
+        });
+        calculerTotal();
+    }, 500);
+
+    window.currentRdvId = rdv.id;
+
+    // Afficher le modal
+    document.getElementById('modal-rdv').style.display = 'flex';
+
+    // Ajouter un bouton Supprimer et Valider
+    const footer = document.querySelector('#modal-rdv .modal-footer');
+    if (!document.getElementById('btn-supprimer-rdv')) {
+        const btnSupprimer = document.createElement('button');
+        btnSupprimer.id = 'btn-supprimer-rdv';
+        btnSupprimer.className = 'btn btn-danger';
+        btnSupprimer.style.marginRight = 'auto';
+        btnSupprimer.style.padding = '8px 16px';
+        btnSupprimer.textContent = 'Supprimer';
+        btnSupprimer.onclick = function() {
+            if (confirm('Voulez-vous vraiment supprimer ce rendez-vous ?')) {
+                supprimerRdv(rdv.id);
+            }
+        };
+
+        const btnValider = document.createElement('button');
+        btnValider.id = 'btn-valider-rdv';
+        btnValider.className = 'btn btn-success';
+        btnValider.style.padding = '8px 16px';
+        btnValider.textContent = 'Valider';
+        btnValider.onclick = function() {
+            fermerModalRdv();
+            ouvrirModalValidation(rdv.id);
+        };
+
+        footer.insertBefore(btnSupprimer, footer.firstChild);
+        footer.insertBefore(btnValider, footer.querySelector('.btn-primary'));
+    }
+}
+
+// Supprimer un RDV
+function supprimerRdv(rdvId) {
+    fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/supprimer/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Erreur : ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Erreur réseau : ' + error);
+    });
+}
+
+// Modal validation
+// Variable globale pour stocker le prix du RDV en cours de validation
+let validationPrixTotal = 0;
+let validationClientId = null;
+
+function ouvrirModalValidation(rdvId) {
+    // Récupérer les données du RDV
+    fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/')
+        .then(response => response.json())
+        .then(rdv => {
+            document.getElementById('validation-rdv-id').value = rdv.id;
+            document.getElementById('validation-client').textContent = rdv.client;
+            document.getElementById('validation-prestation').textContent = rdv.prestation;
+            document.getElementById('validation-date').textContent = rdv.date;
+            document.getElementById('validation-heure').textContent = rdv.heure_debut;
+            document.getElementById('validation-prix-total').textContent = rdv.prix_total.toLocaleString('fr-FR') + ' CFA';
+
+            validationPrixTotal = rdv.prix_total;
+            validationClientId = rdv.client_id;
+            document.getElementById('validation-montant').value = rdv.prix_total;
+            document.getElementById('modal-validation').style.display = 'flex';
+
+            // Charger les cartes cadeaux du client
+            chargerCartesCadeaux(rdv.client_id);
+        });
+}
+
+function chargerCartesCadeaux(clientId) {
+    const section = document.getElementById('section-cartes-cadeaux');
+    const liste = document.getElementById('liste-cartes-cadeaux');
+    const recap = document.getElementById('recapitulatif-cartes');
+
+    fetch('/api/cartes-cadeaux/client/?client_id=' + clientId)
+        .then(r => r.json())
+        .then(data => {
+            if (data.cartes.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+            let html = '';
+            data.cartes.forEach(c => {
+                html += `<div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: white; border-radius: 6px; margin-bottom: 6px; font-size: 13px;">
+                    <input type="checkbox" class="carte-cadeau-check" data-carte-id="${c.id}" data-solde="${c.solde}" onchange="recalculerCartesCadeaux()" style="width: auto;">
+                    <div style="flex: 1;">
+                        <strong>${c.code}</strong>
+                        <div style="color: #888; font-size: 12px;">Solde : ${parseInt(c.solde).toLocaleString('fr-FR')} CFA</div>
+                    </div>
+                    <input type="number" class="carte-cadeau-montant" data-carte-id="${c.id}" min="0" max="${c.solde}" placeholder="Montant" style="width: 120px; padding: 4px 8px; font-size: 13px;" disabled onchange="recalculerCartesCadeaux()">
+                </div>`;
+            });
+            liste.innerHTML = html;
+            recap.style.display = 'none';
+        });
+}
+
+function recalculerCartesCadeaux() {
+    const checks = document.querySelectorAll('.carte-cadeau-check');
+    let totalCartes = 0;
+
+    checks.forEach(check => {
+        const carteId = check.dataset.carteId;
+        const montantInput = document.querySelector(`.carte-cadeau-montant[data-carte-id="${carteId}"]`);
+        const solde = parseInt(check.dataset.solde);
+
+        if (check.checked) {
+            montantInput.disabled = false;
+            if (!montantInput.value || parseInt(montantInput.value) === 0) {
+                // Auto-remplir avec le min entre solde et prix restant
+                const resteAPayer = validationPrixTotal - totalCartes;
+                montantInput.value = Math.min(solde, resteAPayer);
+            }
+            totalCartes += parseInt(montantInput.value) || 0;
+        } else {
+            montantInput.disabled = true;
+            montantInput.value = '';
+        }
+    });
+
+    const recap = document.getElementById('recapitulatif-cartes');
+    const resteApresCartes = Math.max(0, validationPrixTotal - totalCartes);
+
+    if (totalCartes > 0) {
+        recap.style.display = 'block';
+        document.getElementById('total-cartes-cadeaux').textContent = '-' + totalCartes.toLocaleString('fr-FR') + ' CFA';
+        document.getElementById('reste-apres-cartes').textContent = resteApresCartes.toLocaleString('fr-FR') + ' CFA';
+
+        // Masquer le moyen de paiement si tout est payé par carte cadeau
+        document.getElementById('section-moyen-paiement').style.display = resteApresCartes > 0 ? 'block' : 'none';
+    } else {
+        recap.style.display = 'none';
+        document.getElementById('section-moyen-paiement').style.display = 'block';
+    }
+}
+
+function fermerModalValidation() {
+    document.getElementById('modal-validation').style.display = 'none';
+}
+
+function updateMontantPaiement() {
+    const type = document.getElementById('validation-type-paiement').value;
+    const group = document.getElementById('montant-paiement-group');
+
+    if (type === 'complet') {
+        group.style.display = 'none';
+    } else {
+        group.style.display = 'block';
+        calculerReste();
+    }
+}
+
+function calculerReste() {
+    const prixTotal = parseFloat(document.getElementById('validation-prix-total').textContent.replace(/[^0-9.]/g, ''));
+    const montant = parseFloat(document.getElementById('validation-montant').value) || 0;
+    const reste = prixTotal - montant;
+
+    document.getElementById('reste-a-payer').textContent =
+        'Reste à payer : ' + reste.toLocaleString('fr-FR') + ' CFA';
+}
+
+// Valider RDV
+function validerRdv() {
+    const rdvId = document.getElementById('validation-rdv-id').value;
+    const formData = new FormData(document.getElementById('form-validation'));
+
+    // Ajouter les cartes cadeaux sélectionnées
+    const checks = document.querySelectorAll('.carte-cadeau-check:checked');
+    const cartesData = [];
+    checks.forEach(check => {
+        const carteId = check.dataset.carteId;
+        const montantInput = document.querySelector(`.carte-cadeau-montant[data-carte-id="${carteId}"]`);
+        const montant = parseInt(montantInput.value) || 0;
+        if (montant > 0) {
+            cartesData.push({carte_id: parseInt(carteId), montant: montant});
+        }
+    });
+    if (cartesData.length > 0) {
+        formData.append('cartes_cadeaux', JSON.stringify(cartesData));
+    }
+
+    fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/valider/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Erreur : ' + data.message);
+        }
+    });
+}
+
+// Calculer les stats
+function calculerStats() {
+    let total = 0, valides = 0, attente = 0, absents = 0, ca = 0;
+
+    Object.keys(window.rdvData).forEach(employeId => {
+        window.rdvData[employeId].forEach(rdv => {
+            total++;
+            if (rdv.statut === 'valide') {
+                valides++;
+                ca += rdv.prix_total;
+            } else if (rdv.statut === 'planifie') {
+                attente++;
+            } else if (rdv.statut === 'absent' || rdv.statut === 'annule_client') {
+                absents++;
+            }
+        });
+    });
+
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-valides').textContent = valides;
+    document.getElementById('stat-attente').textContent = attente;
+    document.getElementById('stat-absents').textContent = absents;
+    document.getElementById('stat-ca').textContent = ca.toLocaleString('fr-FR');
+}
+
+// Autocomplete client
+let clientAutocomplete = null;
+document.getElementById('rdv-client-search').addEventListener('input', function(e) {
+    const query = e.target.value;
+    const resultsDiv = document.getElementById('rdv-client-results');
+
+    if (query.length < 2) {
+        resultsDiv.innerHTML = '';
+        return;
+    }
+
+    fetch('/api/clients/search/?q=' + encodeURIComponent(query))
+        .then(response => response.json())
+        .then(data => {
+            resultsDiv.innerHTML = '';
+            if (data.clients && data.clients.length > 0) {
+                data.clients.forEach(client => {
+                    const item = document.createElement('div');
+                    item.className = 'autocomplete-item';
+                    item.textContent = client.prenom + ' ' + client.nom + ' - ' + client.telephone;
+                    item.onclick = function() {
+                        document.getElementById('rdv-client').value = client.id;
+                        document.getElementById('rdv-client-search').value = client.prenom + ' ' + client.nom;
+                        resultsDiv.innerHTML = '';
+                        {% if institut.code == 'klinic' %}
+                        // Charger les forfaits du client
+                        chargerForfaitsClient(client.id);
+                        {% endif %}
+                    };
+                    resultsDiv.appendChild(item);
+                });
+            } else {
+                resultsDiv.innerHTML = '<div class="autocomplete-item" style="color: #999;">Aucun client trouvé</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Erreur recherche client:', error);
+            resultsDiv.innerHTML = '<div class="autocomplete-item" style="color: #f00;">Erreur de recherche</div>';
+        });
+});
+
+{% if institut.code == 'klinic' %}
+// ============================
+// FORFAITS MULTI-SÉANCES
+// ============================
+
+let forfaitsData = [];
+let clientForfaitsData = [];
+
+// Charger les forfaits actifs d'un client
+function chargerForfaitsClient(clientId) {
+    const container = document.getElementById('forfaits-client-container');
+    const list = document.getElementById('forfaits-client-list');
+
+    // Réinitialiser la séance sélectionnée
+    document.getElementById('rdv-seance-forfait').value = '';
+
+    fetch(`/agenda/{{ institut.code }}/api/forfaits/client/${clientId}/`)
+        .then(response => response.json())
+        .then(data => {
+            clientForfaitsData = data.forfaits;
+
+            if (data.forfaits && data.forfaits.length > 0) {
+                container.style.display = 'block';
+                list.innerHTML = '';
+
+                data.forfaits.forEach(forfait => {
+                    const div = document.createElement('div');
+                    div.style.cssText = 'margin-bottom: 10px; padding: 10px; background: white; border-radius: 6px;';
+                    div.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="color: #9b59b6;">${forfait.prestation_nom}</strong>
+                                <div style="font-size: 12px; color: #666;">
+                                    ${forfait.seances_restantes} séance(s) restante(s) sur ${forfait.nombre_seances_total}
+                                </div>
+                            </div>
+                            ${forfait.seances_disponibles.length > 0 ? `
+                            <button type="button" class="btn" onclick="selectionnerSeanceForfait(${forfait.id}, ${forfait.seances_disponibles[0]}, '${forfait.prestation_nom}', ${forfait.nombre_seances_total})"
+                                    style="padding: 6px 12px; background: #9b59b6; color: white; font-size: 12px;">
+                                Utiliser séance ${forfait.seances_disponibles[0]}
+                            </button>
+                            ` : '<span style="color: #999; font-size: 12px;">Toutes programmées</span>'}
+                        </div>
+                    `;
+                    list.appendChild(div);
+                });
+            } else {
+                container.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Erreur chargement forfaits client:', error);
+            container.style.display = 'none';
+        });
+}
+
+// Sélectionner une séance de forfait pour le RDV
+function selectionnerSeanceForfait(forfaitId, numeroSeance, prestationNom, totalSeances) {
+    // Trouver le forfait dans les données
+    const forfait = clientForfaitsData.find(f => f.id === forfaitId);
+    if (!forfait) return;
+
+    // Trouver la séance disponible
+    const seanceId = getSeanceIdFromForfait(forfaitId, numeroSeance);
+
+    // Mettre à jour le formulaire
+    document.getElementById('rdv-seance-forfait').value = seanceId || '';
+
+    // Désactiver la sélection de prestation et forcer la prestation du forfait
+    document.getElementById('rdv-famille').value = '';
+    document.getElementById('rdv-famille').disabled = true;
+    document.getElementById('rdv-prestation').innerHTML = `<option value="${forfait.prestation_id}" selected>${prestationNom}</option>`;
+    document.getElementById('rdv-prestation').disabled = true;
+
+    // Mettre le prix à 0 (déjà payé)
+    document.getElementById('rdv-prix-base').value = 0;
+    document.getElementById('rdv-prix-base').disabled = true;
+
+    // Mettre à jour l'affichage
+    document.getElementById('rdv-prix-total').innerHTML = `
+        <span style="color: #9b59b6;">Séance ${numeroSeance}/${totalSeances}</span><br>
+        <span style="font-size: 16px; color: #28a745;">0 CFA (forfait)</span>
+    `;
+
+    // Masquer les forfaits et afficher une indication
+    document.getElementById('forfaits-client-container').innerHTML = `
+        <div style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border: 2px solid #28a745; border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong style="color: #155724;">Séance forfait sélectionnée</strong>
+                <div style="font-size: 13px; color: #155724;">${prestationNom} - Séance ${numeroSeance}/${totalSeances}</div>
+            </div>
+            <button type="button" class="btn btn-secondary" onclick="annulerSelectionForfait()" style="padding: 6px 12px; font-size: 12px;">
+                Annuler
+            </button>
+        </div>
+    `;
+}
+
+// Récupérer l'ID de la séance depuis l'API
+function getSeanceIdFromForfait(forfaitId, numero) {
+    // Pour l'instant on envoie forfaitId_numero, le backend trouvera la séance
+    return `${forfaitId}_${numero}`;
+}
+
+// Annuler la sélection d'une séance forfait
+function annulerSelectionForfait() {
+    document.getElementById('rdv-seance-forfait').value = '';
+    document.getElementById('rdv-famille').disabled = false;
+    document.getElementById('rdv-prestation').disabled = false;
+    document.getElementById('rdv-prestation').innerHTML = '<option value="">-- Sélectionner une prestation --</option>';
+    document.getElementById('rdv-prix-base').disabled = false;
+    document.getElementById('rdv-prix-base').value = '';
+    document.getElementById('rdv-prix-total').textContent = '0 CFA';
+
+    // Recharger les forfaits du client
+    const clientId = document.getElementById('rdv-client').value;
+    if (clientId) {
+        chargerForfaitsClient(clientId);
+    }
+}
+
+function ouvrirModalForfait() {
+    // Réinitialiser le formulaire
+    document.getElementById('form-forfait').reset();
+    document.getElementById('forfait-client-id').value = '';
+    document.getElementById('forfait-client-search').value = '';
+    document.getElementById('forfait-details').style.display = 'none';
+    document.getElementById('forfait-montant-container').style.display = 'none';
+
+    // Charger les forfaits disponibles
+    chargerForfaitsDisponibles();
+
+    // Afficher le modal
+    document.getElementById('modal-forfait').style.display = 'flex';
+}
+
+function fermerModalForfait() {
+    document.getElementById('modal-forfait').style.display = 'none';
+}
+
+function chargerForfaitsDisponibles() {
+    fetch('{% url "agenda:api_forfaits_disponibles" institut.code %}')
+        .then(response => response.json())
+        .then(data => {
+            forfaitsData = data.forfaits;
+            const select = document.getElementById('forfait-prestation');
+            select.innerHTML = '<option value="">-- Choisir un forfait --</option>';
+
+            // Grouper par famille
+            const parFamille = {};
+            data.forfaits.forEach(f => {
+                if (!parFamille[f.famille__nom]) {
+                    parFamille[f.famille__nom] = [];
+                }
+                parFamille[f.famille__nom].push(f);
+            });
+
+            // Créer les optgroups
+            Object.keys(parFamille).sort().forEach(famille => {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = famille;
+                parFamille[famille].forEach(f => {
+                    const option = document.createElement('option');
+                    option.value = f.id;
+                    option.textContent = `${f.nom} - ${f.prix.toLocaleString('fr-FR')} CFA`;
+                    option.dataset.seances = f.nombre_seances;
+                    option.dataset.prix = f.prix;
+                    optgroup.appendChild(option);
+                });
+                select.appendChild(optgroup);
+            });
+        })
+        .catch(error => {
+            console.error('Erreur chargement forfaits:', error);
+        });
+}
+
+function updateForfaitPrix() {
+    const select = document.getElementById('forfait-prestation');
+    const option = select.options[select.selectedIndex];
+
+    if (option && option.value) {
+        document.getElementById('forfait-details').style.display = 'block';
+        document.getElementById('forfait-nb-seances').textContent = option.dataset.seances + ' séances';
+        document.getElementById('forfait-prix').textContent = parseInt(option.dataset.prix).toLocaleString('fr-FR') + ' CFA';
+        document.getElementById('forfait-montant').max = option.dataset.prix;
+    } else {
+        document.getElementById('forfait-details').style.display = 'none';
+    }
+}
+
+function toggleForfaitMontant() {
+    const typePaiement = document.querySelector('input[name="forfait_type_paiement"]:checked').value;
+    document.getElementById('forfait-montant-container').style.display = typePaiement === 'partiel' ? 'block' : 'none';
+}
+
+function acheterForfait() {
+    const clientId = document.getElementById('forfait-client-id').value;
+    const prestationId = document.getElementById('forfait-prestation').value;
+    const typePaiement = document.querySelector('input[name="forfait_type_paiement"]:checked').value;
+    const modePaiement = document.querySelector('input[name="forfait_mode_paiement"]:checked').value;
+    const montant = document.getElementById('forfait-montant').value || 0;
+
+    if (!clientId) {
+        alert('Veuillez sélectionner un client');
+        return;
+    }
+
+    if (!prestationId) {
+        alert('Veuillez sélectionner un forfait');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('client_id', clientId);
+    formData.append('prestation_id', prestationId);
+    formData.append('type_paiement', typePaiement);
+    formData.append('mode_paiement', modePaiement);
+    formData.append('montant', montant);
+
+    fetch('{% url "agenda:api_forfait_acheter" institut.code %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            fermerModalForfait();
+        } else {
+            alert('Erreur : ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        alert('Erreur lors de la vente du forfait');
+    });
+}
+
+// Autocomplete client pour forfaits
+document.getElementById('forfait-client-search').addEventListener('input', function(e) {
+    const query = e.target.value;
+    const resultsDiv = document.getElementById('forfait-client-results');
+
+    if (query.length < 2) {
+        resultsDiv.innerHTML = '';
+        return;
+    }
+
+    fetch('/api/clients/search/?q=' + encodeURIComponent(query))
+        .then(response => response.json())
+        .then(data => {
+            resultsDiv.innerHTML = '';
+            if (data.clients && data.clients.length > 0) {
+                data.clients.forEach(client => {
+                    const item = document.createElement('div');
+                    item.className = 'autocomplete-item';
+                    item.textContent = client.prenom + ' ' + client.nom + ' - ' + client.telephone;
+                    item.onclick = function() {
+                        document.getElementById('forfait-client-id').value = client.id;
+                        document.getElementById('forfait-client-search').value = client.prenom + ' ' + client.nom;
+                        resultsDiv.innerHTML = '';
+                    };
+                    resultsDiv.appendChild(item);
+                });
+            } else {
+                resultsDiv.innerHTML = '<div class="autocomplete-item" style="color: #999;">Aucun client trouvé</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Erreur recherche client:', error);
+            resultsDiv.innerHTML = '<div class="autocomplete-item" style="color: #f00;">Erreur de recherche</div>';
+        });
+});
+{% endif %}
+</script>
+{% endblock %}

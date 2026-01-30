@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Carte Cadeau - {{ carte.code }}</title>
+    <style>
+        @page {
+            size: A6 landscape;
+            margin: 0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #f5f5f5;
+        }
+
+        .bon-cadeau {
+            width: 148mm;
+            height: 105mm;
+            background: linear-gradient(135deg, #fdfbfb 0%, #f5f0f0 100%);
+            border: 4px solid #c9a86a;
+            border-radius: 20px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .bon-cadeau::before {
+            content: '';
+            position: absolute;
+            top: -60px;
+            right: -60px;
+            width: 180px;
+            height: 180px;
+            background: linear-gradient(135deg, #e8b4b8 0%, #d4a5a5 100%);
+            border-radius: 50%;
+            opacity: 0.2;
+        }
+
+        .bon-cadeau::after {
+            content: '';
+            position: absolute;
+            bottom: -40px;
+            left: -40px;
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, #c9a86a 0%, #d4af7a 100%);
+            border-radius: 50%;
+            opacity: 0.15;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .logo {
+            max-width: 70px;
+            max-height: 70px;
+            margin-bottom: 5px;
+            border-radius: 10px;
+        }
+
+        .titre {
+            font-size: 26px;
+            color: #c9a86a;
+            margin: 0;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            font-weight: normal;
+        }
+
+        .sous-titre {
+            font-size: 11px;
+            color: #8b5a5a;
+            font-style: italic;
+            margin-top: 3px;
+        }
+
+        .montant-container {
+            text-align: center;
+            margin: 15px 0;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #c9a86a 0%, #d4af7a 100%);
+            border-radius: 15px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .montant {
+            font-size: 38px;
+            font-weight: bold;
+            color: white;
+            margin: 0;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .devise {
+            font-size: 14px;
+            color: white;
+            letter-spacing: 2px;
+        }
+
+        .infos {
+            margin-top: 12px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .info-ligne {
+            display: flex;
+            justify-content: space-between;
+            margin: 6px 0;
+            font-size: 11px;
+            color: #8b5a5a;
+        }
+
+        .info-ligne strong {
+            color: #6b4a4a;
+        }
+
+        .code-container {
+            text-align: center;
+            margin-top: 12px;
+            padding: 10px 15px;
+            background: white;
+            border: 2px dashed #c9a86a;
+            border-radius: 10px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .code-label {
+            font-size: 9px;
+            color: #a67c7c;
+            margin-bottom: 4px;
+            letter-spacing: 1px;
+        }
+
+        .code {
+            font-size: 22px;
+            font-weight: bold;
+            color: #8b5a5a;
+            letter-spacing: 4px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .footer {
+            position: absolute;
+            bottom: 8px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 8px;
+            color: #b8a898;
+            z-index: 1;
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+            .bon-cadeau {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bon-cadeau">
+        <div class="header">
+            <img src="/static/images/logo.jpg" alt="Logo" class="logo" onerror="this.style.display='none'">
+            <h1 class="titre">Carte Cadeau</h1>
+            <p class="sous-titre">Le Palais de la Beaut&eacute;</p>
+        </div>
+
+        <div class="montant-container">
+            <p class="montant">{{ carte.montant_initial|floatformat:0 }}</p>
+            <span class="devise">FRANCS CFA</span>
+        </div>
+
+        <div class="infos">
+            <div class="info-ligne">
+                <span>B&eacute;n&eacute;ficiaire :</span>
+                <strong>{{ carte.beneficiaire.get_full_name }}</strong>
+            </div>
+            <div class="info-ligne">
+                <span>Offert par :</span>
+                <span>{{ carte.acheteur.get_full_name }}</span>
+            </div>
+            <div class="info-ligne">
+                <span>Date :</span>
+                <span>{{ carte.date_achat|date:"d/m/Y" }}</span>
+            </div>
+        </div>
+
+        <div class="code-container">
+            <div class="code-label">CODE DE LA CARTE</div>
+            <div class="code">{{ carte.code }}</div>
+        </div>
+
+        <div class="footer">
+            Valable dans tous nos instituts : Le Palais &bull; La Klinic &bull; Express &mdash; Validit&eacute; illimit&eacute;e
+        </div>
+    </div>
+
+    <script>
+        window.onload = function() {
+            window.print();
+        }
+    </script>
+</body>
+</html>

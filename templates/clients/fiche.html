@@ -1,0 +1,608 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ client.get_full_name }} - Le Palais de la Beauté{% endblock %}
+
+{% block extra_css %}
+<style>
+    .client-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--primary);
+        text-decoration: none;
+        margin-bottom: 20px;
+        font-weight: 500;
+    }
+
+    .back-btn:hover {
+        text-decoration: underline;
+    }
+
+    .client-header {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(232, 180, 184, 0.3);
+    }
+
+    .client-info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+
+    .client-main-info h1 {
+        margin: 0 0 10px 0;
+        font-size: 2em;
+    }
+
+    .client-contact {
+        font-size: 1.1em;
+        opacity: 0.9;
+        margin-bottom: 5px;
+    }
+
+    .client-stats-row {
+        display: flex;
+        gap: 30px;
+        margin-top: 20px;
+    }
+
+    .client-stat {
+        text-align: center;
+        background: rgba(255,255,255,0.2);
+        padding: 15px 25px;
+        border-radius: 10px;
+    }
+
+    .client-stat-value {
+        font-size: 1.8em;
+        font-weight: bold;
+    }
+
+    .client-stat-label {
+        font-size: 0.9em;
+        opacity: 0.9;
+    }
+
+    .section-card {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #f0f0f0;
+    }
+
+    .section-title {
+        font-size: 1.3em;
+        font-weight: 600;
+        color: var(--text-dark);
+    }
+
+    .badge-count {
+        background: var(--primary);
+        color: white;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.9em;
+    }
+
+    .badge-count.warning {
+        background: var(--warning);
+        color: #333;
+    }
+
+    .badge-count.danger {
+        background: var(--danger);
+    }
+
+    .rdv-list {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .rdv-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 10px;
+        margin-bottom: 10px;
+    }
+
+    .rdv-item:hover {
+        background: #f0f0f0;
+    }
+
+    .rdv-date {
+        font-weight: 600;
+        color: var(--text-dark);
+        margin-bottom: 5px;
+    }
+
+    .rdv-detail {
+        font-size: 0.9em;
+        color: #666;
+    }
+
+    .rdv-institut {
+        display: inline-block;
+        background: var(--primary);
+        color: white;
+        padding: 3px 10px;
+        border-radius: 10px;
+        font-size: 0.8em;
+        margin-left: 10px;
+    }
+
+    .rdv-amount {
+        font-weight: bold;
+        color: var(--success);
+        font-size: 1.1em;
+    }
+
+    .credit-item {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 15px;
+        border-left: 4px solid var(--warning);
+    }
+
+    .credit-item.solde {
+        border-left-color: var(--success);
+        opacity: 0.7;
+    }
+
+    .credit-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 15px;
+    }
+
+    .credit-title {
+        font-weight: 600;
+        color: var(--text-dark);
+    }
+
+    .credit-date {
+        font-size: 0.9em;
+        color: #888;
+    }
+
+    .badge-solde {
+        background: var(--success);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 15px;
+        font-size: 0.85em;
+    }
+
+    .credit-amounts {
+        display: flex;
+        gap: 30px;
+    }
+
+    .credit-amount {
+        text-align: center;
+    }
+
+    .credit-amount-label {
+        font-size: 0.85em;
+        color: #888;
+    }
+
+    .credit-amount-value {
+        font-size: 1.2em;
+        font-weight: bold;
+    }
+
+    .credit-amount-value.total {
+        color: #666;
+    }
+
+    .credit-amount-value.paye {
+        color: var(--success);
+    }
+
+    .credit-amount-value.reste {
+        color: var(--danger);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-light);
+    }
+
+    .btn-modifier {
+        background: var(--secondary);
+        color: white;
+        border: none;
+        padding: 10px 25px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.3s;
+    }
+
+    .btn-modifier:hover {
+        background: var(--secondary-dark);
+    }
+
+    /* Modal */
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal.active {
+        display: flex;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 15px;
+        padding: 30px;
+        max-width: 500px;
+        width: 90%;
+    }
+
+    .modal-header {
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #f0f0f0;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid var(--border);
+        border-radius: 8px;
+        font-size: 1em;
+        box-sizing: border-box;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: var(--primary);
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 25px;
+    }
+
+    .btn-submit {
+        padding: 12px 30px;
+        background: var(--success);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+
+    .btn-cancel {
+        padding: 12px 30px;
+        background: #e0e0e0;
+        color: #666;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="client-container">
+    <a href="{% url 'core:clients_list' %}" class="back-btn">
+        ← Retour à la liste
+    </a>
+
+    <div class="client-header">
+        <div class="client-info-row">
+            <div class="client-main-info">
+                <h1>{{ client.get_full_name }}</h1>
+                <div class="client-contact">{{ client.telephone }}</div>
+                {% if client.email %}
+                <div class="client-contact">{{ client.email }}</div>
+                {% endif %}
+                <div class="client-contact" style="opacity: 0.7; font-size: 0.9em;">
+                    Client depuis le {{ client.date_creation|date:"d/m/Y" }}
+                </div>
+            </div>
+            {% if request.user.utilisateur.is_patron %}
+            <button class="btn-modifier" onclick="ouvrirModalModifier()">
+                Modifier
+            </button>
+            {% endif %}
+        </div>
+
+        <div class="client-stats-row">
+            <div class="client-stat">
+                <div class="client-stat-value">{{ nombre_visites }}</div>
+                <div class="client-stat-label">Visites</div>
+            </div>
+            <div class="client-stat">
+                <div class="client-stat-value">{{ total_depense|floatformat:0 }}</div>
+                <div class="client-stat-label">CFA dépensés</div>
+            </div>
+            {% if credit_total > 0 %}
+            <div class="client-stat" style="background: rgba(220, 53, 69, 0.3);">
+                <div class="client-stat-value">{{ credit_total|floatformat:0 }}</div>
+                <div class="client-stat-label">CFA de crédit</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Forfaits -->
+    {% if forfaits %}
+    <div class="section-card">
+        <div class="section-header">
+            <h2 class="section-title" style="color: #9b59b6;">Forfaits</h2>
+            <span class="badge-count" style="background: #9b59b6;">{{ forfaits.count }} forfait(s)</span>
+        </div>
+
+        {% for forfait in forfaits %}
+        <div class="forfait-item" style="background: {% if forfait.statut == 'actif' %}linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%){% else %}#f5f5f5{% endif %}; border: 2px solid {% if forfait.statut == 'actif' %}#9b59b6{% else %}#ddd{% endif %}; border-radius: 12px; padding: 15px; margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <div style="font-weight: 600; color: #9b59b6; font-size: 1.1em;">{{ forfait.prestation.nom }}</div>
+                    <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                        {{ forfait.institut.nom }} - Acheté le {{ forfait.date_achat|date:"d/m/Y" }}
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    {% if forfait.statut == 'actif' %}
+                    <span style="background: #28a745; color: white; padding: 4px 10px; border-radius: 15px; font-size: 0.8em; font-weight: 600;">ACTIF</span>
+                    {% elif forfait.statut == 'termine' %}
+                    <span style="background: #6c757d; color: white; padding: 4px 10px; border-radius: 15px; font-size: 0.8em; font-weight: 600;">TERMINÉ</span>
+                    {% else %}
+                    <span style="background: #dc3545; color: white; padding: 4px 10px; border-radius: 15px; font-size: 0.8em; font-weight: 600;">ANNULÉ</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 15px; text-align: center;">
+                <div style="background: white; padding: 10px; border-radius: 8px;">
+                    <div style="font-size: 1.5em; font-weight: 700; color: #9b59b6;">{{ forfait.nombre_seances_utilisees }}/{{ forfait.nombre_seances_total }}</div>
+                    <div style="font-size: 0.8em; color: #666;">Séances utilisées</div>
+                </div>
+                <div style="background: white; padding: 10px; border-radius: 8px;">
+                    <div style="font-size: 1.5em; font-weight: 700; color: #28a745;">{{ forfait.get_seances_restantes }}</div>
+                    <div style="font-size: 0.8em; color: #666;">Restantes</div>
+                </div>
+                <div style="background: white; padding: 10px; border-radius: 8px;">
+                    <div style="font-size: 1.5em; font-weight: 700; color: #333;">{{ forfait.prix_total|floatformat:0 }}</div>
+                    <div style="font-size: 0.8em; color: #666;">CFA total</div>
+                </div>
+            </div>
+
+            <!-- Liste des séances -->
+            <div style="margin-top: 15px;">
+                <div style="font-size: 0.85em; color: #666; margin-bottom: 8px;">Détail des séances :</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    {% for seance in forfait.seances.all %}
+                    <div style="padding: 6px 12px; border-radius: 20px; font-size: 0.8em; font-weight: 500;
+                                {% if seance.statut == 'effectuee' %}background: #d4edda; color: #155724;
+                                {% elif seance.statut == 'programmee' %}background: #cce5ff; color: #004085;
+                                {% else %}background: #f8f9fa; color: #495057; border: 1px solid #ddd;{% endif %}">
+                        Séance {{ seance.numero }}
+                        {% if seance.statut == 'effectuee' %}✓
+                        {% elif seance.statut == 'programmee' %}📅
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Crédits en cours -->
+    {% if credits %}
+    <div class="section-card">
+        <div class="section-header">
+            <h2 class="section-title">Crédits</h2>
+            <span class="badge-count {% if credit_total > 0 %}danger{% endif %}">
+                {{ credit_total|floatformat:0 }} CFA restant
+            </span>
+        </div>
+
+        {% for credit in credits %}
+        <div class="credit-item {% if credit.solde %}solde{% endif %}">
+            <div class="credit-header">
+                <div>
+                    <div class="credit-title">{{ credit.description }}</div>
+                    <div class="credit-date">{{ credit.date_creation|date:"d/m/Y" }} - {{ credit.institut.nom }}</div>
+                </div>
+                {% if credit.solde %}
+                <span class="badge-solde">Soldé</span>
+                {% endif %}
+            </div>
+            <div class="credit-amounts">
+                <div class="credit-amount">
+                    <div class="credit-amount-label">Total</div>
+                    <div class="credit-amount-value total">{{ credit.montant_total|floatformat:0 }} CFA</div>
+                </div>
+                <div class="credit-amount">
+                    <div class="credit-amount-label">Payé</div>
+                    <div class="credit-amount-value paye">{{ credit.montant_paye|floatformat:0 }} CFA</div>
+                </div>
+                <div class="credit-amount">
+                    <div class="credit-amount-label">Reste</div>
+                    <div class="credit-amount-value reste">{{ credit.reste_a_payer|floatformat:0 }} CFA</div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Historique des rendez-vous -->
+    <div class="section-card">
+        <div class="section-header">
+            <h2 class="section-title">Historique des rendez-vous</h2>
+            <span class="badge-count">{{ nombre_visites }} visite(s)</span>
+        </div>
+
+        {% if rendez_vous %}
+        <div class="rdv-list">
+            {% for rdv in rendez_vous %}
+            <div class="rdv-item">
+                <div>
+                    <div class="rdv-date">
+                        {{ rdv.date|date:"d/m/Y" }} à {{ rdv.heure_debut|time:"H:i" }}
+                        <span class="rdv-institut">{{ rdv.institut.nom }}</span>
+                    </div>
+                    <div class="rdv-detail">
+                        {{ rdv.prestation.nom }} - {{ rdv.employe.nom }}
+                    </div>
+                </div>
+                <div class="rdv-amount">
+                    {% with paiement=rdv.paiements.first %}
+                        {% if paiement %}{{ paiement.montant|floatformat:0 }}{% else %}0{% endif %} CFA
+                    {% endwith %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            Aucun rendez-vous enregistré
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if request.user.utilisateur.is_patron %}
+<!-- Modal Modifier (patron uniquement) -->
+<div class="modal" id="modalModifier">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Modifier le client</h2>
+        </div>
+
+        <form id="formModifier">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label for="nom">Nom</label>
+                <input type="text" class="form-control" id="nom" name="nom"
+                       value="{{ client.nom }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="prenom">Prénom</label>
+                <input type="text" class="form-control" id="prenom" name="prenom"
+                       value="{{ client.prenom }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="telephone">Téléphone</label>
+                <input type="tel" class="form-control" id="telephone" name="telephone"
+                       value="{{ client.telephone }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email (optionnel)</label>
+                <input type="email" class="form-control" id="email" name="email"
+                       value="{{ client.email|default:'' }}">
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="fermerModal()">Annuler</button>
+                <button type="submit" class="btn-submit">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function ouvrirModalModifier() {
+    document.getElementById('modalModifier').classList.add('active');
+}
+
+function fermerModal() {
+    document.getElementById('modalModifier').classList.remove('active');
+}
+
+document.getElementById('modalModifier').addEventListener('click', function(e) {
+    if (e.target === this) {
+        fermerModal();
+    }
+});
+
+document.getElementById('formModifier').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+
+    try {
+        const response = await fetch('{% url "core:api_client_modifier" client.id %}', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('✓ ' + data.message);
+            location.reload();
+        } else {
+            alert('❌ ' + data.message);
+        }
+    } catch (error) {
+        alert('❌ Erreur: ' + error.message);
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

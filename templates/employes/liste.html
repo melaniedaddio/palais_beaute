@@ -1,0 +1,526 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestion des Employés{% endblock %}
+
+{% block extra_css %}
+<style>
+    .employes-container {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+    }
+
+    .btn-add {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 12px 24px;
+        border-radius: 10px;
+        text-decoration: none;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+    }
+
+    .btn-add:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 15px rgba(232, 180, 184, 0.4);
+    }
+
+    .institut-section {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 15px rgba(212, 175, 122, 0.12);
+        border: 1px solid var(--border);
+    }
+
+    .institut-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid var(--border);
+    }
+
+    .institut-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        font-weight: bold;
+        color: white;
+    }
+
+    .institut-icon.palais {
+        background: linear-gradient(135deg, #e8b4b8 0%, #d4a5a5 100%);
+    }
+
+    .institut-icon.klinic {
+        background: linear-gradient(135deg, #c9a86a 0%, #b89858 100%);
+    }
+
+    .institut-icon.express {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .institut-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--text-dark);
+    }
+
+    .employes-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+    }
+
+    .employe-card {
+        background: var(--bg-light);
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        padding: 20px;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .employe-card:hover {
+        border-color: var(--primary);
+        box-shadow: 0 4px 12px rgba(232, 180, 184, 0.2);
+        transform: translateY(-2px);
+    }
+
+    .employe-card.inactive {
+        opacity: 0.6;
+        background: #f5f5f5;
+    }
+
+    .employe-name {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-dark);
+        margin-bottom: 12px;
+    }
+
+    .employe-info {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 15px;
+        font-size: 13px;
+        color: var(--text-light);
+    }
+
+    .employe-info-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .status-badge.actif {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status-badge.inactif {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .employe-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid var(--border);
+    }
+
+    .btn-action {
+        flex: 1;
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: none;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+    }
+
+    .btn-edit {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+
+    .btn-edit:hover {
+        background: #1976d2;
+        color: white;
+    }
+
+    .btn-delete {
+        background: #ffebee;
+        color: #c62828;
+    }
+
+    .btn-delete:hover {
+        background: #c62828;
+        color: white;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-light);
+        font-style: italic;
+    }
+
+    /* Modal */
+    .modal-backdrop {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-backdrop.active {
+        display: flex;
+    }
+
+    .modal {
+        background: white;
+        border-radius: 16px;
+        padding: 30px;
+        max-width: 500px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-header {
+        margin-bottom: 25px;
+    }
+
+    .modal-title {
+        font-size: 22px;
+        font-weight: 600;
+        color: var(--text-dark);
+    }
+
+    .modal-body {
+        margin-bottom: 25px;
+    }
+
+    .modal-footer {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+    }
+
+    .btn-cancel {
+        padding: 10px 20px;
+        border-radius: 8px;
+        border: 2px solid var(--border);
+        background: white;
+        color: var(--text-dark);
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .btn-submit {
+        padding: 10px 20px;
+        border-radius: 8px;
+        border: none;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        color: white;
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: var(--text-dark);
+    }
+
+    .form-check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .form-check input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="employes-container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Gestion des Employés</h1>
+            <p class="page-subtitle">Gérez les employés de tous les instituts</p>
+        </div>
+        <button class="btn-add" onclick="openModal()">
+            + Ajouter un employé
+        </button>
+    </div>
+
+    {% for institut, employes in employes_par_institut.items %}
+    <div class="institut-section">
+        <div class="institut-header">
+            <div class="institut-icon {{ institut.code }}">
+                {% if institut.code == 'palais' %}P{% elif institut.code == 'klinic' %}K{% else %}E{% endif %}
+            </div>
+            <div>
+                <div class="institut-title">{{ institut.nom }}</div>
+                <div style="font-size: 13px; color: var(--text-light);">
+                    {{ employes|length }} employé{{ employes|length|pluralize }}
+                </div>
+            </div>
+        </div>
+
+        {% if employes %}
+        <div class="employes-grid">
+            {% for employe in employes %}
+            <div class="employe-card">
+                <div class="employe-name">{{ employe.nom }}</div>
+                <div class="employe-info">
+                    <div class="employe-info-item">
+                        <span>📍</span>
+                        <span>{{ employe.institut.nom }}</span>
+                    </div>
+                </div>
+                <div class="employe-actions">
+                    <button class="btn-action btn-edit"
+                            data-id="{{ employe.id }}"
+                            data-nom="{{ employe.nom }}"
+                            data-institut="{{ employe.institut.code }}"
+                            onclick="openModal(this.dataset.id, this.dataset.nom, this.dataset.institut)">
+                        ✏️ Modifier
+                    </button>
+                    <button class="btn-action btn-delete"
+                            data-id="{{ employe.id }}"
+                            data-nom="{{ employe.nom }}"
+                            onclick="supprimerEmploye(this.dataset.id, this.dataset.nom)">
+                        🗑️ Supprimer
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            Aucun employé pour cet institut
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Modal Ajouter/Modifier -->
+<div class="modal-backdrop" id="modalBackdrop" onclick="closeModalOnBackdrop(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2 class="modal-title" id="modalTitle">Ajouter un employé</h2>
+        </div>
+        <form id="formEmploye" onsubmit="submitForm(event)">
+            {% csrf_token %}
+            <input type="hidden" id="employe_id" name="employe_id">
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="nom">Nom de l'employé *</label>
+                    <input type="text" class="form-control" id="nom" name="nom" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="institut">Institut *</label>
+                    <select class="form-control" id="institut" name="institut" required>
+                        <option value="">Sélectionnez un institut</option>
+                        {% for institut in instituts %}
+                        <option value="{{ institut.code }}">{{ institut.nom }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-cancel" onclick="closeModal()">Annuler</button>
+                <button type="submit" class="btn-submit" id="btnSubmit">Ajouter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let isEditMode = false;
+
+function openModal(id = null, nom = '', institut = '') {
+    const modal = document.getElementById('modalBackdrop');
+    const form = document.getElementById('formEmploye');
+    const title = document.getElementById('modalTitle');
+    const btnSubmit = document.getElementById('btnSubmit');
+
+    form.reset();
+
+    if (id) {
+        // Mode édition
+        isEditMode = true;
+        title.textContent = 'Modifier l\'employé';
+        btnSubmit.textContent = 'Modifier';
+        document.getElementById('employe_id').value = id;
+        document.getElementById('nom').value = nom;
+        document.getElementById('institut').value = institut;
+    } else {
+        // Mode création
+        isEditMode = false;
+        title.textContent = 'Ajouter un employé';
+        btnSubmit.textContent = 'Ajouter';
+    }
+
+    modal.classList.add('active');
+    // Supprimer le style inline pour laisser le CSS gérer
+    modal.style.display = '';
+}
+
+function closeModal() {
+    const backdrop = document.getElementById('modalBackdrop');
+    if (backdrop) {
+        backdrop.classList.remove('active');
+        backdrop.style.display = 'none';
+    }
+}
+
+function closeModalOnBackdrop(event) {
+    // Fermer uniquement si on clique sur le backdrop (pas sur le contenu du modal)
+    if (event.target === event.currentTarget) {
+        closeModal();
+    }
+}
+
+async function submitForm(e) {
+    e.preventDefault();
+
+    const formData = new FormData(e.target);
+    const employeId = document.getElementById('employe_id').value;
+
+    let url, method;
+    if (isEditMode && employeId) {
+        url = `/api/employes/${employeId}/modifier/`;
+        method = 'POST';
+    } else {
+        url = '{% url "core:api_employe_creer" %}';
+        method = 'POST';
+    }
+
+    try {
+        const response = await fetch(url, {
+            method: method,
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('✓ ' + data.message);
+            location.reload();
+        } else {
+            alert('❌ ' + data.message);
+        }
+    } catch (error) {
+        alert('❌ Erreur: ' + error.message);
+    }
+}
+
+async function supprimerEmploye(id, nom) {
+    console.log('supprimerEmploye appelée avec id:', id, 'nom:', nom);
+
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer l'employé "${nom}" ?\n\nCette action est irréversible.`)) {
+        console.log('Suppression annulée par l\'utilisateur');
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+        const url = `/api/employes/${id}/supprimer/`;
+        console.log('Envoi requête vers:', url);
+
+        const response = await fetch(url, {
+            method: 'POST',
+            body: formData
+        });
+
+        console.log('Réponse reçue, status:', response.status);
+        const data = await response.json();
+        console.log('Données reçues:', data);
+
+        if (data.success) {
+            alert('✓ ' + data.message);
+            location.reload();
+        } else {
+            alert('❌ ' + data.message);
+        }
+    } catch (error) {
+        console.error('Erreur lors de la suppression:', error);
+        alert('❌ Erreur: ' + error.message);
+    }
+}
+
+// S'assurer que le modal est fermé au chargement de la page
+document.addEventListener('DOMContentLoaded', function() {
+    const backdrop = document.getElementById('modalBackdrop');
+    if (backdrop) {
+        backdrop.classList.remove('active');
+        backdrop.style.display = 'none';
+    }
+});
+
+// Fermer modal avec Echap
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeModal();
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,615 @@
+{% extends 'base.html' %}
+
+{% block title %}Express - Caisse - Le Palais de la Beauté{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h1 class="page-title">Express - Caisse du jour</h1>
+            <p class="page-subtitle">{{ date_selectionnee|date:"l d F Y" }}</p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <a href="{% url 'express:cloture_caisse' %}" class="btn-action" style="padding: 10px 20px; background: var(--primary); color: white; text-decoration: none; border-radius: 8px; font-weight: 500;">
+                📊 Clôture de caisse
+            </a>
+            <input type="date" id="date-selector" value="{{ date_selectionnee|date:'Y-m-d' }}"
+                   onchange="window.location.href='?date='+this.value" class="form-control" style="width: 160px;">
+        </div>
+    </div>
+</div>
+
+
+<!-- Stats du jour -->
+<div class="stats-grid" style="margin-bottom: 20px;">
+    <div class="stat-card">
+        <div class="stat-label">Ventes du jour</div>
+        <div class="stat-value">{{ ventes|length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total espèces</div>
+        <div class="stat-value">{{ total_especes|floatformat:0 }} <span class="stat-unit">CFA</span></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total carte</div>
+        <div class="stat-value">{{ total_carte|floatformat:0 }} <span class="stat-unit">CFA</span></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total du jour</div>
+        <div class="stat-value">{{ total_jour|floatformat:0 }} <span class="stat-unit">CFA</span></div>
+    </div>
+</div>
+
+<!-- Formulaire nouvelle vente -->
+<div class="card" style="margin-bottom: 20px;">
+    <div class="card-header" style="background: linear-gradient(135deg, #e8b4b8 0%, #d4a5a5 100%); color: white; padding: 15px 20px; border-radius: 12px 12px 0 0;">
+        <h2 style="margin: 0; font-size: 18px;">📝 NOUVELLE VENTE EXPRESS</h2>
+    </div>
+    <div style="padding: 20px;">
+        <form id="form-vente">
+            {% csrf_token %}
+
+            <!-- Client -->
+            <div class="form-group">
+                <label>Client *</label>
+                <div style="position: relative;">
+                    <input type="hidden" id="vente-client" name="client_id" required>
+                    <input type="text" id="vente-client-search" class="form-control"
+                           placeholder="Rechercher un client..." autocomplete="off">
+                    <div id="client-autocomplete" class="autocomplete-results"></div>
+                </div>
+            </div>
+
+            <!-- Employé -->
+            <div class="form-group">
+                <label>Employé *</label>
+                <select id="vente-employe" name="employe_id" class="form-control" required>
+                    <option value="">-- Sélectionner un employé --</option>
+                    {% for employe in employes %}
+                    <option value="{{ employe.id }}">{{ employe.nom }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Famille de prestations -->
+            <div class="form-group">
+                <label>Famille de prestations</label>
+                <select id="vente-famille" class="form-control" onchange="filtrerPrestations()">
+                    <option value="">-- Toutes les familles --</option>
+                    {% for famille in familles %}
+                    <option value="{{ famille.id }}">{{ famille.nom }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Sélecteur de prestations -->
+            <div class="form-group">
+                <label>Ajouter une prestation</label>
+                <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px;">
+                    <select id="select-prestation" class="form-control">
+                        <option value="">-- Sélectionner une prestation --</option>
+                    </select>
+                    <button type="button" class="btn btn-secondary" onclick="ajouterPrestation()" style="padding: 8px 16px;">Ajouter</button>
+                </div>
+            </div>
+
+            <!-- Prestations sélectionnées (panier) -->
+            <div class="form-group">
+                <label>Prestations sélectionnées</label>
+                <div id="prestations-selectionnees" style="border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; min-height: 100px; background: #f9f9f9;">
+                    <p style="color: #999; text-align: center; margin: 0;">Aucune prestation sélectionnée</p>
+                </div>
+            </div>
+
+            <!-- Total -->
+            <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 18px; font-weight: 600;">TOTAL :</span>
+                    <span id="vente-total" style="font-size: 24px; font-weight: 700; color: #c9a86a;">0 CFA</span>
+                </div>
+            </div>
+
+            <!-- Paiement -->
+            <div class="form-group">
+                <label>Type de paiement</label>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                        <input type="radio" name="type_paiement" value="complet" checked onchange="updatePaiement()">
+                        <span>Complet</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                        <input type="radio" name="type_paiement" value="partiel" onchange="updatePaiement()">
+                        <span>Partiel</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                        <input type="radio" name="type_paiement" value="differe" onchange="updatePaiement()">
+                        <span>Différé</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="montant-partiel-group" class="form-group" style="display: none;">
+                <label>Montant payé</label>
+                <input type="number" id="montant-paye" name="montant_paye" class="form-control" step="1" min="0">
+            </div>
+
+            <div class="form-group">
+                <label>Moyen de paiement</label>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                        <input type="radio" name="moyen_paiement" value="especes" checked>
+                        <span>Espèces</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                        <input type="radio" name="moyen_paiement" value="carte">
+                        <span>Carte bancaire</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                        <input type="radio" name="moyen_paiement" value="cheque">
+                        <span>Chèque</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                        <input type="radio" name="moyen_paiement" value="om">
+                        <span>Orange Money</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                        <input type="radio" name="moyen_paiement" value="wave">
+                        <span>Wave</span>
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 16px; font-weight: 600;">
+                VALIDER LA VENTE
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Liste des ventes du jour -->
+<div class="card">
+    <div class="card-header">
+        <h2>Ventes du jour</h2>
+    </div>
+    <div style="overflow-x: auto;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Heure</th>
+                    <th>Client</th>
+                    <th>Employé</th>
+                    <th>Prestations</th>
+                    <th style="text-align: right;">Total</th>
+                    <th style="text-align: center;">Mode</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vente in ventes %}
+                <tr>
+                    <td>{{ vente.heure }}</td>
+                    <td>{{ vente.client }}</td>
+                    <td>{{ vente.employe }}</td>
+                    <td>
+                        {% for prest in vente.prestations %}
+                        <div>{{ prest.nom }}{% if prest.quantite > 1 %} (x{{ prest.quantite }}){% endif %}</div>
+                        {% endfor %}
+                    </td>
+                    <td style="text-align: right; font-weight: 600;">{{ vente.total|floatformat:0 }} CFA</td>
+                    <td style="text-align: center;">
+                        {% if vente.mode == 'especes' %}
+                        💵
+                        {% elif vente.mode == 'carte' %}
+                        💳
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 40px; color: #999;">
+                        Aucune vente pour aujourd'hui
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+// Données prestations
+window.prestationsData = [];
+window.prestationsSelectionnees = [];
+
+// Charger les prestations au chargement de la page
+document.addEventListener('DOMContentLoaded', function() {
+    chargerPrestations();
+    setupClientAutocomplete();
+});
+
+function chargerPrestations() {
+    {% for famille in familles %}
+    {% for prestation in famille.prestations.all %}
+    window.prestationsData.push({
+        id: {{ prestation.id }},
+        nom: "{{ prestation.nom|escapejs }}",
+        prix: {{ prestation.prix }},
+        famille_id: {{ famille.id }},
+        famille_nom: "{{ famille.nom|escapejs }}",
+        unite: "{{ prestation.unite|default:''|escapejs }}"
+    });
+    {% endfor %}
+    {% endfor %}
+
+    filtrerPrestations();
+}
+
+function filtrerPrestations() {
+    const familleId = document.getElementById('vente-famille').value;
+    const select = document.getElementById('select-prestation');
+
+    select.innerHTML = '<option value="">-- Sélectionner une prestation --</option>';
+
+    const prestations = familleId
+        ? window.prestationsData.filter(p => p.famille_id == familleId)
+        : window.prestationsData;
+
+    prestations.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p.id;
+        option.textContent = `${p.nom} - ${p.prix.toLocaleString('fr-FR')} CFA${p.unite ? ' /' + p.unite : ''}`;
+        option.dataset.prestation = JSON.stringify(p);
+        select.appendChild(option);
+    });
+}
+
+function ajouterPrestation() {
+    const select = document.getElementById('select-prestation');
+    const option = select.options[select.selectedIndex];
+
+    if (!option.value) {
+        alert('Veuillez sélectionner une prestation');
+        return;
+    }
+
+    const prestation = JSON.parse(option.dataset.prestation);
+
+    // Vérifier si déjà ajoutée
+    const existant = window.prestationsSelectionnees.find(p => p.id === prestation.id);
+    if (existant) {
+        existant.quantite++;
+    } else {
+        window.prestationsSelectionnees.push({
+            ...prestation,
+            quantite: 1
+        });
+    }
+
+    afficherPrestationsSelectionnees();
+    calculerTotal();
+}
+
+function afficherPrestationsSelectionnees() {
+    const container = document.getElementById('prestations-selectionnees');
+
+    if (window.prestationsSelectionnees.length === 0) {
+        container.innerHTML = '<p style="color: #999; text-align: center; margin: 0;">Aucune prestation sélectionnée</p>';
+        return;
+    }
+
+    container.innerHTML = '';
+
+    window.prestationsSelectionnees.forEach((p, index) => {
+        const div = document.createElement('div');
+        div.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; background: white; border-radius: 6px; margin-bottom: 8px; border: 1px solid #e0e0e0;';
+
+        div.innerHTML = `
+            <div style="flex: 1;">
+                <strong>${p.nom}</strong>
+                <div style="font-size: 12px; color: #666;">${p.prix.toLocaleString('fr-FR')} CFA${p.unite ? ' /' + p.unite : ''}</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button type="button" onclick="modifierQuantite(${index}, -1)" class="btn-icon">−</button>
+                <span style="min-width: 30px; text-align: center; font-weight: 600;">${p.quantite}</span>
+                <button type="button" onclick="modifierQuantite(${index}, 1)" class="btn-icon">+</button>
+                <span style="min-width: 80px; text-align: right; font-weight: 600; color: #c9a86a;">${(p.prix * p.quantite).toLocaleString('fr-FR')} CFA</span>
+                <button type="button" onclick="retirerPrestation(${index})" class="btn-icon" style="color: #dc3545;">✕</button>
+            </div>
+        `;
+
+        container.appendChild(div);
+    });
+}
+
+function modifierQuantite(index, delta) {
+    window.prestationsSelectionnees[index].quantite += delta;
+
+    if (window.prestationsSelectionnees[index].quantite <= 0) {
+        retirerPrestation(index);
+    } else {
+        afficherPrestationsSelectionnees();
+        calculerTotal();
+    }
+}
+
+function retirerPrestation(index) {
+    window.prestationsSelectionnees.splice(index, 1);
+    afficherPrestationsSelectionnees();
+    calculerTotal();
+}
+
+function calculerTotal() {
+    const total = window.prestationsSelectionnees.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
+    document.getElementById('vente-total').textContent = total.toLocaleString('fr-FR') + ' CFA';
+}
+
+function updatePaiement() {
+    const type = document.querySelector('input[name="type_paiement"]:checked').value;
+    const montantGroup = document.getElementById('montant-partiel-group');
+
+    if (type === 'partiel') {
+        montantGroup.style.display = 'block';
+    } else {
+        montantGroup.style.display = 'none';
+    }
+}
+
+function setupClientAutocomplete() {
+    const input = document.getElementById('vente-client-search');
+    const resultsDiv = document.getElementById('client-autocomplete');
+
+    input.addEventListener('input', function() {
+        const query = this.value.trim();
+
+        if (query.length < 2) {
+            resultsDiv.innerHTML = '';
+            resultsDiv.style.display = 'none';
+            return;
+        }
+
+        fetch(`/api/clients/search/?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.clients && data.clients.length > 0) {
+                    resultsDiv.innerHTML = '';
+                    data.clients.forEach(client => {
+                        const div = document.createElement('div');
+                        div.className = 'autocomplete-item';
+                        div.textContent = `${client.prenom} ${client.nom} - ${client.telephone}`;
+                        div.onclick = function() {
+                            selectClient(client);
+                        };
+                        resultsDiv.appendChild(div);
+                    });
+                    resultsDiv.style.display = 'block';
+                } else {
+                    resultsDiv.innerHTML = '<div class="autocomplete-item">Aucun client trouvé</div>';
+                    resultsDiv.style.display = 'block';
+                }
+            });
+    });
+
+    // Fermer l'autocomplete si on clique ailleurs
+    document.addEventListener('click', function(e) {
+        if (!input.contains(e.target) && !resultsDiv.contains(e.target)) {
+            resultsDiv.style.display = 'none';
+        }
+    });
+}
+
+function selectClient(client) {
+    document.getElementById('vente-client').value = client.id;
+    document.getElementById('vente-client-search').value = `${client.prenom} ${client.nom}`;
+    document.getElementById('client-autocomplete').style.display = 'none';
+}
+
+// Soumission du formulaire
+document.getElementById('form-vente').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    // Validation
+    if (!document.getElementById('vente-client').value) {
+        alert('Veuillez sélectionner un client');
+        return;
+    }
+
+    if (!document.getElementById('vente-employe').value) {
+        alert('Veuillez sélectionner un employé');
+        return;
+    }
+
+    if (window.prestationsSelectionnees.length === 0) {
+        alert('Veuillez ajouter au moins une prestation');
+        return;
+    }
+
+    const formData = new FormData(this);
+    formData.append('prestations', JSON.stringify(window.prestationsSelectionnees.map(p => ({
+        id: p.id,
+        nom: p.nom,
+        quantite: p.quantite,
+        prix: p.prix
+    }))));
+
+    fetch('/express/api/vente/creer/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert('Erreur : ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Erreur réseau : ' + error);
+    });
+});
+</script>
+
+<style>
+.btn-icon {
+    background: none;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.btn-icon:hover {
+    background: #f0f0f0;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table th,
+.table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.table th {
+    background: #f9f9f9;
+    font-weight: 600;
+}
+
+.table tbody tr:hover {
+    background: #f9f9f9;
+}
+
+.autocomplete-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.autocomplete-item {
+    padding: 12px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.autocomplete-item:hover {
+    background: #f9f9f9;
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+/* Responsive - Tablette portrait */
+@media (max-width: 900px) {
+    .content-header > div:first-child {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Responsive - Mobile */
+@media (max-width: 600px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+    }
+
+    .stat-card {
+        padding: 15px !important;
+    }
+
+    .stat-value {
+        font-size: 18px !important;
+    }
+
+    .stat-label {
+        font-size: 11px !important;
+    }
+
+    .card-header h2 {
+        font-size: 16px;
+    }
+
+    /* Formulaire responsive */
+    div[style*="grid-template-columns: 1fr auto"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    div[style*="grid-template-columns: repeat(3, 1fr)"],
+    div[style*="grid-template-columns: repeat(2, 1fr)"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    .btn-icon {
+        width: 36px;
+        height: 36px;
+    }
+
+    #prestations-selectionnees > div {
+        flex-wrap: wrap;
+    }
+
+    #prestations-selectionnees > div > div:last-child {
+        width: 100%;
+        justify-content: space-between;
+        margin-top: 10px;
+    }
+
+    /* Table responsive */
+    .table {
+        font-size: 12px;
+    }
+
+    .table th,
+    .table td {
+        padding: 8px 10px;
+    }
+
+    .table th:nth-child(4),
+    .table td:nth-child(4) {
+        display: none;
+    }
+}
+
+/* Responsive - Petit mobile */
+@media (max-width: 375px) {
+    .stats-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .stat-value {
+        font-size: 20px !important;
+    }
+
+    .table th:nth-child(3),
+    .table td:nth-child(3) {
+        display: none;
+    }
+}
+</style>
+{% endblock %}

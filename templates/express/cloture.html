@@ -1,0 +1,531 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Clôture de caisse - {{ institut.nom }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .cloture-container {
+        padding: 20px;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .cloture-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+    }
+
+    .cloture-header h1 {
+        margin: 0 0 10px 0;
+        font-size: 1.8em;
+    }
+
+    .date-navigation {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-top: 15px;
+    }
+
+    .date-navigation a {
+        color: white;
+        text-decoration: none;
+        padding: 8px 15px;
+        background: rgba(255,255,255,0.2);
+        border-radius: 8px;
+        transition: background 0.3s;
+    }
+
+    .date-navigation a:hover {
+        background: rgba(255,255,255,0.3);
+    }
+
+    .date-navigation input[type="date"] {
+        padding: 8px 15px;
+        border-radius: 8px;
+        border: none;
+        font-size: 1em;
+    }
+
+    .card {
+        background: white;
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    .card-title {
+        font-size: 1.3em;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #f0f0f0;
+    }
+
+    .recap-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+    }
+
+    .recap-item {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+    }
+
+    .recap-label {
+        font-size: 0.9em;
+        color: #666;
+        margin-bottom: 8px;
+    }
+
+    .recap-value {
+        font-size: 1.8em;
+        font-weight: bold;
+        color: #333;
+    }
+
+    .recap-value.success {
+        color: #28a745;
+    }
+
+    .recap-value.warning {
+        color: #ffc107;
+    }
+
+    .recap-value.danger {
+        color: #dc3545;
+    }
+
+    .totaux-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .totaux-table th,
+    .totaux-table td {
+        padding: 12px 15px;
+        text-align: left;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .totaux-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        color: #555;
+    }
+
+    .totaux-table th:not(:first-child),
+    .totaux-table td:not(:first-child) {
+        text-align: right;
+    }
+
+    .totaux-table td:last-child {
+        font-weight: 600;
+    }
+
+    .totaux-table tr.total-row {
+        background: #f0f8ff;
+        font-size: 1.1em;
+    }
+
+    .totaux-table tr.total-row td {
+        border-bottom: none;
+    }
+
+    .alert {
+        padding: 15px 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .alert-warning {
+        background: #fff3cd;
+        border-left: 4px solid #ffc107;
+        color: #856404;
+    }
+
+    .alert-success {
+        background: #d4edda;
+        border-left: 4px solid #28a745;
+        color: #155724;
+    }
+
+    .alert-icon {
+        font-size: 1.5em;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #555;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 15px;
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        font-size: 1.2em;
+        text-align: right;
+        box-sizing: border-box;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+
+    .calcul-ecart {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        margin-top: 20px;
+    }
+
+    .calcul-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .calcul-row:last-child {
+        border-bottom: none;
+        font-weight: bold;
+        font-size: 1.2em;
+    }
+
+    .calcul-row.ecart-positif,
+    .calcul-row.ecart-negatif {
+        color: #dc3545;
+    }
+
+    .btn-cloturer {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        border: none;
+        padding: 18px 40px;
+        border-radius: 10px;
+        font-size: 1.2em;
+        font-weight: 600;
+        cursor: pointer;
+        width: 100%;
+        transition: all 0.3s;
+    }
+
+    .btn-cloturer:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(40, 167, 69, 0.3);
+    }
+
+    .btn-cloturer:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .cloture-badge {
+        display: inline-block;
+        background: #28a745;
+        color: white;
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: #667eea;
+        text-decoration: none;
+        margin-bottom: 20px;
+        font-weight: 500;
+    }
+
+    .back-link:hover {
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cloture-container">
+    <a href="{% url 'express:index' %}" class="back-link">
+        ← Retour à Express
+    </a>
+
+    <div class="cloture-header">
+        <h1>Clôture de caisse - {{ institut.nom }}</h1>
+        <div class="date-navigation">
+            <a href="#" onclick="changeDate(-1); return false;">← Jour précédent</a>
+            <input type="date" id="date-input" value="{{ date_selectionnee|date:'Y-m-d' }}" onchange="window.location.href='?date=' + this.value">
+            <a href="#" onclick="changeDate(1); return false;">Jour suivant →</a>
+        </div>
+        <p style="margin-top: 15px; font-size: 1.2em;">{{ date_selectionnee|date:"l d F Y" }}</p>
+        {% if nb_clotures > 0 %}
+        <span class="cloture-badge" style="margin-top: 10px;">✓ {{ nb_clotures }} clôture{{ nb_clotures|pluralize }} effectuée{{ nb_clotures|pluralize }}</span>
+        {% endif %}
+    </div>
+
+    <!-- Historique des clôtures du jour -->
+    {% if clotures_existantes %}
+    <div class="card">
+        <h2 class="card-title">Historique des clôtures du jour</h2>
+        <table class="totaux-table">
+            <thead>
+                <tr>
+                    <th>Heure</th>
+                    <th>Espèces calculé</th>
+                    <th>Montant réel</th>
+                    <th>Écart</th>
+                    <th>Par</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cloture in clotures_existantes %}
+                <tr>
+                    <td><strong>{{ cloture.date_cloture|date:"H:i" }}</strong></td>
+                    <td style="text-align: right;">{{ cloture.total_especes_calcule|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">{{ cloture.montant_reel_especes|floatformat:0 }} CFA</td>
+                    <td style="text-align: right; color: #dc3545;">
+                        {% if cloture.ecart >= 0 %}+{% endif %}{{ cloture.ecart|floatformat:0 }} CFA
+                    </td>
+                    <td>{% if cloture.cloture_par %}{{ cloture.cloture_par.user.first_name }}{% else %}-{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Récapitulatif des RDV -->
+    <div class="card">
+        <h2 class="card-title">Récapitulatif du jour</h2>
+        <div class="recap-grid">
+            <div class="recap-item">
+                <div class="recap-label">Ventes validées</div>
+                <div class="recap-value success">{{ ventes_validees }}</div>
+            </div>
+            <div class="recap-item">
+                <div class="recap-label">Ventes non validées</div>
+                <div class="recap-value {% if ventes_non_validees > 0 %}danger{% else %}success{% endif %}">{{ ventes_non_validees }}</div>
+            </div>
+            <div class="recap-item">
+                <div class="recap-label">Total cumulé du jour</div>
+                <div class="recap-value">{{ total_jour|floatformat:0 }} CFA</div>
+            </div>
+            {% if nb_clotures > 0 %}
+            <div class="recap-item">
+                <div class="recap-label">En attente de clôture</div>
+                <div class="recap-value">{{ total_encours|floatformat:0 }} CFA</div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if ventes_non_validees > 0 %}
+        <div class="alert alert-warning" style="margin-top: 20px;">
+            <span class="alert-icon">⚠️</span>
+            <div>
+                <strong>Attention !</strong> Il reste {{ ventes_non_validees }} vente(s) non validée(s).
+                Veuillez les valider avant de clôturer la caisse.
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Détail des totaux -->
+    <div class="card">
+        <h2 class="card-title">Détail des encaissements {% if nb_clotures > 0 %}(depuis dernière clôture){% else %}(total du jour){% endif %}</h2>
+        <div style="overflow-x: auto;">
+        <table class="totaux-table">
+            <thead>
+                <tr>
+                    <th>Source</th>
+                    <th>Espèces</th>
+                    <th>Carte</th>
+                    <th>Chèque</th>
+                    <th>OM</th>
+                    <th>Wave</th>
+                    <th>Carte cadeau</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Ventes validées</td>
+                    <td style="text-align: right;">{{ total_especes_ventes|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">{{ total_carte_ventes|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">{{ total_cheque_ventes|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">{{ total_om_ventes|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">{{ total_wave_ventes|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">{{ total_carte_cadeau_prestations|floatformat:0 }} CFA</td>
+                </tr>
+                <tr>
+                    <td>Règlements de crédits</td>
+                    <td style="text-align: right;">{{ total_especes_credit|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">{{ total_carte_credit|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">{{ total_cheque_credit|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">{{ total_om_credit|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">{{ total_wave_credit|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">-</td>
+                </tr>
+                {% if nb_cartes_vendues > 0 %}
+                <tr>
+                    <td>Ventes cartes cadeaux ({{ nb_cartes_vendues }})</td>
+                    <td style="text-align: right;">{{ ventes_cartes_especes|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">{{ ventes_cartes_cb|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">{{ ventes_cartes_cheque|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">{{ ventes_cartes_om|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">{{ ventes_cartes_wave|floatformat:0 }} CFA</td>
+                    <td style="text-align: right;">-</td>
+                </tr>
+                {% endif %}
+                <tr class="total-row">
+                    <td><strong>Total {% if nb_clotures > 0 %}en cours{% else %}du jour{% endif %}</strong></td>
+                    <td style="text-align: right;"><strong>{{ total_especes|floatformat:0 }} CFA</strong></td>
+                    <td style="text-align: right;"><strong>{{ total_carte|floatformat:0 }} CFA</strong></td>
+                    <td style="text-align: right;"><strong>{{ total_cheque|floatformat:0 }} CFA</strong></td>
+                    <td style="text-align: right;"><strong>{{ total_om|floatformat:0 }} CFA</strong></td>
+                    <td style="text-align: right;"><strong>{{ total_wave|floatformat:0 }} CFA</strong></td>
+                    <td style="text-align: right;"><strong>{{ total_carte_cadeau_prestations|floatformat:0 }} CFA</strong></td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <!-- Formulaire de clôture -->
+    <div class="card">
+        <h2 class="card-title">{% if nb_clotures > 0 %}Nouvelle clôture{% else %}Clôture de caisse{% endif %}</h2>
+
+        <form id="form-cloture">
+            {% csrf_token %}
+            <input type="hidden" name="date" value="{{ date_selectionnee|date:'Y-m-d' }}">
+
+            <div class="calcul-ecart">
+                <div class="calcul-row">
+                    <span>Fond de caisse</span>
+                    <span>{{ fond_caisse|floatformat:0 }} CFA</span>
+                </div>
+                <div class="calcul-row">
+                    <span>Total espèces encaissé {% if nb_clotures > 0 %}(depuis dernière clôture){% endif %}</span>
+                    <span>{{ total_especes|floatformat:0 }} CFA</span>
+                </div>
+                <div class="calcul-row" style="font-weight: bold; background: #e8f5e9; margin: 10px -20px; padding: 15px 20px;">
+                    <span>Montant espèces attendu</span>
+                    <span id="montant-attendu">{{ montant_attendu|floatformat:0 }} CFA</span>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="montant_reel">Montant réel dans la caisse (espèces)</label>
+                <input type="number" class="form-control" id="montant_reel" name="montant_reel"
+                       value="{{ montant_attendu }}" min="0" step="1" required
+                       oninput="calculerEcart()">
+            </div>
+
+            <div id="ecart-display" class="calcul-ecart" style="display: none; margin-top: 15px;">
+                <div class="calcul-row" id="ecart-row">
+                    <span>Écart</span>
+                    <span id="ecart-value">0 CFA</span>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-cloturer" {% if ventes_non_validees > 0 %}disabled{% endif %}>
+                {% if nb_clotures > 0 %}EFFECTUER UNE NOUVELLE CLÔTURE{% else %}CLÔTURER LA CAISSE{% endif %}
+            </button>
+
+            {% if ventes_non_validees > 0 %}
+            <p style="text-align: center; color: #dc3545; margin-top: 15px;">
+                Impossible de clôturer : il reste des ventes non validées
+            </p>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<script>
+const montantAttendu = {{ montant_attendu }};
+
+function changeDate(days) {
+    const dateInput = document.getElementById('date-input');
+    const currentDate = new Date(dateInput.value);
+    currentDate.setDate(currentDate.getDate() + days);
+    const newDate = currentDate.toISOString().split('T')[0];
+    window.location.href = '?date=' + newDate;
+}
+
+function calculerEcart() {
+    const montantReel = parseInt(document.getElementById('montant_reel').value) || 0;
+    const ecart = montantReel - montantAttendu;
+
+    const ecartDisplay = document.getElementById('ecart-display');
+    const ecartRow = document.getElementById('ecart-row');
+    const ecartValue = document.getElementById('ecart-value');
+
+    if (montantReel !== montantAttendu) {
+        ecartDisplay.style.display = 'block';
+        ecartValue.textContent = (ecart >= 0 ? '+' : '') + ecart.toLocaleString('fr-FR') + ' CFA';
+
+        ecartRow.classList.remove('ecart-positif', 'ecart-negatif');
+        if (ecart >= 0) {
+            ecartRow.classList.add('ecart-positif');
+        } else {
+            ecartRow.classList.add('ecart-negatif');
+        }
+    } else {
+        ecartDisplay.style.display = 'none';
+    }
+}
+
+document.getElementById('form-cloture')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    if (!confirm('Êtes-vous sûr de vouloir clôturer la caisse ? Cette action est irréversible.')) {
+        return;
+    }
+
+    const formData = new FormData(this);
+
+    try {
+        const response = await fetch('{% url "express:api_cloturer_caisse" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('✓ ' + data.message);
+            location.reload();
+        } else {
+            alert('❌ ' + data.message);
+        }
+    } catch (error) {
+        alert('❌ Erreur lors de la clôture: ' + error.message);
+    }
+});
+</script>
+{% endblock %}

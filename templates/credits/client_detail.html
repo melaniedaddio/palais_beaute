@@ -1,0 +1,549 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Crédits {{ client.get_full_name }} - {{ institut.nom }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .detail-container {
+        padding: 20px;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .back-btn {
+        background: #667eea;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 20px;
+        transition: background 0.3s;
+    }
+
+    .back-btn:hover {
+        background: #5568d3;
+    }
+
+    .client-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+    }
+
+    .client-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+
+    .client-name-section h1 {
+        margin: 0 0 10px 0;
+        font-size: 2em;
+    }
+
+    .client-contact {
+        font-size: 1.1em;
+        opacity: 0.9;
+    }
+
+    .total-section {
+        text-align: right;
+    }
+
+    .total-label {
+        font-size: 0.9em;
+        opacity: 0.9;
+        margin-bottom: 5px;
+    }
+
+    .total-amount {
+        font-size: 2.5em;
+        font-weight: bold;
+    }
+
+    .credits-timeline {
+        background: white;
+        border-radius: 12px;
+        padding: 30px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    .timeline-header {
+        margin-bottom: 30px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #f0f0f0;
+    }
+
+    .credit-card {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 25px;
+        border-left: 5px solid #667eea;
+        position: relative;
+    }
+
+    .credit-card.solde {
+        border-left-color: #27ae60;
+        opacity: 0.7;
+    }
+
+    .credit-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 15px;
+    }
+
+    .credit-title {
+        font-size: 1.2em;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 5px;
+    }
+
+    .credit-date {
+        color: #888;
+        font-size: 0.9em;
+    }
+
+    .badge-solde {
+        background: #27ae60;
+        color: white;
+        padding: 6px 15px;
+        border-radius: 20px;
+        font-size: 0.85em;
+        font-weight: bold;
+    }
+
+    .credit-amounts {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+        margin: 20px 0;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+    }
+
+    .amount-box {
+        text-align: center;
+    }
+
+    .amount-label {
+        font-size: 0.85em;
+        color: #888;
+        margin-bottom: 5px;
+    }
+
+    .amount-value {
+        font-size: 1.4em;
+        font-weight: bold;
+    }
+
+    .amount-value.total {
+        color: #666;
+    }
+
+    .amount-value.paye {
+        color: #27ae60;
+    }
+
+    .amount-value.reste {
+        color: #e74c3c;
+    }
+
+    .paiements-section {
+        margin-top: 20px;
+    }
+
+    .paiements-header {
+        font-weight: 600;
+        color: #555;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .paiement-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        background: white;
+        border-radius: 6px;
+        margin-bottom: 8px;
+    }
+
+    .paiement-info {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+    }
+
+    .paiement-montant {
+        font-weight: bold;
+        color: #27ae60;
+    }
+
+    .paiement-mode {
+        background: #e0e0e0;
+        padding: 4px 10px;
+        border-radius: 15px;
+        font-size: 0.85em;
+    }
+
+    .paiement-date {
+        color: #888;
+        font-size: 0.9em;
+    }
+
+    .btn-regler {
+        background: #27ae60;
+        color: white;
+        border: none;
+        padding: 12px 30px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 1em;
+        font-weight: 600;
+        transition: all 0.3s;
+        margin-top: 15px;
+    }
+
+    .btn-regler:hover {
+        background: #229954;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+    }
+
+    /* Modal */
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal.active {
+        display: flex;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 15px;
+        padding: 30px;
+        max-width: 500px;
+        width: 90%;
+    }
+
+    .modal-header {
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #f0f0f0;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        color: #333;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #555;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 1em;
+        box-sizing: border-box;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+
+    select.form-control {
+        cursor: pointer;
+    }
+
+    .info-box {
+        background: #f0f7ff;
+        border-left: 4px solid #667eea;
+        padding: 15px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 25px;
+    }
+
+    .btn-modal {
+        padding: 12px 30px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.3s;
+    }
+
+    .btn-primary {
+        background: #27ae60;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #229954;
+    }
+
+    .btn-secondary {
+        background: #e0e0e0;
+        color: #666;
+    }
+
+    .btn-secondary:hover {
+        background: #d0d0d0;
+    }
+
+    .empty-paiements {
+        text-align: center;
+        padding: 20px;
+        color: #999;
+        font-style: italic;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="detail-container">
+    <a href="{% url 'credits:index' institut.code %}" class="back-btn">
+        ← Retour à la liste
+    </a>
+
+    <div class="client-header">
+        <div class="client-info">
+            <div class="client-name-section">
+                <h1>👤 {{ client.get_full_name }}</h1>
+                <div class="client-contact">📞 {{ client.telephone }}</div>
+                {% if client.email %}
+                <div class="client-contact">📧 {{ client.email }}</div>
+                {% endif %}
+            </div>
+            <div class="total-section">
+                <div class="total-label">Total à payer</div>
+                <div class="total-amount">{{ total_reste|floatformat:0 }} CFA</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="credits-timeline">
+        <div class="timeline-header">
+            <h2>📋 Historique des crédits</h2>
+        </div>
+
+        {% if credits %}
+            {% for credit in credits %}
+            <div class="credit-card {% if credit.solde %}solde{% endif %}" data-credit-id="{{ credit.id }}">
+                <div class="credit-header-row">
+                    <div>
+                        <div class="credit-title">{{ credit.description }}</div>
+                        <div class="credit-date">📅 {{ credit.date_creation|date:"d/m/Y à H:i" }}</div>
+                    </div>
+                    {% if credit.solde %}
+                        <span class="badge-solde">✓ Soldé le {{ credit.date_solde|date:"d/m/Y" }}</span>
+                    {% endif %}
+                </div>
+
+                <div class="credit-amounts">
+                    <div class="amount-box">
+                        <div class="amount-label">Montant total</div>
+                        <div class="amount-value total">{{ credit.montant_total|floatformat:0 }} CFA</div>
+                    </div>
+                    <div class="amount-box">
+                        <div class="amount-label">Déjà payé</div>
+                        <div class="amount-value paye">{{ credit.montant_paye|floatformat:0 }} CFA</div>
+                    </div>
+                    <div class="amount-box">
+                        <div class="amount-label">Reste à payer</div>
+                        <div class="amount-value reste">{{ credit.reste_a_payer|floatformat:0 }} CFA</div>
+                    </div>
+                </div>
+
+                {% if credit.paiements.all %}
+                <div class="paiements-section">
+                    <div class="paiements-header">💰 Paiements effectués ({{ credit.paiements.count }})</div>
+                    {% for paiement in credit.paiements.all %}
+                    <div class="paiement-item">
+                        <div class="paiement-info">
+                            <span class="paiement-montant">{{ paiement.montant|floatformat:0 }} CFA</span>
+                            <span class="paiement-mode">{{ paiement.get_mode_display }}</span>
+                        </div>
+                        <div class="paiement-date">
+                            {{ paiement.date|date:"d/m/Y H:i" }}
+                            {% if paiement.enregistre_par %}
+                            <br><small>par {{ paiement.enregistre_par.nom }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-paiements">Aucun paiement effectué</div>
+                {% endif %}
+
+                {% if not credit.solde %}
+                <button class="btn-regler" onclick="ouvrirModalReglement({{ credit.id }}, {{ credit.reste_a_payer }}, '{{ credit.description|escapejs }}')">
+                    💵 Régler ce crédit
+                </button>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <div style="text-align: center; padding: 40px; color: #999;">
+                <p>Aucun crédit pour ce client</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal de règlement -->
+<div class="modal" id="modalReglement">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>💳 Régler un crédit</h2>
+        </div>
+
+        <div class="info-box">
+            <strong id="modal-credit-description"></strong><br>
+            Reste à payer: <strong id="modal-reste-a-payer"></strong> CFA
+        </div>
+
+        <form id="formReglement">
+            {% csrf_token %}
+            <input type="hidden" id="credit-id" name="credit_id">
+
+            <div class="form-group">
+                <label for="montant">Montant à régler (CFA)</label>
+                <input type="number" class="form-control" id="montant" name="montant"
+                       min="1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="mode">Mode de paiement</label>
+                <select class="form-control" id="mode" name="mode" required>
+                    <option value="especes">Espèces</option>
+                    <option value="carte">Carte bancaire</option>
+                    <option value="cheque">Chèque</option>
+                    <option value="om">Orange Money</option>
+                    <option value="wave">Wave</option>
+                </select>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-modal btn-secondary" onclick="fermerModalReglement()">
+                    Annuler
+                </button>
+                <button type="submit" class="btn-modal btn-primary">
+                    Enregistrer le paiement
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let currentCreditId = null;
+let currentResteAPayer = 0;
+
+function ouvrirModalReglement(creditId, resteAPayer, description) {
+    currentCreditId = creditId;
+    currentResteAPayer = resteAPayer;
+
+    document.getElementById('credit-id').value = creditId;
+    document.getElementById('modal-credit-description').textContent = description;
+    document.getElementById('modal-reste-a-payer').textContent = resteAPayer.toLocaleString('fr-FR');
+    document.getElementById('montant').value = resteAPayer;
+    document.getElementById('montant').max = resteAPayer;
+
+    document.getElementById('modalReglement').classList.add('active');
+}
+
+function fermerModalReglement() {
+    document.getElementById('modalReglement').classList.remove('active');
+    document.getElementById('formReglement').reset();
+    currentCreditId = null;
+}
+
+// Fermer le modal en cliquant à l'extérieur
+document.getElementById('modalReglement').addEventListener('click', function(e) {
+    if (e.target === this) {
+        fermerModalReglement();
+    }
+});
+
+// Gestion du formulaire de règlement
+document.getElementById('formReglement').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const montant = document.getElementById('montant').value;
+    const mode = document.getElementById('mode').value;
+
+    if (parseFloat(montant) > currentResteAPayer) {
+        alert('Le montant ne peut pas dépasser le reste à payer');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    formData.append('montant', montant);
+    formData.append('mode', mode);
+
+    try {
+        const response = await fetch(`/credits/{{ institut.code }}/api/credit/${currentCreditId}/regler/`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('✓ ' + data.message);
+            location.reload();
+        } else {
+            alert('❌ ' + data.message);
+        }
+    } catch (error) {
+        alert('❌ Erreur lors du règlement: ' + error.message);
+    }
+});
+</script>
+{% endblock %}
