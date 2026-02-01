@@ -24,4 +24,5 @@ urlpatterns = [
     path('express/', include('express.urls')),
     path('credits/', include('credits.urls')),
     path('dashboard/', include('dashboard.urls')),
+    path('gestion/', include('gestion.urls')),
 ]

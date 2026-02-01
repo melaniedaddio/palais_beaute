@@ -518,13 +518,13 @@ document.getElementById('form-cloture')?.addEventListener('submit', async functi
         const data = await response.json();
 
         if (data.success) {
-            alert('✓ ' + data.message);
-            location.reload();
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 1000);
         } else {
-            alert('❌ ' + data.message);
+            showError(data.message);
         }
     } catch (error) {
-        alert('❌ Erreur lors de la clôture: ' + error.message);
+        showError('Erreur lors de la clôture: ' + error.message);
     }
 });
 </script>

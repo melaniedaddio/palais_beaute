@@ -461,13 +461,13 @@ async function submitForm(e) {
         const data = await response.json();
 
         if (data.success) {
-            alert('✓ ' + data.message);
-            location.reload();
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 1000);
         } else {
-            alert('❌ ' + data.message);
+            showError(data.message);
         }
     } catch (error) {
-        alert('❌ Erreur: ' + error.message);
+        showError('Erreur: ' + error.message);
     }
 }
 
@@ -496,14 +496,14 @@ async function supprimerEmploye(id, nom) {
         console.log('Données reçues:', data);
 
         if (data.success) {
-            alert('✓ ' + data.message);
-            location.reload();
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 1000);
         } else {
-            alert('❌ ' + data.message);
+            showError(data.message);
         }
     } catch (error) {
         console.error('Erreur lors de la suppression:', error);
-        alert('❌ Erreur: ' + error.message);
+        showError('Erreur: ' + error.message);
     }
 }
 

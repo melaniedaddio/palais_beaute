@@ -1,0 +1,282 @@
+<!-- Modal Créer/Modifier Famille -->
+<div id="modalFamille" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalFamilleTitle">Nouvelle famille de prestations</h2>
+            <span class="modal-close" onclick="fermerModal('modalFamille')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="formFamille">
+                <input type="hidden" id="familleId" value="">
+                
+                <div class="form-group">
+                    <label for="familleNom">Nom de la famille *</label>
+                    <input type="text" 
+                           id="familleNom" 
+                           class="form-input" 
+                           placeholder="Ex: Ongle, Laser femme..."
+                           required>
+                </div>
+
+                <div class="form-group">
+                    <label for="familleCouleur">Couleur pour l'agenda *</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="familleCouleur" class="color-input" value="#e8b4b8">
+                        <input type="text" id="familleCouleurHex" class="form-input" value="#e8b4b8" style="width: 100px;">
+                    </div>
+                    <div class="couleurs-suggerees">
+                        <span style="font-size: 12px; color: var(--text-light); margin-right: 10px;">Couleurs suggérées:</span>
+                        <button type="button" class="color-badge" data-color="#E91E63" style="background: #E91E63"></button>
+                        <button type="button" class="color-badge" data-color="#9C27B0" style="background: #9C27B0"></button>
+                        <button type="button" class="color-badge" data-color="#673AB7" style="background: #673AB7"></button>
+                        <button type="button" class="color-badge" data-color="#3F51B5" style="background: #3F51B5"></button>
+                        <button type="button" class="color-badge" data-color="#2196F3" style="background: #2196F3"></button>
+                        <button type="button" class="color-badge" data-color="#009688" style="background: #009688"></button>
+                        <button type="button" class="color-badge" data-color="#4CAF50" style="background: #4CAF50"></button>
+                        <button type="button" class="color-badge" data-color="#FF9800" style="background: #FF9800"></button>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="fermerModal('modalFamille')">Annuler</button>
+                    <button type="submit" class="btn-primary" id="btnSaveFamille">Créer la famille</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Confirmer Suppression -->
+<div id="modalSupprimerFamille" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h2>⚠️ Supprimer la famille</h2>
+            <span class="modal-close" onclick="fermerModal('modalSupprimerFamille')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 20px;">
+                Êtes-vous sûr de vouloir supprimer la famille "<strong id="nomFamilleASupprimer"></strong>" ?
+            </p>
+
+            <div class="alert alert-danger">
+                <strong>⚠️ ATTENTION</strong>
+                <p style="margin: 10px 0;">Cette action va également supprimer :</p>
+                <p style="margin: 10px 0;">• <strong id="nbPrestationsASupprimer"></strong> prestation(s) dans cette famille</p>
+                <p style="margin: 10px 0;">Les RDV passés seront conservés mais ces prestations ne seront plus disponibles.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="confirmationSuppressionFamille">Pour confirmer, tapez "SUPPRIMER" :</label>
+                <input type="text" 
+                       id="confirmationSuppressionFamille" 
+                       class="form-input" 
+                       placeholder="SUPPRIMER">
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="fermerModal('modalSupprimerFamille')">Annuler</button>
+                <button type="button" class="btn-danger" onclick="confirmerSuppressionFamille()">🗑️ Supprimer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 10000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(5px);
+    }
+
+    .modal.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-content {
+        background-color: white;
+        border-radius: 15px;
+        box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
+        max-width: 600px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        animation: modalSlideIn 0.3s ease-out;
+    }
+
+    @keyframes modalSlideIn {
+        from {
+            transform: translateY(-50px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .modal-header {
+        padding: 25px 30px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        font-size: 22px;
+        color: var(--text-dark);
+    }
+
+    .modal-close {
+        font-size: 32px;
+        color: var(--text-light);
+        cursor: pointer;
+        transition: color 0.3s;
+        line-height: 1;
+    }
+
+    .modal-close:hover {
+        color: var(--danger);
+    }
+
+    .modal-body {
+        padding: 30px;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: var(--text-dark);
+    }
+
+    .form-input {
+        width: 100%;
+        padding: 12px 15px;
+        border: 2px solid var(--border);
+        border-radius: 8px;
+        font-size: 15px;
+        transition: all 0.3s;
+    }
+
+    .form-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(232, 180, 184, 0.1);
+    }
+
+    .color-picker-container {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .color-input {
+        width: 60px;
+        height: 50px;
+        border: 2px solid var(--border);
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+    .couleurs-suggerees {
+        margin-top: 15px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .color-badge {
+        width: 35px;
+        height: 35px;
+        border-radius: 8px;
+        border: 2px solid white;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+    .color-badge:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: 15px;
+        justify-content: flex-end;
+        margin-top: 30px;
+    }
+
+    .btn-primary, .btn-secondary, .btn-danger {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.3s;
+        font-size: 15px;
+    }
+
+    .btn-primary {
+        background: var(--primary);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: var(--primary-dark);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(232, 180, 184, 0.4);
+    }
+
+    .btn-secondary {
+        background: var(--bg-section);
+        color: var(--text-dark);
+    }
+
+    .btn-secondary:hover {
+        background: var(--border);
+    }
+
+    .btn-danger {
+        background: var(--danger);
+        color: white;
+    }
+
+    .btn-danger:hover {
+        background: #c82333;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+    }
+
+    .alert {
+        padding: 20px;
+        border-radius: 10px;
+        margin: 20px 0;
+    }
+
+    .alert-danger {
+        background: #fff5f5;
+        border: 2px solid var(--danger);
+        color: var(--danger);
+    }
+
+    .alert strong {
+        display: block;
+        margin-bottom: 10px;
+    }
+</style>

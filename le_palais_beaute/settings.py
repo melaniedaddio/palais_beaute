@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'express',
     'credits',
     'dashboard',
+    'gestion',
 ]
 
 MIDDLEWARE = [

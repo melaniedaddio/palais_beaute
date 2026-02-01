@@ -36,10 +36,12 @@ def index(request, institut_code):
         actif=True
     ).order_by('ordre_affichage', 'nom')
 
-    # Récupérer les rendez-vous du jour
+    # Récupérer les rendez-vous du jour (exclure les annulés pour libérer les créneaux)
     rendez_vous = RendezVous.objects.filter(
         institut=institut,
         date=date_selectionnee
+    ).exclude(
+        statut__in=['annule', 'annule_client']
     ).select_related('client', 'employe', 'prestation').prefetch_related('options_selectionnees__option')
 
     # Créer la grille horaire (7h à 23h, créneaux de 15min)
@@ -92,6 +94,13 @@ def index(request, institut_code):
         cloture=True
     ).exists()
 
+    # Compter séparément les RDV annulés/absents pour les stats
+    rdv_annules_absents_count = RendezVous.objects.filter(
+        institut=institut,
+        date=date_selectionnee,
+        statut__in=['annule', 'annule_client', 'absent']
+    ).count()
+
     # Convertir rdv_par_employe en JSON pour le template
     import json
     rdv_par_employe_json = json.dumps(rdv_par_employe)
@@ -105,6 +114,7 @@ def index(request, institut_code):
         'familles': familles,
         'options': options,
         'caisse_cloturee': caisse_cloturee,
+        'rdv_annules_absents_count': rdv_annules_absents_count,
     }
 
     return render(request, 'agenda/agenda.html', context)

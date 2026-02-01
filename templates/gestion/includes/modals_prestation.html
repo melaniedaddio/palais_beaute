@@ -1,0 +1,120 @@
+<!-- Modal Créer/Modifier Prestation -->
+<div id="modalPrestation" class="modal">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <h2 id="modalPrestationLabel">Nouvelle prestation</h2>
+            <span class="modal-close" onclick="fermerModal('modalPrestation')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="formPrestation">
+                <input type="hidden" id="prestationId">
+                <input type="hidden" id="prestationFamilleId">
+
+                <!-- Nom -->
+                <div class="form-group">
+                    <label for="prestationNom">Nom de la prestation *</label>
+                    <input type="text" class="form-input" id="prestationNom" required>
+                </div>
+
+                <!-- Type de prestation -->
+                <div class="form-group">
+                    <label for="prestationType">Type *</label>
+                    <select class="form-input" id="prestationType" required>
+                        <option value="normal">Normal</option>
+                        <option value="option">Option</option>
+                        <option value="forfait">Forfait</option>
+                    </select>
+                    <div style="font-size: 12px; color: var(--text-light); margin-top: 5px;">
+                        <strong>Normal:</strong> Prestation standard avec prix et durée<br>
+                        <strong>Option:</strong> Supplément avec unité (ex: "par strass", "par ongle")<br>
+                        <strong>Forfait:</strong> Package multi-séances
+                    </div>
+                </div>
+
+                <!-- Prix -->
+                <div class="form-group">
+                    <label for="prestationPrix">Prix (CFA) *</label>
+                    <input type="number" class="form-input" id="prestationPrix" min="0" required>
+                </div>
+
+                <!-- Durée (masqué pour les options) -->
+                <div class="form-group" id="divDuree">
+                    <label for="prestationDuree">Durée (minutes)</label>
+                    <input type="number" class="form-input" id="prestationDuree" min="0" step="5">
+                    <div style="font-size: 12px; color: var(--text-light); margin-top: 5px;">Laissez vide si non applicable</div>
+                </div>
+
+                <!-- Unité (affiché uniquement pour les options) -->
+                <div class="form-group" id="divUnite" style="display: none;">
+                    <label for="prestationUnite">Unité</label>
+                    <input type="text" class="form-input" id="prestationUnite" placeholder="Ex: par strass, par ongle, par mèche">
+                    <div style="font-size: 12px; color: var(--text-light); margin-top: 5px;">Décrit l'unité de facturation de cette option</div>
+                </div>
+
+                <!-- Nombre de séances (affiché uniquement pour les forfaits) -->
+                <div class="form-group" id="divNbSeances" style="display: none;">
+                    <label for="prestationNbSeances">Nombre de séances *</label>
+                    <input type="number" class="form-input" id="prestationNbSeances" min="1" value="1">
+                </div>
+
+                <!-- Instituts disponibles -->
+                <div class="form-group">
+                    <label>Disponible dans les instituts</label>
+                    <div id="divInstituts">
+                        {% for institut in instituts %}
+                        <div style="margin: 8px 0;">
+                            <input class="prestation-institut" type="checkbox"
+                                   value="{{ institut.id }}" id="institut{{ institut.id }}"
+                                   style="margin-right: 8px;">
+                            <label for="institut{{ institut.id }}" style="cursor: pointer; font-weight: normal;">
+                                {{ institut.nom }}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-light); margin-top: 5px;">Si aucun n'est coché, la prestation est liée uniquement à la famille</div>
+                </div>
+
+                <div class="alert alert-danger" id="prestationError" style="display: none;"></div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="fermerModal('modalPrestation')">Annuler</button>
+                    <button type="button" class="btn-primary" id="btnSavePrestation">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Supprimer Prestation -->
+<div id="modalSupprimerPrestation" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h2>⚠️ Supprimer la prestation</h2>
+            <span class="modal-close" onclick="fermerModal('modalSupprimerPrestation')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 20px;">
+                Vous êtes sur le point de supprimer la prestation :
+            </p>
+            <p style="font-weight: 600; text-align: center; font-size: 18px; margin: 20px 0;">
+                <span id="prestationNomSupprimer"></span>
+            </p>
+            <div class="alert alert-danger">
+                <strong>⚠️ ATTENTION</strong>
+                <p style="margin: 10px 0;">Cette action est <strong>irréversible</strong>.</p>
+                <p style="margin: 10px 0;">Les RDV passés seront conservés mais cette prestation ne sera plus disponible.</p>
+            </div>
+            <div class="form-group">
+                <label for="confirmationSuppressionPrestation">Pour confirmer, tapez "SUPPRIMER" :</label>
+                <input type="text" class="form-input" id="confirmationSuppressionPrestation"
+                       placeholder="SUPPRIMER">
+            </div>
+            <div class="alert alert-danger" id="prestationSuppressionError" style="display: none;"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="fermerModal('modalSupprimerPrestation')">Annuler</button>
+                <button type="button" class="btn-danger" id="btnConfirmerSuppressionPrestation">🗑️ Supprimer</button>
+            </div>
+        </div>
+    </div>
+</div>

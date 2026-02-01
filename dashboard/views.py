@@ -18,8 +18,8 @@ def index(request):
     """Dashboard principal du patron avec vue globale sur tous les instituts."""
     today = timezone.now().date()
 
-    # Période sélectionnée (par défaut: ce mois)
-    periode = request.GET.get('periode', 'mois')
+    # Période sélectionnée (par défaut: aujourd'hui)
+    periode = request.GET.get('periode', 'jour')
 
     if periode == 'jour':
         date_debut = today
@@ -557,10 +557,50 @@ def api_stats_institut(request):
         for p in prestations_stats
     ]
 
+    # CA par moyen de paiement
+    paiements_query = Paiement.objects.filter(
+        rendez_vous__institut=institut,
+        rendez_vous__statut='valide'
+    )
+
+    # Pour Express : filtrer par dates clôturées
+    if institut.code == 'express':
+        paiements_query = paiements_query.filter(rendez_vous__date__in=dates_cloturees)
+    else:
+        paiements_query = paiements_query.filter(
+            rendez_vous__date__gte=date_debut,
+            rendez_vous__date__lte=date_fin
+        )
+
+    paiements_stats = paiements_query.values('mode').annotate(
+        ca_total=Sum('montant')
+    ).order_by('-ca_total')
+
+    # Mapper les noms des modes de paiement
+    mode_display_map = {
+        'especes': 'Espèces',
+        'carte': 'Carte',
+        'cheque': 'Chèque',
+        'om': 'Orange Money',
+        'wave': 'Wave',
+        'carte_cadeau': 'Carte cadeau',
+        'forfait': 'Forfait',
+        'offert': 'Offert',
+    }
+
+    paiements_data = [
+        {
+            'mode': mode_display_map.get(p['mode'], p['mode']),
+            'ca': float(p['ca_total']) if p['ca_total'] else 0
+        }
+        for p in paiements_stats
+    ]
+
     return JsonResponse({
         'institut': institut.nom,
         'employes': employes_stats,
-        'prestations': prestations_data
+        'prestations': prestations_data,
+        'paiements': paiements_data
     })
 
 

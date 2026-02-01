@@ -584,6 +584,15 @@
                 <canvas id="chartPrestations"></canvas>
             </div>
         </div>
+
+        <div class="dashboard-card">
+            <div class="dashboard-card-header">
+                <h3 class="dashboard-card-title">CA par moyen de paiement</h3>
+            </div>
+            <div class="chart-container">
+                <canvas id="chartPaiements"></canvas>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -819,6 +828,9 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Forcer le scroll en haut de la page
+    window.scrollTo(0, 0);
+
     // Récupérer la période actuelle
     const periode = '{{ periode }}';
 
@@ -908,6 +920,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             });
+
+            // Forcer le scroll en haut après le chargement des graphiques
+            setTimeout(() => window.scrollTo(0, 0), 100);
         })
         .catch(error => {
             console.error('Erreur chargement stats:', error);
@@ -916,6 +931,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Graphiques détaillés par institut
     let chartEmployes = null;
     let chartPrestations = null;
+    let chartPaiements = null;
 
     function chargerStatsInstitut() {
         const institut = document.getElementById('institut-select').value;
@@ -929,10 +945,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('Données reçues:', data);
                 console.log('Nombre d\'employés:', data.employes ? data.employes.length : 0);
                 console.log('Nombre de prestations:', data.prestations ? data.prestations.length : 0);
+                console.log('Nombre de paiements:', data.paiements ? data.paiements.length : 0);
 
                 // Détruire les anciens graphiques
                 if (chartEmployes) chartEmployes.destroy();
                 if (chartPrestations) chartPrestations.destroy();
+                if (chartPaiements) chartPaiements.destroy();
 
                 // Graphique CA par employé (barres horizontales)
                 const ctxEmployes = document.getElementById('chartEmployes');
@@ -1062,6 +1080,68 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                 });
+
+                // Graphique CA par moyen de paiement (barres verticales)
+                const canvasPaiements = document.getElementById('chartPaiements');
+                if (!canvasPaiements) {
+                    console.error('Element chartPaiements non trouvé!');
+                    return;
+                }
+                const ctxPaiements = canvasPaiements.getContext('2d');
+
+                // Vérifier si on a des données
+                const hasPaiementsData = data.paiements && data.paiements.length > 0;
+
+                // Couleurs pour les moyens de paiement
+                const colorsPaiements = [
+                    'rgba(102, 126, 234, 0.8)',  // Bleu pour Espèces
+                    'rgba(232, 180, 184, 0.8)',  // Rose pour Carte
+                    'rgba(201, 168, 106, 0.8)',  // Or pour Chèque
+                    'rgba(152, 212, 187, 0.8)',  // Vert pour Orange Money
+                    'rgba(184, 169, 201, 0.8)',  // Violet pour Wave
+                    'rgba(245, 195, 150, 0.8)',  // Orange pour Carte cadeau
+                    'rgba(139, 90, 90, 0.8)'     // Marron pour Forfait
+                ];
+
+                chartPaiements = new Chart(ctxPaiements, {
+                    type: 'bar',
+                    data: {
+                        labels: hasPaiementsData ? data.paiements.map(p => p.mode) : ['Aucune donnée'],
+                        datasets: [{
+                            label: 'CA (CFA)',
+                            data: hasPaiementsData ? data.paiements.map(p => p.ca) : [0],
+                            backgroundColor: colorsPaiements,
+                            borderColor: colorsPaiements.map(c => c.replace('0.8', '1')),
+                            borderWidth: 1,
+                            borderRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            title: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return value.toLocaleString('fr-FR') + ' CFA';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Forcer le scroll en haut après le chargement des graphiques
+                setTimeout(() => window.scrollTo(0, 0), 100);
             })
             .catch(error => {
                 console.error('Erreur chargement stats institut:', error);

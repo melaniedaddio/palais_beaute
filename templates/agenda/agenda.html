@@ -52,7 +52,7 @@
     </div>
     <div class="stat-card">
         <div class="stat-label">Absents / Annulés</div>
-        <div class="stat-value" id="stat-absents" style="color: #dc3545;">0</div>
+        <div class="stat-value" id="stat-absents" style="color: #dc3545;">{{ rdv_annules_absents_count }}</div>
     </div>
     <div class="stat-card">
         <div class="stat-label">Chiffre d'affaires</div>
@@ -285,6 +285,12 @@
                             <input type="radio" name="moyen_paiement" value="wave">
                             <span>Wave</span>
                         </label>
+                        {% if user.utilisateur.role == 'patron' %}
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #fff5e6; border: 2px solid #ff9800; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="moyen_paiement" value="offert" onchange="handleOffertChange()">
+                            <span style="font-weight: 600; color: #ff6f00;">🎁 Offert</span>
+                        </label>
+                        {% endif %}
                     </div>
                 </div>
             </form>
@@ -388,6 +394,12 @@
                             <input type="radio" name="forfait_mode_paiement" value="wave">
                             <span>Wave</span>
                         </label>
+                        {% if user.utilisateur.role == 'patron' %}
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #fff5e6; border: 2px solid #ff9800; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="forfait_mode_paiement" value="offert">
+                            <span style="font-weight: 600; color: #ff6f00;">🎁 Offert</span>
+                        </label>
+                        {% endif %}
                     </div>
                 </div>
             </form>
@@ -825,7 +837,7 @@ function chargerPrestationsData() {
         })
         .catch(error => {
             console.error('✗ ERREUR chargement prestations:', error);
-            alert('Erreur de chargement des prestations: ' + error.message);
+            showError('Erreur de chargement des prestations: ' + error.message);
         });
 }
 
@@ -962,14 +974,14 @@ function enregistrerRdv() {
 
     // Vérifications
     if (!formData.get('client_id')) {
-        alert('Veuillez sélectionner un client');
+        showWarning('Veuillez sélectionner un client');
         return;
     }
 
     // Si c'est une séance de forfait, la prestation sera déterminée côté serveur
     const seanceForfaitId = formData.get('seance_forfait_id');
     if (!formData.get('prestation_id') && !seanceForfaitId) {
-        alert('Veuillez sélectionner une prestation');
+        showWarning('Veuillez sélectionner une prestation');
         return;
     }
 
@@ -987,6 +999,8 @@ function enregistrerRdv() {
         '/agenda/{{ institut.code }}/api/rdv/' + window.currentRdvId + '/modifier/' :
         '/agenda/{{ institut.code }}/api/rdv/creer/';
 
+    showPageLoader('Enregistrement en cours...');
+
     fetch(url, {
         method: 'POST',
         body: formData,
@@ -997,14 +1011,17 @@ function enregistrerRdv() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            showSuccess(window.currentRdvId ? 'RDV modifié avec succès' : 'RDV créé avec succès');
             fermerModalRdv();
-            location.reload();
+            setTimeout(() => location.reload(), 500);
         } else {
-            alert('Erreur : ' + data.message);
+            hidePageLoader();
+            showError(data.message);
         }
     })
     .catch(error => {
-        alert('Erreur réseau : ' + error);
+        hidePageLoader();
+        showError('Erreur réseau : ' + error);
     });
 }
 
@@ -1079,22 +1096,26 @@ function afficherRdvSurGrille() {
 
 // Afficher détails RDV (clic sur une card)
 function afficherDetailsRdv(rdvId) {
+    showPageLoader('Chargement...');
+
     // Charger les détails du RDV
     fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/')
         .then(response => response.json())
         .then(rdv => {
+            hidePageLoader();
             if (rdv.statut === 'planifie') {
                 ouvrirModalActions(rdv);
             } else if (rdv.statut === 'valide') {
-                alert('RDV validé\n\nClient: ' + rdv.client + '\nPrestation: ' + rdv.prestation +
-                      '\nDate: ' + rdv.date + ' à ' + rdv.heure_debut + '\nPrix: ' + rdv.prix_total.toLocaleString('fr-FR') + ' CFA');
+                showInfo('RDV validé - Client: ' + rdv.client + ' | Prestation: ' + rdv.prestation +
+                      ' | Date: ' + rdv.date + ' à ' + rdv.heure_debut + ' | Prix: ' + rdv.prix_total.toLocaleString('fr-FR') + ' CFA');
             } else if (rdv.statut === 'absent' || rdv.statut === 'annule_client') {
-                alert('RDV annulé\n\nClient: ' + rdv.client + '\nPrestation: ' + rdv.prestation +
-                      '\nDate: ' + rdv.date + ' à ' + rdv.heure_debut);
+                showInfo('RDV annulé - Client: ' + rdv.client + ' | Prestation: ' + rdv.prestation +
+                      ' | Date: ' + rdv.date + ' à ' + rdv.heure_debut);
             }
         })
         .catch(error => {
-            alert('Erreur lors du chargement du RDV: ' + error);
+            hidePageLoader();
+            showError('Erreur lors du chargement du RDV: ' + error);
         });
 }
 
@@ -1153,6 +1174,8 @@ function marquerAnnule(rdvId) {
     if (!confirm('Confirmer l\'annulation de ce rendez-vous ?')) return;
     document.getElementById('modal-actions').style.display = 'none';
 
+    showPageLoader('Annulation en cours...');
+
     fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/annule-client/', {
         method: 'POST',
         headers: { 'X-CSRFToken': '{{ csrf_token }}' }
@@ -1160,13 +1183,17 @@ function marquerAnnule(rdvId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert(data.message);
-            location.reload();
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 500);
         } else {
-            alert('Erreur : ' + data.message);
+            hidePageLoader();
+            showError(data.message);
         }
     })
-    .catch(error => alert('Erreur réseau : ' + error));
+    .catch(error => {
+        hidePageLoader();
+        showError('Erreur réseau : ' + error);
+    });
 }
 
 // Modifier un RDV existant
@@ -1234,6 +1261,8 @@ function modifierRdv(rdv) {
 
 // Supprimer un RDV
 function supprimerRdv(rdvId) {
+    showPageLoader('Suppression en cours...');
+
     fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/supprimer/', {
         method: 'POST',
         headers: {
@@ -1243,14 +1272,16 @@ function supprimerRdv(rdvId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert(data.message);
-            location.reload();
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 500);
         } else {
-            alert('Erreur : ' + data.message);
+            hidePageLoader();
+            showError(data.message);
         }
     })
     .catch(error => {
-        alert('Erreur réseau : ' + error);
+        hidePageLoader();
+        showError('Erreur réseau : ' + error);
     });
 }
 
@@ -1260,6 +1291,8 @@ let validationPrixTotal = 0;
 let validationClientId = null;
 
 function ouvrirModalValidation(rdvId) {
+    showPageLoader('Chargement...');
+
     // Récupérer les données du RDV
     fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/')
         .then(response => response.json())
@@ -1274,10 +1307,16 @@ function ouvrirModalValidation(rdvId) {
             validationPrixTotal = rdv.prix_total;
             validationClientId = rdv.client_id;
             document.getElementById('validation-montant').value = rdv.prix_total;
+
+            hidePageLoader();
             document.getElementById('modal-validation').style.display = 'flex';
 
             // Charger les cartes cadeaux du client
             chargerCartesCadeaux(rdv.client_id);
+        })
+        .catch(error => {
+            hidePageLoader();
+            showError('Erreur lors du chargement: ' + error);
         });
 }
 
@@ -1375,6 +1414,45 @@ function calculerReste() {
         'Reste à payer : ' + reste.toLocaleString('fr-FR') + ' CFA';
 }
 
+// Gérer le changement vers "Offert"
+function handleOffertChange() {
+    const moyenPaiement = document.querySelector('input[name="moyen_paiement"]:checked');
+    if (moyenPaiement && moyenPaiement.value === 'offert') {
+        // Forcer le type de paiement sur "complet"
+        document.getElementById('validation-type-paiement').value = 'complet';
+        document.getElementById('validation-type-paiement').disabled = true;
+
+        // Masquer le groupe de montant si affiché
+        document.getElementById('montant-paiement-group').style.display = 'none';
+
+        // Afficher un message d'info
+        const sectionMoyenPaiement = document.getElementById('section-moyen-paiement');
+        let infoMessage = document.getElementById('info-offert');
+        if (!infoMessage) {
+            infoMessage = document.createElement('div');
+            infoMessage.id = 'info-offert';
+            infoMessage.style.cssText = 'background: #fff8e6; border-left: 4px solid #ff9800; padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 13px;';
+            infoMessage.innerHTML = '<strong>ℹ️ Prestation offerte</strong><br>Le montant sera enregistré à 0 CFA.';
+            sectionMoyenPaiement.appendChild(infoMessage);
+        }
+    }
+}
+
+// Restaurer l'état normal quand on désélectionne "Offert"
+document.addEventListener('change', function(e) {
+    if (e.target.name === 'moyen_paiement' && e.target.value !== 'offert') {
+        const typePaiement = document.getElementById('validation-type-paiement');
+        if (typePaiement) {
+            typePaiement.disabled = false;
+        }
+
+        const infoMessage = document.getElementById('info-offert');
+        if (infoMessage) {
+            infoMessage.remove();
+        }
+    }
+});
+
 // Valider RDV
 function validerRdv() {
     const rdvId = document.getElementById('validation-rdv-id').value;
@@ -1395,6 +1473,8 @@ function validerRdv() {
         formData.append('cartes_cadeaux', JSON.stringify(cartesData));
     }
 
+    showPageLoader('Validation en cours...');
+
     fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/valider/', {
         method: 'POST',
         body: formData,
@@ -1405,17 +1485,22 @@ function validerRdv() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert(data.message);
-            location.reload();
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 500);
         } else {
-            alert('Erreur : ' + data.message);
+            hidePageLoader();
+            showError(data.message);
         }
+    })
+    .catch(error => {
+        hidePageLoader();
+        showError('Erreur réseau : ' + error);
     });
 }
 
 // Calculer les stats
 function calculerStats() {
-    let total = 0, valides = 0, attente = 0, absents = 0, ca = 0;
+    let total = 0, valides = 0, attente = 0, ca = 0;
 
     Object.keys(window.rdvData).forEach(employeId => {
         window.rdvData[employeId].forEach(rdv => {
@@ -1425,8 +1510,6 @@ function calculerStats() {
                 ca += rdv.prix_total;
             } else if (rdv.statut === 'planifie') {
                 attente++;
-            } else if (rdv.statut === 'absent' || rdv.statut === 'annule_client') {
-                absents++;
             }
         });
     });
@@ -1434,7 +1517,7 @@ function calculerStats() {
     document.getElementById('stat-total').textContent = total;
     document.getElementById('stat-valides').textContent = valides;
     document.getElementById('stat-attente').textContent = attente;
-    document.getElementById('stat-absents').textContent = absents;
+    // Le compteur absents/annulés est géré côté serveur car ces RDV sont exclus de rdvData
     document.getElementById('stat-ca').textContent = ca.toLocaleString('fr-FR');
 }
 
@@ -1683,12 +1766,12 @@ function acheterForfait() {
     const montant = document.getElementById('forfait-montant').value || 0;
 
     if (!clientId) {
-        alert('Veuillez sélectionner un client');
+        showWarning('Veuillez sélectionner un client');
         return;
     }
 
     if (!prestationId) {
-        alert('Veuillez sélectionner un forfait');
+        showWarning('Veuillez sélectionner un forfait');
         return;
     }
 
@@ -1699,6 +1782,8 @@ function acheterForfait() {
     formData.append('mode_paiement', modePaiement);
     formData.append('montant', montant);
 
+    showPageLoader('Vente en cours...');
+
     fetch('{% url "agenda:api_forfait_acheter" institut.code %}', {
         method: 'POST',
         body: formData,
@@ -1708,16 +1793,18 @@ function acheterForfait() {
     })
     .then(response => response.json())
     .then(data => {
+        hidePageLoader();
         if (data.success) {
-            alert(data.message);
+            showSuccess(data.message);
             fermerModalForfait();
         } else {
-            alert('Erreur : ' + data.message);
+            showError(data.message);
         }
     })
     .catch(error => {
+        hidePageLoader();
         console.error('Erreur:', error);
-        alert('Erreur lors de la vente du forfait');
+        showError('Erreur lors de la vente du forfait');
     });
 }
 

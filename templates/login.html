@@ -328,7 +328,7 @@
 
             if (pin.length !== 6) {
                 e.preventDefault();
-                alert('Veuillez saisir les 6 chiffres du code PIN');
+                showWarning('Veuillez saisir les 6 chiffres du code PIN');
                 pinInputs[0].focus();
                 return false;
             }
@@ -336,7 +336,7 @@
             const userId = document.getElementById('user_id').value;
             if (!userId) {
                 e.preventDefault();
-                alert('Veuillez sélectionner un utilisateur');
+                showWarning('Veuillez sélectionner un utilisateur');
                 return false;
             }
         });

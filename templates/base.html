@@ -605,6 +605,306 @@
         .mb-10 { margin-bottom: 10px; }
         .mb-20 { margin-bottom: 20px; }
 
+        /* =============================================================================
+           SYSTÈME DE NOTIFICATIONS TOAST
+           ============================================================================= */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-width: 400px;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            padding: 16px 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            min-width: 300px;
+            max-width: 400px;
+            pointer-events: all;
+            animation: slideInRight 0.3s ease-out;
+            position: relative;
+            overflow: hidden;
+            border-left: 4px solid var(--primary);
+        }
+
+        .toast.removing {
+            animation: slideOutRight 0.3s ease-in forwards;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(120%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(120%);
+                opacity: 0;
+            }
+        }
+
+        /* Types de toast */
+        .toast.success {
+            border-left-color: var(--success);
+        }
+
+        .toast.error {
+            border-left-color: var(--danger);
+        }
+
+        .toast.warning {
+            border-left-color: var(--warning);
+        }
+
+        .toast.info {
+            border-left-color: var(--info);
+        }
+
+        /* Icône du toast */
+        .toast-icon {
+            flex-shrink: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .toast.success .toast-icon {
+            background: #d4edda;
+            color: var(--success);
+        }
+
+        .toast.error .toast-icon {
+            background: #f8d7da;
+            color: var(--danger);
+        }
+
+        .toast.warning .toast-icon {
+            background: #fff3cd;
+            color: var(--warning);
+        }
+
+        .toast.info .toast-icon {
+            background: #d1ecf1;
+            color: var(--info);
+        }
+
+        /* Contenu du toast */
+        .toast-content {
+            flex: 1;
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--text-dark);
+        }
+
+        .toast-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+
+        .toast-message {
+            font-size: 13px;
+            color: var(--text-light);
+        }
+
+        /* Bouton de fermeture */
+        .toast-close {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-light);
+            font-size: 18px;
+            line-height: 1;
+            transition: all 0.2s;
+            padding: 0;
+        }
+
+        .toast-close:hover {
+            background: var(--bg-section);
+            color: var(--text-dark);
+        }
+
+        /* Barre de progression */
+        .toast-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: var(--primary);
+            animation: progressBar 5s linear forwards;
+        }
+
+        .toast.success .toast-progress {
+            background: var(--success);
+        }
+
+        .toast.error .toast-progress {
+            background: var(--danger);
+        }
+
+        .toast.warning .toast-progress {
+            background: var(--warning);
+        }
+
+        .toast.info .toast-progress {
+            background: var(--info);
+        }
+
+        @keyframes progressBar {
+            from {
+                width: 100%;
+            }
+            to {
+                width: 0%;
+            }
+        }
+
+        /* Responsive mobile */
+        @media (max-width: 600px) {
+            #toast-container {
+                top: 70px;
+                right: 10px;
+                left: 10px;
+                max-width: none;
+            }
+
+            .toast {
+                min-width: auto;
+                max-width: none;
+                width: 100%;
+            }
+        }
+
+        /* =============================================================================
+           SYSTÈME DE CHARGEMENT (SPINNERS)
+           ============================================================================= */
+
+        /* Spinner inline dans les boutons */
+        .btn-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Bouton en état de chargement */
+        .btn.loading {
+            position: relative;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        /* Overlay de chargement pleine page */
+        #page-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #page-loader.active {
+            display: flex;
+        }
+
+        .page-loader-content {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            min-width: 200px;
+        }
+
+        .page-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid var(--bg-section);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        .page-loader-text {
+            color: var(--text-dark);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* Spinner pour les cartes/sections */
+        .card-loader {
+            display: none;
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .card-loader.active {
+            display: block;
+        }
+
+        .card-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--bg-section);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        .card-loader-text {
+            color: var(--text-light);
+            font-size: 13px;
+        }
+
         {% block extra_css %}{% endblock %}
     </style>
 
@@ -674,6 +974,9 @@
 
                         <div class="nav-section">
                             <div class="nav-section-title">Gestion</div>
+                            <a href="{% url 'gestion:catalogue' %}" class="nav-item {% if request.resolver_match.app_name == 'gestion' %}active{% endif %}">
+                                Catalogue
+                            </a>
                             <a href="{% url 'core:clients_list' %}" class="nav-item {% if request.resolver_match.url_name == 'clients_list' %}active{% endif %}">
                                 Clients
                             </a>
@@ -767,7 +1070,245 @@
         </main>
     </div>
 
+    <!-- Container pour les notifications toast -->
+    <div id="toast-container"></div>
+
+    <!-- Loader pleine page -->
+    <div id="page-loader">
+        <div class="page-loader-content">
+            <div class="page-spinner"></div>
+            <div class="page-loader-text">Chargement...</div>
+        </div>
+    </div>
+
     <script src="/static/js/app.js"></script>
+
+    <!-- Script système de notifications toast -->
+    <script>
+    /**
+     * Système de notifications toast
+     * Usage: showToast('Message', 'success|error|warning|info', duration_ms)
+     */
+    function showToast(message, type = 'info', duration = 5000) {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+
+        // Icônes pour chaque type
+        const icons = {
+            success: '✓',
+            error: '✕',
+            warning: '⚠',
+            info: 'ℹ'
+        };
+
+        // Titres pour chaque type
+        const titles = {
+            success: 'Succès',
+            error: 'Erreur',
+            warning: 'Attention',
+            info: 'Information'
+        };
+
+        // Créer l'élément toast
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        toast.innerHTML = `
+            <div class="toast-icon">${icons[type] || icons.info}</div>
+            <div class="toast-content">
+                <div class="toast-title">${titles[type] || titles.info}</div>
+                <div class="toast-message">${message}</div>
+            </div>
+            <button class="toast-close" aria-label="Fermer">&times;</button>
+            ${duration > 0 ? '<div class="toast-progress"></div>' : ''}
+        `;
+
+        // Ajouter le toast au container
+        container.appendChild(toast);
+
+        // Gestion de la fermeture manuelle
+        const closeBtn = toast.querySelector('.toast-close');
+        closeBtn.addEventListener('click', () => {
+            removeToast(toast);
+        });
+
+        // Auto-suppression après le délai spécifié
+        if (duration > 0) {
+            const progressBar = toast.querySelector('.toast-progress');
+            if (progressBar) {
+                progressBar.style.animationDuration = `${duration}ms`;
+            }
+
+            setTimeout(() => {
+                removeToast(toast);
+            }, duration);
+        }
+
+        // Limiter le nombre de toasts affichés simultanément (max 5)
+        const toasts = container.querySelectorAll('.toast');
+        if (toasts.length > 5) {
+            removeToast(toasts[0]);
+        }
+    }
+
+    function removeToast(toast) {
+        if (!toast || toast.classList.contains('removing')) return;
+
+        toast.classList.add('removing');
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.parentElement.removeChild(toast);
+            }
+        }, 300); // Durée de l'animation slideOutRight
+    }
+
+    // Variantes raccourcies pour faciliter l'utilisation
+    function showSuccess(message, duration = 5000) {
+        showToast(message, 'success', duration);
+    }
+
+    function showError(message, duration = 5000) {
+        showToast(message, 'error', duration);
+    }
+
+    function showWarning(message, duration = 5000) {
+        showToast(message, 'warning', duration);
+    }
+
+    function showInfo(message, duration = 5000) {
+        showToast(message, 'info', duration);
+    }
+
+    // Rendre les fonctions disponibles globalement
+    window.showToast = showToast;
+    window.showSuccess = showSuccess;
+    window.showError = showError;
+    window.showWarning = showWarning;
+    window.showInfo = showInfo;
+    </script>
+
+    <!-- Script système de chargement (spinners) -->
+    <script>
+    /**
+     * Système de gestion des loaders
+     * Usage:
+     * - showLoader(button) : Affiche un spinner dans le bouton et le désactive
+     * - hideLoader(button) : Retire le spinner et réactive le bouton
+     * - showPageLoader(text) : Affiche un loader pleine page
+     * - hidePageLoader() : Cache le loader pleine page
+     */
+
+    // Stockage du texte original des boutons
+    const buttonOriginalTexts = new WeakMap();
+
+    /**
+     * Affiche un spinner dans un bouton et le désactive
+     * @param {HTMLElement|string} button - L'élément bouton ou son ID
+     * @param {string} loadingText - Texte à afficher pendant le chargement (optionnel)
+     */
+    function showLoader(button, loadingText = null) {
+        // Récupérer l'élément si c'est un ID
+        if (typeof button === 'string') {
+            button = document.getElementById(button);
+        }
+
+        if (!button) {
+            console.warn('showLoader: Bouton non trouvé');
+            return;
+        }
+
+        // Sauvegarder le texte original
+        if (!buttonOriginalTexts.has(button)) {
+            buttonOriginalTexts.set(button, button.innerHTML);
+        }
+
+        // Désactiver le bouton
+        button.disabled = true;
+        button.classList.add('loading');
+
+        // Ajouter le spinner
+        const spinnerHTML = '<span class="btn-spinner"></span>';
+        const text = loadingText || button.textContent.trim();
+        button.innerHTML = spinnerHTML + text;
+    }
+
+    /**
+     * Retire le spinner d'un bouton et le réactive
+     * @param {HTMLElement|string} button - L'élément bouton ou son ID
+     */
+    function hideLoader(button) {
+        // Récupérer l'élément si c'est un ID
+        if (typeof button === 'string') {
+            button = document.getElementById(button);
+        }
+
+        if (!button) {
+            console.warn('hideLoader: Bouton non trouvé');
+            return;
+        }
+
+        // Restaurer le texte original
+        const originalText = buttonOriginalTexts.get(button);
+        if (originalText) {
+            button.innerHTML = originalText;
+        }
+
+        // Réactiver le bouton
+        button.disabled = false;
+        button.classList.remove('loading');
+    }
+
+    /**
+     * Affiche un loader pleine page
+     * @param {string} text - Texte à afficher (défaut: "Chargement...")
+     */
+    function showPageLoader(text = 'Chargement...') {
+        const loader = document.getElementById('page-loader');
+        if (!loader) return;
+
+        const loaderText = loader.querySelector('.page-loader-text');
+        if (loaderText) {
+            loaderText.textContent = text;
+        }
+
+        loader.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    /**
+     * Cache le loader pleine page
+     */
+    function hidePageLoader() {
+        const loader = document.getElementById('page-loader');
+        if (!loader) return;
+
+        loader.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    /**
+     * Wrapper pour les opérations async avec gestion automatique du loader
+     * @param {HTMLElement|string} button - Le bouton à mettre en état de chargement
+     * @param {Function} asyncFn - La fonction async à exécuter
+     * @param {string} loadingText - Texte optionnel pendant le chargement
+     * @returns {Promise} - Résultat de la fonction async
+     */
+    async function withLoader(button, asyncFn, loadingText = null) {
+        showLoader(button, loadingText);
+        try {
+            return await asyncFn();
+        } finally {
+            hideLoader(button);
+        }
+    }
+
+    // Rendre les fonctions disponibles globalement
+    window.showLoader = showLoader;
+    window.hideLoader = hideLoader;
+    window.showPageLoader = showPageLoader;
+    window.hidePageLoader = hidePageLoader;
+    window.withLoader = withLoader;
+    </script>
 
     <!-- Script menu mobile -->
     <script>

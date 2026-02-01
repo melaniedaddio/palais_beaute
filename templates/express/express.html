@@ -267,7 +267,7 @@ function ajouterPrestation() {
     const option = select.options[select.selectedIndex];
 
     if (!option.value) {
-        alert('Veuillez sélectionner une prestation');
+        showWarning('Veuillez sélectionner une prestation');
         return;
     }
 
@@ -408,17 +408,17 @@ document.getElementById('form-vente').addEventListener('submit', function(e) {
 
     // Validation
     if (!document.getElementById('vente-client').value) {
-        alert('Veuillez sélectionner un client');
+        showWarning('Veuillez sélectionner un client');
         return;
     }
 
     if (!document.getElementById('vente-employe').value) {
-        alert('Veuillez sélectionner un employé');
+        showWarning('Veuillez sélectionner un employé');
         return;
     }
 
     if (window.prestationsSelectionnees.length === 0) {
-        alert('Veuillez ajouter au moins une prestation');
+        showWarning('Veuillez ajouter au moins une prestation');
         return;
     }
 
@@ -440,14 +440,14 @@ document.getElementById('form-vente').addEventListener('submit', function(e) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert(data.message);
-            window.location.reload();
+            showSuccess(data.message);
+            setTimeout(() => window.location.reload(), 1000);
         } else {
-            alert('Erreur : ' + data.message);
+            showError(data.message);
         }
     })
     .catch(error => {
-        alert('Erreur réseau : ' + error);
+        showError('Erreur réseau : ' + error);
     });
 });
 </script>

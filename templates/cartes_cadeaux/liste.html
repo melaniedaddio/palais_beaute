@@ -536,15 +536,15 @@ async function validerVente() {
     const modePaiement = document.querySelector('input[name="modePaiement"]:checked').value;
 
     if (!acheteurId) {
-        alert('Veuillez sélectionner la personne qui offre');
+        showWarning('Veuillez sélectionner la personne qui offre');
         return;
     }
     if (!memePersonne && !beneficiaireId) {
-        alert('Veuillez sélectionner un bénéficiaire');
+        showWarning('Veuillez sélectionner un bénéficiaire');
         return;
     }
     if (!montant || parseInt(montant) <= 0) {
-        alert('Veuillez entrer un montant valide');
+        showWarning('Veuillez entrer un montant valide');
         return;
     }
 
@@ -558,7 +558,7 @@ async function validerVente() {
     const institutSelect = document.getElementById('institutId');
     if (institutSelect) {
         if (!institutSelect.value) {
-            alert('Veuillez sélectionner un institut');
+            showWarning('Veuillez sélectionner un institut');
             return;
         }
         formData.append('institut_id', institutSelect.value);
@@ -581,7 +581,7 @@ async function validerVente() {
         document.getElementById('confirmAcheteur').textContent = data.carte.acheteur;
         document.getElementById('btnImprimer').href = `/cartes-cadeaux/${data.carte.id}/imprimer/`;
     } else {
-        alert(data.message || 'Erreur lors de la création');
+        showError(data.message || 'Erreur lors de la création');
     }
 }
 
@@ -599,7 +599,7 @@ function fermerModalVerification() {
 async function rechercherCarte() {
     const code = document.getElementById('codeVerification').value.trim();
     if (!code) {
-        alert('Veuillez entrer un code');
+        showWarning('Veuillez entrer un code');
         return;
     }
 

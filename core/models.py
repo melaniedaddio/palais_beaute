@@ -147,8 +147,19 @@ class FamillePrestation(models.Model):
     """
     nom = models.CharField(max_length=100)
     institut = models.ForeignKey(Institut, on_delete=models.CASCADE, related_name='familles')
-    couleur = models.CharField(max_length=7, default='#e8b4b8')  # Code hexadécimal
-    ordre_affichage = models.IntegerField(default=0)
+    couleur = models.CharField(
+        max_length=7,
+        default='#e8b4b8',
+        help_text="Couleur hexadécimale pour l'affichage dans l'agenda"
+    )
+    ordre_affichage = models.IntegerField(default=0, help_text="Ordre d'affichage dans le catalogue")
+
+    # Statut
+    actif = models.BooleanField(default=True)
+
+    # Métadonnées
+    date_creation = models.DateTimeField(default=timezone.now)
+    date_modification = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Famille de prestation"
@@ -159,23 +170,83 @@ class FamillePrestation(models.Model):
     def __str__(self):
         return f"{self.nom} ({self.institut.nom})"
 
+    def get_prestations_count(self):
+        """Retourne le nombre total de prestations dans cette famille"""
+        return self.prestations.count()
+
+    def delete(self, *args, **kwargs):
+        """Supprime la famille ET toutes ses prestations"""
+        self.prestations.all().delete()
+        super().delete(*args, **kwargs)
+
 
 class Prestation(models.Model):
     """
     Prestation proposée par un institut.
-    La durée est en heures (0.25 = 15min, 0.5 = 30min, 1 = 1h, etc.)
+    Peut être une prestation normale, une option ou un forfait multi-séances.
     """
+    TYPE_CHOICES = [
+        ('normal', 'Normal'),
+        ('option', 'Option'),
+        ('forfait', 'Forfait'),
+    ]
+
+    # Informations de base
     nom = models.CharField(max_length=200)
     famille = models.ForeignKey(FamillePrestation, on_delete=models.CASCADE, related_name='prestations')
-    duree = models.DecimalField(max_digits=4, decimal_places=2)  # En heures
-    prix = models.IntegerField()  # En CFA
-    unite = models.CharField(max_length=50, blank=True, null=True)  # Ex: "/boules", "/mèches"
-    actif = models.BooleanField(default=True)
-    ordre_affichage = models.IntegerField(default=0)
 
-    # Champs pour forfaits multi-séances
+    # Prix et durée
+    prix = models.IntegerField(help_text="Prix en CFA")
+    duree = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Durée en heures (ancien format, sera migré vers duree_minutes)"
+    )  # En heures - gardé pour compatibilité
+    duree_minutes = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Durée en minutes (peut être vide pour les options)"
+    )
+
+    # Type de prestation
+    type_prestation = models.CharField(
+        max_length=20,
+        choices=TYPE_CHOICES,
+        default='normal'
+    )
+
+    # Pour les options : unité de mesure
+    unite = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Unité pour les options (ex: 'par strass', 'par ongle', 'par mèche')"
+    )
+
+    # Pour les forfaits : nombre de séances
     est_forfait = models.BooleanField(default=False, help_text="True si c'est un forfait multi-séances")
-    nombre_seances = models.IntegerField(default=1, help_text="Nombre de séances incluses dans le forfait")
+    nombre_seances = models.IntegerField(
+        default=1,
+        help_text="Nombre de séances (pour les forfaits)"
+    )
+
+    # Disponibilité multi-institut
+    instituts = models.ManyToManyField(
+        Institut,
+        related_name='prestations_disponibles',
+        blank=True,
+        help_text="Instituts où cette prestation est disponible"
+    )
+
+    # Ordre et statut
+    ordre_affichage = models.IntegerField(default=0, help_text="Ordre d'affichage dans la famille")
+    actif = models.BooleanField(default=True)
+
+    # Métadonnées
+    date_creation = models.DateTimeField(default=timezone.now)
+    date_modification = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Prestation"
@@ -183,27 +254,58 @@ class Prestation(models.Model):
         ordering = ['famille', 'ordre_affichage', 'nom']
 
     def __str__(self):
-        if self.est_forfait:
-            return f"{self.nom} ({self.nombre_seances} séances) - {self.prix} CFA"
-        return f"{self.nom} - {self.prix} CFA"
+        if self.type_prestation == 'forfait' or self.est_forfait:
+            return f"{self.nom} ({self.nombre_seances} séances) - {self.prix:,} CFA"
+        elif self.type_prestation == 'option' and self.unite:
+            return f"⭐ {self.nom} ({self.unite}) - {self.prix:,} CFA"
+        return f"{self.nom} - {self.prix:,} CFA"
+
+    def get_duree_display(self):
+        """Retourne la durée formatée"""
+        # Utiliser duree_minutes si disponible, sinon duree
+        if self.duree_minutes:
+            minutes = self.duree_minutes
+        elif self.duree:
+            minutes = int(float(self.duree) * 60)
+        else:
+            return "-"
+
+        heures = minutes // 60
+        mins = minutes % 60
+
+        if heures > 0 and mins > 0:
+            return f"{heures}h{mins:02d}"
+        elif heures > 0:
+            return f"{heures}h"
+        else:
+            return f"{mins} min"
+
+    def is_option(self):
+        return self.type_prestation == 'option'
+
+    def is_forfait(self):
+        return self.type_prestation == 'forfait' or self.est_forfait
 
     def get_prix_par_seance(self):
-        """Retourne le prix par séance pour les forfaits"""
-        if self.est_forfait and self.nombre_seances > 0:
+        """Pour les forfaits, retourne le prix par séance"""
+        if self.is_forfait() and self.nombre_seances > 0:
             return self.prix // self.nombre_seances
         return self.prix
 
-    def get_duree_display(self):
-        """Retourne la durée formatée (ex: '15 min', '1h', '1h30')"""
-        heures = float(self.duree)
-        if heures < 1:
-            return f"{int(heures * 60)} min"
-        elif heures == int(heures):
-            return f"{int(heures)}h"
-        else:
-            h = int(heures)
-            m = int((heures - h) * 60)
-            return f"{h}h{m:02d}"
+    def save(self, *args, **kwargs):
+        # Synchroniser type_prestation et est_forfait
+        if self.type_prestation == 'forfait':
+            self.est_forfait = True
+        elif self.est_forfait:
+            self.type_prestation = 'forfait'
+
+        # Synchroniser duree et duree_minutes
+        if self.duree and not self.duree_minutes:
+            self.duree_minutes = int(float(self.duree) * 60)
+        elif self.duree_minutes and not self.duree:
+            self.duree = self.duree_minutes / 60
+
+        super().save(*args, **kwargs)
 
 
 class Option(models.Model):
@@ -403,6 +505,7 @@ class Paiement(models.Model):
         ('wave', 'Wave'),
         ('carte_cadeau', 'Carte cadeau'),
         ('forfait', 'Forfait'),  # Séance de forfait (0 CFA car déjà payé)
+        ('offert', 'Offert'),  # Prestation offerte par le patron (0 CFA)
     ]
 
     rendez_vous = models.ForeignKey(RendezVous, on_delete=models.CASCADE, related_name='paiements')

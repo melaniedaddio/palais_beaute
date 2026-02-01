@@ -1,0 +1,1327 @@
+{% extends 'base.html' %}
+
+{% block title %}Catalogue des Prestations - Le Palais de la Beauté{% endblock %}
+
+{% block extra_css %}
+<style>
+    .catalogue-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+
+    .catalogue-title {
+        font-size: 28px;
+        font-weight: 600;
+        color: var(--text-dark);
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 15px;
+    }
+
+    .btn-export {
+        padding: 12px 24px;
+        background: var(--secondary);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.3s;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .btn-export:hover {
+        background: var(--secondary-dark);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .institut-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 30px;
+        border-bottom: 2px solid var(--border);
+        padding-bottom: 10px;
+    }
+
+    .institut-tab {
+        padding: 12px 24px;
+        background: transparent;
+        border: none;
+        border-bottom: 3px solid transparent;
+        cursor: pointer;
+        font-weight: 500;
+        color: var(--text-light);
+        transition: all 0.3s;
+        text-decoration: none;
+        margin-bottom: -12px;
+    }
+
+    .institut-tab:hover {
+        color: var(--text-dark);
+    }
+
+    .institut-tab.active {
+        color: var(--primary-dark);
+        border-bottom-color: var(--primary-dark);
+    }
+
+    .search-bar {
+        margin-bottom: 30px;
+        position: relative;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 14px 20px 14px 45px;
+        border: 2px solid var(--border);
+        border-radius: 10px;
+        font-size: 15px;
+        transition: all 0.3s;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(232, 180, 184, 0.1);
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-light);
+    }
+
+    .famille-card {
+        background: white;
+        border-radius: 15px;
+        margin-bottom: 25px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        overflow: hidden;
+        transition: all 0.3s;
+        cursor: move;
+    }
+
+    .famille-card:hover {
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+
+    .famille-card.dragging {
+        opacity: 0.5;
+        transform: scale(0.95);
+    }
+
+    .famille-card.drag-over {
+        border-top: 3px solid var(--primary);
+    }
+
+    .famille-header {
+        padding: 20px 25px;
+        background: linear-gradient(135deg, var(--bg-section) 0%, var(--bg-card) 100%);
+        border-left: 5px solid var(--primary);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+    .famille-header:hover {
+        background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-section) 100%);
+    }
+
+    .famille-info {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .famille-color-badge {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        border: 2px solid white;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+
+    .famille-nom {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--text-dark);
+    }
+
+    .famille-count {
+        font-size: 13px;
+        color: var(--text-light);
+        margin-left: 10px;
+    }
+
+    .famille-actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .btn-icon {
+        padding: 8px 12px;
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s;
+        color: var(--text-dark);
+        font-size: 14px;
+    }
+
+    .btn-icon:hover {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+    }
+
+    .btn-danger {
+        background: transparent;
+        border-color: var(--danger);
+        color: var(--danger);
+    }
+
+    .btn-danger:hover {
+        background: var(--danger);
+        color: white;
+    }
+
+    .prestations-list {
+        padding: 20px 25px;
+        display: none;
+    }
+
+    .prestations-list.expanded {
+        display: block;
+    }
+
+    .prestation-row {
+        display: grid;
+        grid-template-columns: 40px 1fr 100px 120px 250px;
+        gap: 15px;
+        padding: 15px 20px;
+        background: var(--bg-light);
+        border-radius: 10px;
+        margin-bottom: 10px;
+        align-items: center;
+        transition: all 0.3s;
+        cursor: move;
+    }
+
+    .prestation-row:hover {
+        background: var(--bg-section);
+        transform: translateX(5px);
+    }
+
+    .prestation-row.dragging {
+        opacity: 0.5;
+        transform: scale(0.95);
+    }
+
+    .prestation-row.drag-over {
+        border-top: 3px solid var(--secondary);
+    }
+
+    .drag-handle {
+        color: var(--text-light);
+        cursor: move;
+        font-size: 18px;
+    }
+
+    .prestation-nom {
+        font-weight: 500;
+        color: var(--text-dark);
+    }
+
+    .prestation-option {
+        color: var(--secondary);
+    }
+
+    .prestation-forfait {
+        color: #9b59b6;
+    }
+
+    .prestation-duree {
+        color: var(--text-light);
+        font-size: 13px;
+    }
+
+    .prestation-prix {
+        font-weight: 600;
+        color: var(--text-dark);
+    }
+
+    .prestation-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        align-items: center;
+    }
+
+    /* Toggle Switch pour actif/inactif */
+    .toggle-switch {
+        position: relative;
+        width: 60px;
+        height: 28px;
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        border-radius: 14px;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        padding: 0 4px;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .toggle-switch.active {
+        background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    }
+
+    .toggle-switch::before {
+        content: '✕';
+        position: absolute;
+        right: 6px;
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+        transition: opacity 0.3s;
+        opacity: 1;
+    }
+
+    .toggle-switch.active::before {
+        content: '✓';
+        left: 6px;
+        right: auto;
+    }
+
+    .toggle-switch::after {
+        content: '';
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: white;
+        top: 3px;
+        left: 3px;
+        transition: transform 0.3s;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+
+    .toggle-switch.active::after {
+        transform: translateX(32px);
+    }
+
+    .toggle-switch:hover {
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1), 0 0 8px rgba(0,0,0,0.2);
+        transform: scale(1.05);
+    }
+
+    /* Texte explicatif pour le statut */
+    .prestation-statut {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .statut-label {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        min-width: 45px;
+        text-align: right;
+    }
+
+    .statut-label.actif {
+        color: #4CAF50;
+    }
+
+    .statut-label.inactif {
+        color: #dc3545;
+    }
+
+    .btn-add {
+        margin-top: 15px;
+        padding: 12px 20px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.3s;
+        width: 100%;
+    }
+
+    .btn-add:hover {
+        background: var(--primary-dark);
+    }
+
+    .toggle-icon {
+        transition: transform 0.3s;
+    }
+
+    .toggle-icon.rotated {
+        transform: rotate(180deg);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-light);
+    }
+
+    .empty-state-icon {
+        font-size: 48px;
+        margin-bottom: 15px;
+        opacity: 0.5;
+    }
+
+    @media (max-width: 768px) {
+        .prestation-row {
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .prestation-actions {
+            justify-content: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .famille-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 15px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="catalogue-header">
+        <h1 class="catalogue-title">📚 Catalogue des Prestations</h1>
+        <div class="header-actions">
+            <a href="{% url 'gestion:export_catalogue_excel' %}?institut={{ institut_actif.code }}" class="btn-export">📥 Exporter Excel</a>
+        </div>
+    </div>
+
+    <!-- Onglets instituts -->
+    <div class="institut-tabs">
+        {% for institut in instituts %}
+        <a href="?institut={{ institut.code }}"
+           class="institut-tab {% if institut_actif.code == institut.code %}active{% endif %}">
+            {{ institut.nom }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Barre de recherche -->
+    <div class="search-bar">
+        <span class="search-icon">🔍</span>
+        <input type="text"
+               class="search-input"
+               placeholder="Rechercher une famille ou une prestation..."
+               value="{{ recherche }}">
+    </div>
+
+    <!-- Liste des familles -->
+    <div id="famillesContainer">
+    {% if familles %}
+        {% for famille in familles %}
+        <div class="famille-card" draggable="true" data-famille-id="{{ famille.id }}">
+            <div class="famille-header" onclick="toggleFamille({{ famille.id }})">
+                <div class="famille-info">
+                    <div class="famille-color-badge" style="background-color: {{ famille.couleur }}"></div>
+                    <div>
+                        <span class="famille-nom">{{ famille.nom }}</span>
+                        <span class="famille-count">{{ famille.get_prestations_count }} prestation{{ famille.get_prestations_count|pluralize }}</span>
+                    </div>
+                </div>
+                <div class="famille-actions" onclick="event.stopPropagation()">
+                    <button class="btn-icon" onclick="deplacerFamille({{ famille.id }}, 'up')" title="Monter">⬆️</button>
+                    <button class="btn-icon" onclick="deplacerFamille({{ famille.id }}, 'down')" title="Descendre">⬇️</button>
+                    <button class="btn-icon" onclick="ouvrirModalModifierFamille({{ famille.id }}, '{{ famille.nom }}', '{{ famille.couleur }}')" title="Modifier">✏️</button>
+                    <button class="btn-icon btn-danger" onclick="ouvrirModalSupprimerFamille({{ famille.id }})" title="Supprimer">🗑️</button>
+                    <span class="toggle-icon" id="toggle-{{ famille.id }}">▼</span>
+                </div>
+            </div>
+
+            <div class="prestations-list" id="prestations-{{ famille.id }}" data-famille-id="{{ famille.id }}">
+                {% for prestation in famille.prestations.all %}
+                <div class="prestation-row" draggable="true" data-prestation-id="{{ prestation.id }}">
+                    <span class="drag-handle">☰</span>
+                    <div>
+                        <div class="prestation-nom {% if prestation.is_option %}prestation-option{% elif prestation.is_forfait %}prestation-forfait{% endif %}">
+                            {% if prestation.is_option %}⭐{% elif prestation.is_forfait %}📦{% endif %}
+                            {{ prestation.nom }}
+                            {% if prestation.unite %} ({{ prestation.unite }}){% endif %}
+                            {% if prestation.is_forfait %} ({{ prestation.nombre_seances }} séances){% endif %}
+                        </div>
+                    </div>
+                    <div class="prestation-duree">{{ prestation.get_duree_display }}</div>
+                    <div class="prestation-prix">{{ prestation.prix|floatformat:0 }} CFA</div>
+                    <div class="prestation-actions">
+                        <button class="btn-icon" onclick="event.stopPropagation(); deplacerPrestation({{ prestation.id }}, 'up')" title="Monter">⬆️</button>
+                        <button class="btn-icon" onclick="event.stopPropagation(); deplacerPrestation({{ prestation.id }}, 'down')" title="Descendre">⬇️</button>
+                        <button class="btn-icon" onclick="event.stopPropagation(); ouvrirModalModifierPrestation({{ prestation.id }})" title="Modifier">✏️</button>
+                        <button class="btn-icon btn-danger" onclick="event.stopPropagation(); ouvrirModalSupprimerPrestation({{ prestation.id }})" title="Supprimer">🗑️</button>
+                        <div class="prestation-statut">
+                            <span class="statut-label {% if prestation.actif %}actif{% else %}inactif{% endif %}" id="statut-label-{{ prestation.id }}">
+                                {% if prestation.actif %}Actif{% else %}Inactif{% endif %}
+                            </span>
+                            <div class="toggle-switch {% if prestation.actif %}active{% endif %}"
+                                 id="toggle-{{ prestation.id }}"
+                                 onclick="event.stopPropagation(); togglePrestationActif({{ prestation.id }})"
+                                 title="{% if prestation.actif %}Cliquer pour désactiver{% else %}Cliquer pour activer{% endif %}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">📋</div>
+                    <p>Aucune prestation dans cette famille</p>
+                </div>
+                {% endfor %}
+
+                <button class="btn-add" onclick="event.stopPropagation(); ouvrirModalNouvellePrestation({{ famille.id }})">+ Ajouter une prestation</button>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="famille-card">
+            <div class="empty-state">
+                <div class="empty-state-icon">📋</div>
+                <p>Aucune famille de prestations trouvée</p>
+                <p style="font-size: 13px; margin-top: 10px;">
+                    {% if recherche %}
+                        Aucun résultat pour "{{ recherche }}"
+                    {% else %}
+                        Commencez par créer une famille de prestations
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    {% endif %}
+    </div>
+
+    <!-- Bouton nouvelle famille -->
+    <button class="btn-add" style="max-width: 300px; margin: 30px auto;" onclick="ouvrirModalNouvelleFamille()">
+        + Nouvelle famille
+    </button>
+</div>
+
+<!-- Inclure les modals -->
+{% include 'gestion/includes/modals_famille.html' %}
+{% include 'gestion/includes/modals_prestation.html' %}
+
+<script>
+// Récupérer le CSRF token
+function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+           document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+}
+
+// Fonction pour toggle les familles
+function toggleFamille(familleId) {
+    const list = document.getElementById('prestations-' + familleId);
+    const icon = document.getElementById('toggle-' + familleId);
+
+    if (list.classList.contains('expanded')) {
+        list.classList.remove('expanded');
+        icon.classList.remove('rotated');
+    } else {
+        list.classList.add('expanded');
+        icon.classList.add('rotated');
+    }
+}
+
+// Gestion des modals
+function ouvrirModal(modalId) {
+    document.getElementById(modalId).classList.add('active');
+}
+
+function fermerModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+}
+
+// Fermer le modal en cliquant en dehors
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.classList.remove('active');
+    }
+}
+
+// Gestion du color picker
+const colorInput = document.getElementById('familleCouleur');
+const colorHex = document.getElementById('familleCouleurHex');
+
+if (colorInput && colorHex) {
+    colorInput.addEventListener('input', function() {
+        colorHex.value = this.value;
+    });
+
+    colorHex.addEventListener('input', function() {
+        if (/^#[0-9A-F]{6}$/i.test(this.value)) {
+            colorInput.value = this.value;
+        }
+    });
+
+    // Couleurs suggérées
+    document.querySelectorAll('.color-badge').forEach(badge => {
+        badge.addEventListener('click', function() {
+            const color = this.dataset.color;
+            colorInput.value = color;
+            colorHex.value = color;
+        });
+    });
+}
+
+// Nouvelle famille
+function ouvrirModalNouvelleFamille() {
+    document.getElementById('modalFamilleTitle').textContent = 'Nouvelle famille de prestations';
+    document.getElementById('familleId').value = '';
+    document.getElementById('familleNom').value = '';
+    document.getElementById('familleCouleur').value = '#e8b4b8';
+    document.getElementById('familleCouleurHex').value = '#e8b4b8';
+    document.getElementById('btnSaveFamille').textContent = 'Créer la famille';
+    ouvrirModal('modalFamille');
+}
+
+// Modifier famille
+function ouvrirModalModifierFamille(familleId, nom, couleur) {
+    document.getElementById('modalFamilleTitle').textContent = 'Modifier la famille';
+    document.getElementById('familleId').value = familleId;
+    document.getElementById('familleNom').value = nom;
+    document.getElementById('familleCouleur').value = couleur;
+    document.getElementById('familleCouleurHex').value = couleur;
+    document.getElementById('btnSaveFamille').textContent = 'Enregistrer';
+    ouvrirModal('modalFamille');
+}
+
+// Sauvegarder famille (créer ou modifier)
+document.getElementById('formFamille')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const familleId = document.getElementById('familleId').value;
+    const nom = document.getElementById('familleNom').value;
+    const couleur = document.getElementById('familleCouleur').value;
+
+    const institutActif = {{ institut_actif.id }};
+
+    const url = familleId
+        ? `/gestion/catalogue/famille/${familleId}/modifier/`
+        : '/gestion/catalogue/famille/creer/';
+
+    const data = familleId
+        ? { nom, couleur }
+        : { nom, couleur, institut_id: institutActif };
+
+    const saveButton = document.getElementById('btnSaveFamille');
+    showLoader(saveButton);
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showSuccess(familleId ? 'Famille modifiée avec succès' : 'Famille créée avec succès');
+            fermerModal('modalFamille');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            hideLoader(saveButton);
+            showError(result.error);
+        }
+    } catch (error) {
+        hideLoader(saveButton);
+        console.error('Erreur:', error);
+        showError('Erreur lors de la sauvegarde');
+    }
+});
+
+// Supprimer famille
+let familleIdASupprimer = null;
+
+async function ouvrirModalSupprimerFamille(familleId) {
+    familleIdASupprimer = familleId;
+
+    showPageLoader('Chargement...');
+
+    try {
+        const response = await fetch(`/gestion/catalogue/famille/${familleId}/info-suppression/`);
+        const data = await response.json();
+
+        hidePageLoader();
+
+        document.getElementById('nomFamilleASupprimer').textContent = data.famille.nom;
+        document.getElementById('nbPrestationsASupprimer').textContent = data.nb_prestations;
+        document.getElementById('confirmationSuppressionFamille').value = '';
+
+        ouvrirModal('modalSupprimerFamille');
+    } catch (error) {
+        hidePageLoader();
+        console.error('Erreur:', error);
+        showError('Erreur lors du chargement des informations');
+    }
+}
+
+async function confirmerSuppressionFamille() {
+    const confirmation = document.getElementById('confirmationSuppressionFamille').value;
+
+    if (confirmation !== 'SUPPRIMER') {
+        showWarning('Veuillez taper "SUPPRIMER" pour confirmer');
+        return;
+    }
+
+    const deleteButton = document.getElementById('btnConfirmerSuppressionFamille');
+    showLoader(deleteButton);
+
+    try {
+        const response = await fetch(`/gestion/catalogue/famille/${familleIdASupprimer}/supprimer/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ confirmation: 'SUPPRIMER' })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showSuccess('Famille supprimée avec succès');
+            fermerModal('modalSupprimerFamille');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            hideLoader(deleteButton);
+            showError(result.error);
+        }
+    } catch (error) {
+        hideLoader(deleteButton);
+        console.error('Erreur:', error);
+        showError('Erreur lors de la suppression');
+    }
+}
+
+// Déplacer famille
+async function deplacerFamille(familleId, direction) {
+    showPageLoader('Déplacement en cours...');
+
+    try {
+        const response = await fetch(`/gestion/catalogue/famille/${familleId}/deplacer/${direction}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showSuccess('Famille déplacée avec succès');
+            setTimeout(() => location.reload(), 300);
+        } else {
+            hidePageLoader();
+            showError(result.error);
+        }
+    } catch (error) {
+        hidePageLoader();
+        console.error('Erreur:', error);
+        showError('Erreur lors du déplacement');
+    }
+}
+
+// Recherche en temps réel
+const searchInput = document.querySelector('.search-input');
+if (searchInput) {
+    let searchTimeout;
+    searchInput.addEventListener('input', function(e) {
+        clearTimeout(searchTimeout);
+        const query = e.target.value;
+        const currentInstitut = new URLSearchParams(window.location.search).get('institut') || 'palais';
+
+        searchTimeout = setTimeout(() => {
+            if (query.length > 2 || query.length === 0) {
+                window.location.href = `?institut=${currentInstitut}&q=${encodeURIComponent(query)}`;
+            }
+        }, 500);
+    });
+}
+
+// =============================================================================
+// GESTION DES PRESTATIONS
+// =============================================================================
+
+// Gestion de l'affichage des champs selon le type de prestation
+const prestationType = document.getElementById('prestationType');
+if (prestationType) {
+    prestationType.addEventListener('change', function() {
+        updatePrestationFields();
+    });
+}
+
+function updatePrestationFields() {
+    const type = document.getElementById('prestationType').value;
+    const divDuree = document.getElementById('divDuree');
+    const divUnite = document.getElementById('divUnite');
+    const divNbSeances = document.getElementById('divNbSeances');
+
+    // Reset
+    divDuree.style.display = 'block';
+    divUnite.style.display = 'none';
+    divNbSeances.style.display = 'none';
+
+    if (type === 'option') {
+        divDuree.style.display = 'none';
+        divUnite.style.display = 'block';
+    } else if (type === 'forfait') {
+        divNbSeances.style.display = 'block';
+    }
+}
+
+// Nouvelle prestation
+function ouvrirModalNouvellePrestation(familleId) {
+    // Réinitialiser le formulaire
+    document.getElementById('modalPrestationLabel').textContent = 'Nouvelle prestation';
+    document.getElementById('prestationId').value = '';
+    document.getElementById('prestationFamilleId').value = familleId;
+    document.getElementById('prestationNom').value = '';
+    document.getElementById('prestationType').value = 'normal';
+    document.getElementById('prestationPrix').value = '';
+    document.getElementById('prestationDuree').value = '';
+    document.getElementById('prestationUnite').value = '';
+    document.getElementById('prestationNbSeances').value = '1';
+
+    // Décocher tous les instituts
+    document.querySelectorAll('.prestation-institut').forEach(cb => cb.checked = false);
+
+    // Masquer l'erreur
+    document.getElementById('prestationError').style.display = 'none';
+
+    // Mettre à jour les champs affichés
+    updatePrestationFields();
+
+    // Ouvrir le modal
+    ouvrirModal('modalPrestation');
+}
+
+// Modifier prestation
+async function ouvrirModalModifierPrestation(prestationId) {
+    showPageLoader('Chargement...');
+
+    try {
+        // Récupérer les données de la prestation
+        const response = await fetch(`/gestion/catalogue/prestation/${prestationId}/details/`);
+        const data = await response.json();
+
+        hidePageLoader();
+
+        if (!data.success) {
+            showError('Erreur lors du chargement de la prestation');
+            return;
+        }
+
+        const prestation = data.prestation;
+
+        // Remplir le formulaire
+        document.getElementById('modalPrestationLabel').textContent = 'Modifier la prestation';
+        document.getElementById('prestationId').value = prestation.id;
+        document.getElementById('prestationFamilleId').value = prestation.famille_id;
+        document.getElementById('prestationNom').value = prestation.nom;
+        document.getElementById('prestationType').value = prestation.type_prestation;
+        document.getElementById('prestationPrix').value = prestation.prix;
+        document.getElementById('prestationDuree').value = prestation.duree_minutes || '';
+        document.getElementById('prestationUnite').value = prestation.unite;
+        document.getElementById('prestationNbSeances').value = prestation.nb_seances;
+
+        // Cocher les instituts
+        document.querySelectorAll('.prestation-institut').forEach(cb => {
+            cb.checked = prestation.instituts.includes(parseInt(cb.value));
+        });
+
+        // Masquer l'erreur
+        document.getElementById('prestationError').style.display = 'none';
+
+        // Mettre à jour les champs affichés selon le type
+        updatePrestationFields();
+
+        // Ouvrir le modal
+        ouvrirModal('modalPrestation');
+
+    } catch (error) {
+        hidePageLoader();
+        console.error('Erreur:', error);
+        showError('Erreur lors du chargement de la prestation');
+    }
+}
+
+// Sauvegarder prestation
+document.getElementById('btnSavePrestation')?.addEventListener('click', async function() {
+    const prestationId = document.getElementById('prestationId').value;
+    const familleId = document.getElementById('prestationFamilleId').value;
+    const nom = document.getElementById('prestationNom').value.trim();
+    const type = document.getElementById('prestationType').value;
+    const prix = parseInt(document.getElementById('prestationPrix').value) || 0;
+    const dureeMinutes = document.getElementById('prestationDuree').value ? parseInt(document.getElementById('prestationDuree').value) : null;
+    const unite = document.getElementById('prestationUnite').value.trim();
+    const nbSeances = parseInt(document.getElementById('prestationNbSeances').value) || 1;
+
+    // Récupérer les instituts cochés
+    const instituts = Array.from(document.querySelectorAll('.prestation-institut:checked')).map(cb => parseInt(cb.value));
+
+    if (!nom) {
+        showWarning('Veuillez saisir un nom');
+        return;
+    }
+
+    const url = prestationId
+        ? `/gestion/catalogue/prestation/${prestationId}/modifier/`
+        : '/gestion/catalogue/prestation/creer/';
+
+    const data = {
+        nom,
+        type_prestation: type,
+        prix,
+        duree_minutes: dureeMinutes,
+        unite: type === 'option' ? unite : '',
+        nb_seances: type === 'forfait' ? nbSeances : 1,
+        instituts
+    };
+
+    if (!prestationId) {
+        data.famille_id = familleId;
+    }
+
+    const saveButton = document.getElementById('btnSavePrestation');
+    showLoader(saveButton);
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showSuccess(prestationId ? 'Prestation modifiée avec succès' : 'Prestation créée avec succès');
+            fermerModal('modalPrestation');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            hideLoader(saveButton);
+            showError(result.error);
+            document.getElementById('prestationError').textContent = result.error;
+            document.getElementById('prestationError').style.display = 'block';
+        }
+    } catch (error) {
+        hideLoader(saveButton);
+        console.error('Erreur:', error);
+        showError('Erreur lors de la sauvegarde');
+        document.getElementById('prestationError').textContent = 'Erreur lors de la sauvegarde';
+        document.getElementById('prestationError').style.display = 'block';
+    }
+});
+
+// Supprimer prestation
+let prestationIdASupprimer = null;
+
+async function ouvrirModalSupprimerPrestation(prestationId) {
+    prestationIdASupprimer = prestationId;
+
+    showPageLoader('Chargement...');
+
+    try {
+        const response = await fetch(`/gestion/catalogue/prestation/${prestationId}/info-suppression/`);
+        const data = await response.json();
+
+        hidePageLoader();
+
+        document.getElementById('prestationNomSupprimer').textContent = data.prestation.nom;
+        document.getElementById('confirmationSuppressionPrestation').value = '';
+        document.getElementById('prestationSuppressionError').style.display = 'none';
+
+        ouvrirModal('modalSupprimerPrestation');
+    } catch (error) {
+        hidePageLoader();
+        console.error('Erreur:', error);
+        showError('Erreur lors du chargement des informations');
+    }
+}
+
+document.getElementById('btnConfirmerSuppressionPrestation')?.addEventListener('click', async function() {
+    const confirmation = document.getElementById('confirmationSuppressionPrestation').value;
+
+    if (confirmation !== 'SUPPRIMER') {
+        showWarning('Veuillez taper "SUPPRIMER" pour confirmer');
+        document.getElementById('prestationSuppressionError').textContent = 'Veuillez taper "SUPPRIMER" pour confirmer';
+        document.getElementById('prestationSuppressionError').style.display = 'block';
+        return;
+    }
+
+    const deleteButton = document.getElementById('btnConfirmerSuppressionPrestation');
+    showLoader(deleteButton);
+
+    try {
+        const response = await fetch(`/gestion/catalogue/prestation/${prestationIdASupprimer}/supprimer/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ confirmation: 'SUPPRIMER' })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showSuccess('Prestation supprimée avec succès');
+            fermerModal('modalSupprimerPrestation');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            hideLoader(deleteButton);
+            showError(result.error);
+            document.getElementById('prestationSuppressionError').textContent = result.error;
+            document.getElementById('prestationSuppressionError').style.display = 'block';
+        }
+    } catch (error) {
+        hideLoader(deleteButton);
+        console.error('Erreur:', error);
+        showError('Erreur lors de la suppression');
+        document.getElementById('prestationSuppressionError').textContent = 'Erreur lors de la suppression';
+        document.getElementById('prestationSuppressionError').style.display = 'block';
+    }
+});
+
+// Toggle actif/inactif
+async function togglePrestationActif(prestationId) {
+    // Trouver le toggle switch et le label
+    const toggleElement = document.getElementById(`toggle-${prestationId}`);
+    const labelElement = document.getElementById(`statut-label-${prestationId}`);
+    if (!toggleElement || !labelElement) return;
+
+    // Désactiver temporairement le toggle pour éviter les doubles clics
+    const originalCursor = toggleElement.style.cursor;
+    toggleElement.style.cursor = 'wait';
+    toggleElement.style.opacity = '0.6';
+
+    try {
+        const response = await fetch(`/gestion/catalogue/prestation/${prestationId}/toggle-actif/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // Mettre à jour visuellement le toggle et le label
+            if (result.actif) {
+                toggleElement.classList.add('active');
+                toggleElement.title = 'Cliquer pour désactiver';
+                labelElement.textContent = 'Actif';
+                labelElement.classList.remove('inactif');
+                labelElement.classList.add('actif');
+                showSuccess('Prestation activée');
+            } else {
+                toggleElement.classList.remove('active');
+                toggleElement.title = 'Cliquer pour activer';
+                labelElement.textContent = 'Inactif';
+                labelElement.classList.remove('actif');
+                labelElement.classList.add('inactif');
+                showSuccess('Prestation désactivée');
+            }
+        } else {
+            showError(result.error);
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        showError('Erreur lors de la modification');
+    } finally {
+        // Réactiver le toggle
+        toggleElement.style.cursor = originalCursor;
+        toggleElement.style.opacity = '1';
+    }
+}
+
+// Déplacer prestation
+async function deplacerPrestation(prestationId, direction) {
+    showPageLoader('Déplacement en cours...');
+
+    try {
+        const response = await fetch(`/gestion/catalogue/prestation/${prestationId}/deplacer/${direction}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showSuccess('Prestation déplacée avec succès');
+            setTimeout(() => location.reload(), 300);
+        } else {
+            hidePageLoader();
+            showError(result.error);
+        }
+    } catch (error) {
+        hidePageLoader();
+        console.error('Erreur:', error);
+        showError('Erreur lors du déplacement');
+    }
+}
+
+// =============================================================================
+// DRAG & DROP
+// =============================================================================
+
+// Variables globales pour le drag & drop
+let draggedElement = null;
+let draggedType = null; // 'famille' ou 'prestation'
+
+// Initialiser le drag & drop pour les familles
+function initDragDropFamilles() {
+    const famillesCards = document.querySelectorAll('.famille-card[draggable="true"]');
+
+    famillesCards.forEach(card => {
+        card.addEventListener('dragstart', handleFamilleDragStart);
+        card.addEventListener('dragend', handleFamilleDragEnd);
+        card.addEventListener('dragover', handleFamilleDragOver);
+        card.addEventListener('drop', handleFamilleDrop);
+        card.addEventListener('dragleave', handleFamilleDragLeave);
+    });
+}
+
+function handleFamilleDragStart(e) {
+    draggedElement = this;
+    draggedType = 'famille';
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', this.innerHTML);
+}
+
+function handleFamilleDragEnd(e) {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.famille-card').forEach(card => {
+        card.classList.remove('drag-over');
+    });
+}
+
+function handleFamilleDragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    if (draggedType !== 'famille' || this === draggedElement) {
+        return true;
+    }
+    e.dataTransfer.dropEffect = 'move';
+    this.classList.add('drag-over');
+    return false;
+}
+
+function handleFamilleDragLeave(e) {
+    this.classList.remove('drag-over');
+}
+
+async function handleFamilleDrop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+    if (draggedType !== 'famille' || this === draggedElement) {
+        return false;
+    }
+
+    // Insérer l'élément déplacé avant l'élément cible
+    const container = document.getElementById('famillesContainer');
+    container.insertBefore(draggedElement, this);
+
+    // Récupérer le nouvel ordre
+    const familleCards = container.querySelectorAll('.famille-card[data-famille-id]');
+    const familleIds = Array.from(familleCards).map(card => parseInt(card.dataset.familleId));
+
+    // Sauvegarder le nouvel ordre
+    const institutActif = {{ institut_actif.id }};
+    showPageLoader('Enregistrement de l\'ordre...');
+
+    try {
+        const response = await fetch(`/gestion/catalogue/institut/${institutActif}/reordonner-familles/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ famille_ids: familleIds })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            hidePageLoader();
+            showSuccess('Ordre enregistré avec succès');
+        } else {
+            console.error('Erreur lors de la sauvegarde:', result.error);
+            showError('Erreur lors de l\'enregistrement');
+            setTimeout(() => location.reload(), 1000);
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        showError('Erreur lors de l\'enregistrement');
+        setTimeout(() => location.reload(), 1000);
+    }
+
+    return false;
+}
+
+// Initialiser le drag & drop pour les prestations
+function initDragDropPrestations() {
+    const prestationsLists = document.querySelectorAll('.prestations-list');
+
+    prestationsLists.forEach(list => {
+        const prestationRows = list.querySelectorAll('.prestation-row[draggable="true"]');
+
+        prestationRows.forEach(row => {
+            row.addEventListener('dragstart', handlePrestationDragStart);
+            row.addEventListener('dragend', handlePrestationDragEnd);
+            row.addEventListener('dragover', handlePrestationDragOver);
+            row.addEventListener('drop', handlePrestationDrop);
+            row.addEventListener('dragleave', handlePrestationDragLeave);
+        });
+    });
+}
+
+function handlePrestationDragStart(e) {
+    draggedElement = this;
+    draggedType = 'prestation';
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', this.innerHTML);
+    e.stopPropagation(); // Empêcher la propagation à la famille
+}
+
+function handlePrestationDragEnd(e) {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.prestation-row').forEach(row => {
+        row.classList.remove('drag-over');
+    });
+    e.stopPropagation();
+}
+
+function handlePrestationDragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    if (draggedType !== 'prestation' || this === draggedElement) {
+        return true;
+    }
+
+    // Vérifier qu'on est dans la même famille
+    const draggedParent = draggedElement.parentElement;
+    const targetParent = this.parentElement;
+    if (draggedParent !== targetParent) {
+        return true;
+    }
+
+    e.dataTransfer.dropEffect = 'move';
+    this.classList.add('drag-over');
+    e.stopPropagation();
+    return false;
+}
+
+function handlePrestationDragLeave(e) {
+    this.classList.remove('drag-over');
+    e.stopPropagation();
+}
+
+async function handlePrestationDrop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+    if (draggedType !== 'prestation' || this === draggedElement) {
+        return false;
+    }
+
+    // Vérifier qu'on est dans la même famille
+    const container = this.parentElement;
+    const draggedParent = draggedElement.parentElement;
+    if (draggedParent !== container) {
+        return false;
+    }
+
+    // Insérer l'élément déplacé avant l'élément cible
+    container.insertBefore(draggedElement, this);
+
+    // Récupérer le nouvel ordre
+    const prestationRows = container.querySelectorAll('.prestation-row[data-prestation-id]');
+    const prestationIds = Array.from(prestationRows).map(row => parseInt(row.dataset.prestationId));
+
+    // Récupérer l'ID de la famille
+    const familleId = parseInt(container.dataset.familleId);
+
+    // Sauvegarder le nouvel ordre
+    showPageLoader('Enregistrement de l\'ordre...');
+
+    try {
+        const response = await fetch(`/gestion/catalogue/famille/${familleId}/reordonner-prestations/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ prestation_ids: prestationIds })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            hidePageLoader();
+            showSuccess('Ordre enregistré avec succès');
+        } else {
+            console.error('Erreur lors de la sauvegarde:', result.error);
+            showError('Erreur lors de l\'enregistrement');
+            setTimeout(() => location.reload(), 1000);
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        showError('Erreur lors de l\'enregistrement');
+        setTimeout(() => location.reload(), 1000);
+    }
+
+    return false;
+}
+
+// Initialiser le drag & drop au chargement de la page
+document.addEventListener('DOMContentLoaded', function() {
+    initDragDropFamilles();
+    initDragDropPrestations();
+});
+</script>
+{% endblock %}
