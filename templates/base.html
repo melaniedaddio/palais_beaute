@@ -905,6 +905,143 @@
             font-size: 13px;
         }
 
+        /* =============================================================================
+           SYSTÈME DE VALIDATION DES FORMULAIRES
+           ============================================================================= */
+
+        /* État d'erreur pour les champs */
+        .form-input.error,
+        input.error,
+        select.error,
+        textarea.error {
+            border-color: var(--danger);
+            background-color: #fff5f5;
+        }
+
+        .form-input.error:focus,
+        input.error:focus,
+        select.error:focus,
+        textarea.error:focus {
+            border-color: var(--danger);
+            box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+        }
+
+        /* État de succès pour les champs */
+        .form-input.success,
+        input.success,
+        select.success,
+        textarea.success {
+            border-color: var(--success);
+            background-color: #f0fdf4;
+        }
+
+        .form-input.success:focus,
+        input.success:focus,
+        select.success:focus,
+        textarea.success:focus {
+            border-color: var(--success);
+            box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1);
+        }
+
+        /* Message d'erreur sous le champ */
+        .field-error {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--danger);
+            font-size: 12px;
+            margin-top: 6px;
+            animation: slideDown 0.2s ease-out;
+        }
+
+        .field-error-icon {
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Message de succès sous le champ */
+        .field-success {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--success);
+            font-size: 12px;
+            margin-top: 6px;
+            animation: slideDown 0.2s ease-out;
+        }
+
+        .field-success-icon {
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+
+        /* Label avec indicateur requis */
+        label .required {
+            color: var(--danger);
+            margin-left: 4px;
+        }
+
+        /* Groupe de champs avec erreur */
+        .form-group.has-error label {
+            color: var(--danger);
+        }
+
+        /* Container pour les messages de validation au niveau du formulaire */
+        .form-validation-summary {
+            background: #fff5f5;
+            border: 1px solid var(--danger);
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .form-validation-summary.active {
+            display: block;
+            animation: slideDown 0.2s ease-out;
+        }
+
+        .form-validation-summary-title {
+            font-weight: 600;
+            color: var(--danger);
+            font-size: 14px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-validation-summary-list {
+            margin: 0;
+            padding-left: 20px;
+            color: var(--danger);
+            font-size: 13px;
+        }
+
+        .form-validation-summary-list li {
+            margin: 4px 0;
+        }
+
+        /* Style pour les champs en cours de validation */
+        .form-input.validating,
+        input.validating,
+        select.validating,
+        textarea.validating {
+            border-color: var(--info);
+            background-color: #f0faff;
+        }
+
         {% block extra_css %}{% endblock %}
     </style>
 
@@ -1308,6 +1445,420 @@
     window.showPageLoader = showPageLoader;
     window.hidePageLoader = hidePageLoader;
     window.withLoader = withLoader;
+    </script>
+
+    <!-- Script système de validation des formulaires -->
+    <script>
+    /**
+     * Système de validation des formulaires
+     * Usage:
+     * - validateField(field, rules) : Valide un champ selon les règles fournies
+     * - validateForm(formId, validationRules) : Valide tous les champs d'un formulaire
+     * - clearValidation(field) : Efface les messages de validation d'un champ
+     * - setupRealTimeValidation(field, rules) : Active la validation en temps réel
+     */
+
+    /**
+     * Règles de validation disponibles
+     */
+    const ValidationRules = {
+        required: (value) => {
+            if (typeof value === 'string') {
+                return value.trim().length > 0;
+            }
+            return value !== null && value !== undefined && value !== '';
+        },
+
+        email: (value) => {
+            if (!value) return true; // Optionnel si non requis
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailRegex.test(value);
+        },
+
+        phone: (value) => {
+            if (!value) return true; // Optionnel si non requis
+            // Format téléphone (accepte différents formats)
+            const phoneRegex = /^[\d\s\-+()]{8,}$/;
+            return phoneRegex.test(value);
+        },
+
+        minLength: (value, length) => {
+            if (!value) return true; // Optionnel si non requis
+            return value.toString().length >= length;
+        },
+
+        maxLength: (value, length) => {
+            if (!value) return true; // Optionnel si non requis
+            return value.toString().length <= length;
+        },
+
+        min: (value, min) => {
+            if (!value && value !== 0) return true; // Optionnel si non requis
+            return parseFloat(value) >= min;
+        },
+
+        max: (value, max) => {
+            if (!value && value !== 0) return true; // Optionnel si non requis
+            return parseFloat(value) <= max;
+        },
+
+        numeric: (value) => {
+            if (!value) return true; // Optionnel si non requis
+            return !isNaN(value) && !isNaN(parseFloat(value));
+        },
+
+        pattern: (value, regex) => {
+            if (!value) return true; // Optionnel si non requis
+            return new RegExp(regex).test(value);
+        },
+
+        match: (value, otherFieldId) => {
+            if (!value) return true;
+            const otherField = document.getElementById(otherFieldId);
+            return otherField && value === otherField.value;
+        }
+    };
+
+    /**
+     * Messages d'erreur par défaut
+     */
+    const ValidationMessages = {
+        required: 'Ce champ est requis',
+        email: 'Adresse email invalide',
+        phone: 'Numéro de téléphone invalide',
+        minLength: 'Minimum {0} caractères requis',
+        maxLength: 'Maximum {0} caractères autorisés',
+        min: 'La valeur minimum est {0}',
+        max: 'La valeur maximum est {0}',
+        numeric: 'Veuillez entrer un nombre valide',
+        pattern: 'Format invalide',
+        match: 'Les champs ne correspondent pas'
+    };
+
+    /**
+     * Affiche un message d'erreur sous un champ
+     * @param {HTMLElement} field - Le champ de formulaire
+     * @param {string} message - Le message d'erreur
+     */
+    function showFieldError(field, message) {
+        // Supprimer les messages existants
+        clearFieldMessages(field);
+
+        // Ajouter la classe d'erreur
+        field.classList.add('error');
+        field.classList.remove('success', 'validating');
+
+        // Marquer le groupe parent
+        const formGroup = field.closest('.form-group');
+        if (formGroup) {
+            formGroup.classList.add('has-error');
+        }
+
+        // Créer le message d'erreur
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'field-error';
+        errorDiv.innerHTML = `
+            <span class="field-error-icon">⚠</span>
+            <span>${message}</span>
+        `;
+
+        // Insérer après le champ
+        field.parentNode.insertBefore(errorDiv, field.nextSibling);
+
+        // Focus sur le premier champ en erreur
+        const firstError = field.form?.querySelector('.error');
+        if (firstError === field) {
+            field.focus();
+        }
+    }
+
+    /**
+     * Affiche un message de succès sous un champ
+     * @param {HTMLElement} field - Le champ de formulaire
+     * @param {string} message - Le message de succès (optionnel)
+     */
+    function showFieldSuccess(field, message = null) {
+        // Supprimer les messages existants
+        clearFieldMessages(field);
+
+        // Ajouter la classe de succès
+        field.classList.add('success');
+        field.classList.remove('error', 'validating');
+
+        // Retirer la classe d'erreur du groupe parent
+        const formGroup = field.closest('.form-group');
+        if (formGroup) {
+            formGroup.classList.remove('has-error');
+        }
+
+        // Si un message est fourni, l'afficher
+        if (message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'field-success';
+            successDiv.innerHTML = `
+                <span class="field-success-icon">✓</span>
+                <span>${message}</span>
+            `;
+            field.parentNode.insertBefore(successDiv, field.nextSibling);
+        }
+    }
+
+    /**
+     * Efface les messages de validation d'un champ
+     * @param {HTMLElement} field - Le champ de formulaire
+     */
+    function clearFieldMessages(field) {
+        // Supprimer les messages d'erreur/succès
+        const parent = field.parentNode;
+        const existingError = parent.querySelector('.field-error');
+        const existingSuccess = parent.querySelector('.field-success');
+
+        if (existingError) {
+            existingError.remove();
+        }
+        if (existingSuccess) {
+            existingSuccess.remove();
+        }
+    }
+
+    /**
+     * Efface toute la validation d'un champ
+     * @param {HTMLElement|string} field - Le champ ou son ID
+     */
+    function clearValidation(field) {
+        // Récupérer l'élément si c'est un ID
+        if (typeof field === 'string') {
+            field = document.getElementById(field);
+        }
+
+        if (!field) return;
+
+        // Supprimer les classes
+        field.classList.remove('error', 'success', 'validating');
+
+        // Supprimer les messages
+        clearFieldMessages(field);
+
+        // Retirer la classe du groupe parent
+        const formGroup = field.closest('.form-group');
+        if (formGroup) {
+            formGroup.classList.remove('has-error');
+        }
+    }
+
+    /**
+     * Valide un champ selon les règles fournies
+     * @param {HTMLElement|string} field - Le champ ou son ID
+     * @param {Object} rules - Les règles de validation
+     * @param {boolean} showSuccess - Afficher le succès visuellement
+     * @returns {boolean} - true si valide, false sinon
+     */
+    function validateField(field, rules = {}, showSuccess = false) {
+        // Récupérer l'élément si c'est un ID
+        if (typeof field === 'string') {
+            field = document.getElementById(field);
+        }
+
+        if (!field) {
+            console.warn('validateField: Champ non trouvé');
+            return false;
+        }
+
+        const value = field.value;
+
+        // Parcourir toutes les règles
+        for (const [ruleName, ruleValue] of Object.entries(rules)) {
+            let isValid = false;
+            let errorMessage = '';
+
+            // Exécuter la règle de validation
+            if (ruleName === 'required') {
+                isValid = ValidationRules.required(value);
+                errorMessage = rules.requiredMessage || ValidationMessages.required;
+            } else if (ruleName === 'email') {
+                isValid = ValidationRules.email(value);
+                errorMessage = rules.emailMessage || ValidationMessages.email;
+            } else if (ruleName === 'phone') {
+                isValid = ValidationRules.phone(value);
+                errorMessage = rules.phoneMessage || ValidationMessages.phone;
+            } else if (ruleName === 'minLength') {
+                isValid = ValidationRules.minLength(value, ruleValue);
+                errorMessage = rules.minLengthMessage || ValidationMessages.minLength.replace('{0}', ruleValue);
+            } else if (ruleName === 'maxLength') {
+                isValid = ValidationRules.maxLength(value, ruleValue);
+                errorMessage = rules.maxLengthMessage || ValidationMessages.maxLength.replace('{0}', ruleValue);
+            } else if (ruleName === 'min') {
+                isValid = ValidationRules.min(value, ruleValue);
+                errorMessage = rules.minMessage || ValidationMessages.min.replace('{0}', ruleValue);
+            } else if (ruleName === 'max') {
+                isValid = ValidationRules.max(value, ruleValue);
+                errorMessage = rules.maxMessage || ValidationMessages.max.replace('{0}', ruleValue);
+            } else if (ruleName === 'numeric') {
+                isValid = ValidationRules.numeric(value);
+                errorMessage = rules.numericMessage || ValidationMessages.numeric;
+            } else if (ruleName === 'pattern') {
+                isValid = ValidationRules.pattern(value, ruleValue);
+                errorMessage = rules.patternMessage || ValidationMessages.pattern;
+            } else if (ruleName === 'match') {
+                isValid = ValidationRules.match(value, ruleValue);
+                errorMessage = rules.matchMessage || ValidationMessages.match;
+            } else if (ruleName === 'custom' && typeof ruleValue === 'function') {
+                const result = ruleValue(value, field);
+                if (typeof result === 'object') {
+                    isValid = result.valid;
+                    errorMessage = result.message || 'Validation échouée';
+                } else {
+                    isValid = result;
+                    errorMessage = rules.customMessage || 'Validation échouée';
+                }
+            }
+
+            // Si la règle échoue, afficher l'erreur et arrêter
+            if (!isValid && ruleName !== 'custom' && ruleName.indexOf('Message') === -1) {
+                showFieldError(field, errorMessage);
+                return false;
+            }
+        }
+
+        // Toutes les règles sont passées
+        if (showSuccess) {
+            showFieldSuccess(field);
+        } else {
+            clearValidation(field);
+        }
+
+        return true;
+    }
+
+    /**
+     * Valide un formulaire entier
+     * @param {string} formId - L'ID du formulaire
+     * @param {Object} validationRules - Objet contenant les règles pour chaque champ {fieldId: rules}
+     * @param {boolean} showSuccess - Afficher le succès visuellement
+     * @returns {boolean} - true si tous les champs sont valides, false sinon
+     */
+    function validateForm(formId, validationRules = {}, showSuccess = false) {
+        const form = document.getElementById(formId);
+        if (!form) {
+            console.warn('validateForm: Formulaire non trouvé');
+            return false;
+        }
+
+        let isValid = true;
+        const errors = [];
+
+        // Valider chaque champ selon ses règles
+        for (const [fieldId, rules] of Object.entries(validationRules)) {
+            const field = document.getElementById(fieldId);
+            if (!field) {
+                console.warn(`validateForm: Champ ${fieldId} non trouvé`);
+                continue;
+            }
+
+            const fieldValid = validateField(field, rules, showSuccess);
+            if (!fieldValid) {
+                isValid = false;
+                const label = field.parentNode.querySelector('label');
+                const fieldName = label ? label.textContent.replace('*', '').trim() : field.name || field.id;
+                errors.push(fieldName);
+            }
+        }
+
+        // Afficher un résumé des erreurs si demandé
+        if (!isValid && errors.length > 0) {
+            const summary = form.querySelector('.form-validation-summary');
+            if (summary) {
+                const list = summary.querySelector('.form-validation-summary-list');
+                if (list) {
+                    list.innerHTML = errors.map(err => `<li>${err}</li>`).join('');
+                }
+                summary.classList.add('active');
+            }
+        }
+
+        return isValid;
+    }
+
+    /**
+     * Active la validation en temps réel sur un champ
+     * @param {HTMLElement|string} field - Le champ ou son ID
+     * @param {Object} rules - Les règles de validation
+     * @param {number} debounceMs - Délai de debounce en ms (défaut 300ms)
+     */
+    function setupRealTimeValidation(field, rules = {}, debounceMs = 300) {
+        // Récupérer l'élément si c'est un ID
+        if (typeof field === 'string') {
+            field = document.getElementById(field);
+        }
+
+        if (!field) {
+            console.warn('setupRealTimeValidation: Champ non trouvé');
+            return;
+        }
+
+        let debounceTimer;
+
+        // Validation au blur (perte de focus)
+        field.addEventListener('blur', () => {
+            validateField(field, rules);
+        });
+
+        // Validation en temps réel avec debounce
+        field.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+
+            // Indiquer que la validation est en cours
+            field.classList.add('validating');
+            field.classList.remove('error', 'success');
+            clearFieldMessages(field);
+
+            debounceTimer = setTimeout(() => {
+                validateField(field, rules);
+            }, debounceMs);
+        });
+
+        // Effacer la validation quand l'utilisateur commence à taper
+        field.addEventListener('focus', () => {
+            if (field.classList.contains('error')) {
+                clearFieldMessages(field);
+                field.classList.remove('error');
+            }
+        });
+    }
+
+    /**
+     * Helper pour valider un formulaire avant soumission
+     * @param {string} formId - L'ID du formulaire
+     * @param {Object} validationRules - Les règles de validation
+     * @param {Function} onSuccess - Callback si la validation réussit
+     * @param {Function} onError - Callback si la validation échoue (optionnel)
+     */
+    function validateAndSubmit(formId, validationRules, onSuccess, onError = null) {
+        const isValid = validateForm(formId, validationRules);
+
+        if (isValid) {
+            if (typeof onSuccess === 'function') {
+                onSuccess();
+            }
+        } else {
+            if (typeof onError === 'function') {
+                onError();
+            } else {
+                showError('Veuillez corriger les erreurs dans le formulaire');
+            }
+        }
+    }
+
+    // Rendre les fonctions disponibles globalement
+    window.ValidationRules = ValidationRules;
+    window.ValidationMessages = ValidationMessages;
+    window.validateField = validateField;
+    window.validateForm = validateForm;
+    window.clearValidation = clearValidation;
+    window.showFieldError = showFieldError;
+    window.showFieldSuccess = showFieldSuccess;
+    window.setupRealTimeValidation = setupRealTimeValidation;
+    window.validateAndSubmit = validateAndSubmit;
     </script>
 
     <!-- Script menu mobile -->

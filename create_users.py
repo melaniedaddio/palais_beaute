@@ -34,11 +34,13 @@ util_patron, created = Utilisateur.objects.get_or_create(
     defaults={
         'role': 'patron',
         'institut': None,
-        'pin': '123456',  # A CHANGER en production !
+        'pin': '',  # Sera hashé juste après
         'actif': True
     }
 )
 if created:
+    util_patron.set_pin('123456')  # A CHANGER en production !
+    util_patron.save()
     print("  - Utilisateur Patron cree (PIN: 123456)")
 else:
     print("  - Patron existe deja")
@@ -63,11 +65,13 @@ util_palais, created = Utilisateur.objects.get_or_create(
     defaults={
         'role': 'manager',
         'institut': palais,
-        'pin': '234567',  # A CHANGER en production !
+        'pin': '',  # Sera hashé juste après
         'actif': True
     }
 )
 if created:
+    util_palais.set_pin('234567')  # A CHANGER en production !
+    util_palais.save()
     print("  - Utilisateur Manager Palais cree (PIN: 234567)")
 else:
     print("  - Manager Palais existe deja")
@@ -92,11 +96,13 @@ util_klinic, created = Utilisateur.objects.get_or_create(
     defaults={
         'role': 'manager',
         'institut': klinic,
-        'pin': '345678',  # A CHANGER en production !
+        'pin': '',  # Sera hashé juste après
         'actif': True
     }
 )
 if created:
+    util_klinic.set_pin('345678')  # A CHANGER en production !
+    util_klinic.save()
     print("  - Utilisateur Manager Klinic cree (PIN: 345678)")
 else:
     print("  - Manager Klinic existe deja")
@@ -121,11 +127,13 @@ util_express, created = Utilisateur.objects.get_or_create(
     defaults={
         'role': 'manager',
         'institut': express,
-        'pin': '456789',  # A CHANGER en production !
+        'pin': '',  # Sera hashé juste après
         'actif': True
     }
 )
 if created:
+    util_express.set_pin('456789')  # A CHANGER en production !
+    util_express.save()
     print("  - Utilisateur Manager Express cree (PIN: 456789)")
 else:
     print("  - Manager Express existe deja")

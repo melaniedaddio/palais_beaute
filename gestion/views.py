@@ -275,7 +275,7 @@ def creer_prestation(request):
             prix=data.get('prix', 0),
             duree_minutes=data.get('duree_minutes'),
             unite=data.get('unite', ''),
-            nb_seances=data.get('nb_seances', 1),
+            nombre_seances=data.get('nb_seances', 1),
             ordre_affichage=dernier_ordre + 1
         )
 
@@ -335,7 +335,7 @@ def modifier_prestation(request, prestation_id):
         if 'unite' in data:
             prestation.unite = data['unite']
         if 'nb_seances' in data:
-            prestation.nb_seances = data['nb_seances']
+            prestation.nombre_seances = data['nb_seances']
 
         prestation.save()
 

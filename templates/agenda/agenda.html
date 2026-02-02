@@ -802,6 +802,42 @@ document.addEventListener('DOMContentLoaded', function() {
     chargerPrestationsData();
     afficherRdvSurGrille();
     calculerStats();
+
+    // Activer la validation en temps réel pour le formulaire RDV
+    setupRealTimeValidation('rdv-prix-base', {
+        numeric: true,
+        min: 0,
+        numericMessage: 'Veuillez entrer un nombre valide',
+        minMessage: 'Le prix ne peut pas être négatif'
+    });
+
+    setupRealTimeValidation('rdv-date', {
+        required: true,
+        requiredMessage: 'La date est requise'
+    });
+
+    setupRealTimeValidation('rdv-heure', {
+        required: true,
+        requiredMessage: 'L\'heure est requise'
+    });
+
+    // Validation pour le formulaire validation
+    setupRealTimeValidation('validation-montant', {
+        numeric: true,
+        min: 0,
+        numericMessage: 'Veuillez entrer un nombre valide',
+        minMessage: 'Le montant ne peut pas être négatif'
+    });
+
+    {% if institut.code == 'klinic' %}
+    // Validation pour le formulaire forfait
+    setupRealTimeValidation('forfait-montant', {
+        numeric: true,
+        min: 0,
+        numericMessage: 'Veuillez entrer un nombre valide',
+        minMessage: 'Le montant ne peut pas être négatif'
+    });
+    {% endif %}
 });
 
 // Changer de date
@@ -932,6 +968,13 @@ function nouvelRdv(employeId, heure) {
     document.getElementById('rdv-client').value = '';
     document.getElementById('rdv-client-search').value = '';
 
+    // Effacer les validations précédentes
+    clearValidation('rdv-date');
+    clearValidation('rdv-heure');
+    clearValidation('rdv-client-search');
+    clearValidation('rdv-prestation');
+    clearValidation('rdv-prix-base');
+
     {% if institut.code == 'klinic' %}
     // Réinitialiser les forfaits
     document.getElementById('rdv-seance-forfait').value = '';
@@ -972,16 +1015,49 @@ function enregistrerRdv() {
     const form = document.getElementById('form-rdv');
     const formData = new FormData(form);
 
-    // Vérifications
-    if (!formData.get('client_id')) {
-        showWarning('Veuillez sélectionner un client');
+    // Validation du formulaire
+    const validationRules = {
+        'rdv-date': {
+            required: true,
+            requiredMessage: 'La date est requise'
+        },
+        'rdv-heure': {
+            required: true,
+            requiredMessage: 'L\'heure est requise'
+        },
+        'rdv-prix-base': {
+            numeric: true,
+            min: 0,
+            numericMessage: 'Veuillez entrer un nombre valide',
+            minMessage: 'Le prix ne peut pas être négatif'
+        }
+    };
+
+    // Valider les champs visuels
+    const isFormValid = validateForm('form-rdv', validationRules);
+
+    // Vérifier le client (champ caché)
+    const clientId = formData.get('client_id');
+    if (!clientId) {
+        showFieldError(document.getElementById('rdv-client-search'), 'Veuillez sélectionner un client');
+        if (isFormValid) {
+            showError('Veuillez sélectionner un client');
+        }
         return;
     }
 
     // Si c'est une séance de forfait, la prestation sera déterminée côté serveur
     const seanceForfaitId = formData.get('seance_forfait_id');
-    if (!formData.get('prestation_id') && !seanceForfaitId) {
-        showWarning('Veuillez sélectionner une prestation');
+    const prestationId = formData.get('prestation_id');
+    if (!prestationId && !seanceForfaitId) {
+        showFieldError(document.getElementById('rdv-prestation'), 'Veuillez sélectionner une prestation');
+        showError('Veuillez sélectionner une prestation');
+        return;
+    }
+
+    // Si la validation a échoué, arrêter
+    if (!isFormValid) {
+        showError('Veuillez corriger les erreurs dans le formulaire');
         return;
     }
 
@@ -1308,6 +1384,9 @@ function ouvrirModalValidation(rdvId) {
             validationClientId = rdv.client_id;
             document.getElementById('validation-montant').value = rdv.prix_total;
 
+            // Effacer les validations précédentes
+            clearValidation('validation-montant');
+
             hidePageLoader();
             document.getElementById('modal-validation').style.display = 'flex';
 
@@ -1457,6 +1536,27 @@ document.addEventListener('change', function(e) {
 function validerRdv() {
     const rdvId = document.getElementById('validation-rdv-id').value;
     const formData = new FormData(document.getElementById('form-validation'));
+
+    // Validation conditionnelle du montant si paiement partiel
+    const typePaiement = document.getElementById('validation-type-paiement').value;
+    if (typePaiement === 'partiel') {
+        const validationRules = {
+            'validation-montant': {
+                required: true,
+                numeric: true,
+                min: 0,
+                requiredMessage: 'Le montant payé est requis pour un paiement partiel',
+                numericMessage: 'Veuillez entrer un nombre valide',
+                minMessage: 'Le montant ne peut pas être négatif'
+            }
+        };
+
+        const isValid = validateForm('form-validation', validationRules);
+        if (!isValid) {
+            showError('Veuillez corriger les erreurs dans le formulaire');
+            return;
+        }
+    }
 
     // Ajouter les cartes cadeaux sélectionnées
     const checks = document.querySelectorAll('.carte-cadeau-check:checked');
@@ -1691,6 +1791,11 @@ function ouvrirModalForfait() {
     document.getElementById('forfait-details').style.display = 'none';
     document.getElementById('forfait-montant-container').style.display = 'none';
 
+    // Effacer les validations précédentes
+    clearValidation('forfait-client-search');
+    clearValidation('forfait-prestation');
+    clearValidation('forfait-montant');
+
     // Charger les forfaits disponibles
     chargerForfaitsDisponibles();
 
@@ -1765,14 +1870,38 @@ function acheterForfait() {
     const modePaiement = document.querySelector('input[name="forfait_mode_paiement"]:checked').value;
     const montant = document.getElementById('forfait-montant').value || 0;
 
+    // Valider le client
     if (!clientId) {
-        showWarning('Veuillez sélectionner un client');
+        showFieldError(document.getElementById('forfait-client-search'), 'Veuillez sélectionner un client');
+        showError('Veuillez sélectionner un client');
         return;
     }
 
+    // Valider le forfait
     if (!prestationId) {
-        showWarning('Veuillez sélectionner un forfait');
+        showFieldError(document.getElementById('forfait-prestation'), 'Veuillez sélectionner un forfait');
+        showError('Veuillez sélectionner un forfait');
         return;
+    }
+
+    // Validation du montant si paiement partiel
+    if (typePaiement === 'partiel') {
+        const validationRules = {
+            'forfait-montant': {
+                required: true,
+                numeric: true,
+                min: 0,
+                requiredMessage: 'Le montant est requis pour un acompte',
+                numericMessage: 'Veuillez entrer un nombre valide',
+                minMessage: 'Le montant ne peut pas être négatif'
+            }
+        };
+
+        const isValid = validateForm('form-forfait', validationRules);
+        if (!isValid) {
+            showError('Veuillez corriger les erreurs dans le formulaire');
+            return;
+        }
     }
 
     const formData = new FormData();

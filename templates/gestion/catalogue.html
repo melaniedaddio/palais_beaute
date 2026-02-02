@@ -412,6 +412,7 @@
 {% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <div class="page-container">
     <div class="catalogue-header">
         <h1 class="catalogue-title">📚 Catalogue des Prestations</h1>
@@ -600,6 +601,11 @@ function ouvrirModalNouvelleFamille() {
     document.getElementById('familleCouleur').value = '#e8b4b8';
     document.getElementById('familleCouleurHex').value = '#e8b4b8';
     document.getElementById('btnSaveFamille').textContent = 'Créer la famille';
+
+    // Effacer les validations précédentes
+    clearValidation('familleNom');
+    clearValidation('familleCouleurHex');
+
     ouvrirModal('modalFamille');
 }
 
@@ -611,12 +617,41 @@ function ouvrirModalModifierFamille(familleId, nom, couleur) {
     document.getElementById('familleCouleur').value = couleur;
     document.getElementById('familleCouleurHex').value = couleur;
     document.getElementById('btnSaveFamille').textContent = 'Enregistrer';
+
+    // Effacer les validations précédentes
+    clearValidation('familleNom');
+    clearValidation('familleCouleurHex');
+
     ouvrirModal('modalFamille');
 }
 
 // Sauvegarder famille (créer ou modifier)
 document.getElementById('formFamille')?.addEventListener('submit', async function(e) {
     e.preventDefault();
+
+    // Valider le formulaire avant la soumission
+    const validationRules = {
+        familleNom: {
+            required: true,
+            minLength: 2,
+            maxLength: 100,
+            requiredMessage: 'Le nom de la famille est requis',
+            minLengthMessage: 'Le nom doit contenir au moins 2 caractères',
+            maxLengthMessage: 'Le nom ne peut pas dépasser 100 caractères'
+        },
+        familleCouleurHex: {
+            required: true,
+            pattern: '^#[0-9A-Fa-f]{6}$',
+            requiredMessage: 'La couleur est requise',
+            patternMessage: 'Format de couleur invalide (ex: #E91E63)'
+        }
+    };
+
+    const isValid = validateForm('formFamille', validationRules);
+    if (!isValid) {
+        showError('Veuillez corriger les erreurs dans le formulaire');
+        return;
+    }
 
     const familleId = document.getElementById('familleId').value;
     const nom = document.getElementById('familleNom').value;
@@ -691,8 +726,18 @@ async function ouvrirModalSupprimerFamille(familleId) {
 async function confirmerSuppressionFamille() {
     const confirmation = document.getElementById('confirmationSuppressionFamille').value;
 
-    if (confirmation !== 'SUPPRIMER') {
-        showWarning('Veuillez taper "SUPPRIMER" pour confirmer');
+    // Valider le champ de confirmation
+    const isValid = validateField('confirmationSuppressionFamille', {
+        custom: (value) => {
+            const valid = value === 'SUPPRIMER';
+            return {
+                valid: valid,
+                message: 'Veuillez taper exactement "SUPPRIMER" pour confirmer'
+            };
+        }
+    });
+
+    if (!isValid) {
         return;
     }
 
@@ -822,6 +867,13 @@ function ouvrirModalNouvellePrestation(familleId) {
     // Masquer l'erreur
     document.getElementById('prestationError').style.display = 'none';
 
+    // Effacer les validations précédentes
+    clearValidation('prestationNom');
+    clearValidation('prestationPrix');
+    clearValidation('prestationDuree');
+    clearValidation('prestationUnite');
+    clearValidation('prestationNbSeances');
+
     // Mettre à jour les champs affichés
     updatePrestationFields();
 
@@ -866,6 +918,13 @@ async function ouvrirModalModifierPrestation(prestationId) {
         // Masquer l'erreur
         document.getElementById('prestationError').style.display = 'none';
 
+        // Effacer les validations précédentes
+        clearValidation('prestationNom');
+        clearValidation('prestationPrix');
+        clearValidation('prestationDuree');
+        clearValidation('prestationUnite');
+        clearValidation('prestationNbSeances');
+
         // Mettre à jour les champs affichés selon le type
         updatePrestationFields();
 
@@ -893,8 +952,51 @@ document.getElementById('btnSavePrestation')?.addEventListener('click', async fu
     // Récupérer les instituts cochés
     const instituts = Array.from(document.querySelectorAll('.prestation-institut:checked')).map(cb => parseInt(cb.value));
 
-    if (!nom) {
-        showWarning('Veuillez saisir un nom');
+    // Valider le formulaire avant la soumission
+    const validationRules = {
+        prestationNom: {
+            required: true,
+            minLength: 2,
+            maxLength: 200,
+            requiredMessage: 'Le nom de la prestation est requis',
+            minLengthMessage: 'Le nom doit contenir au moins 2 caractères',
+            maxLengthMessage: 'Le nom ne peut pas dépasser 200 caractères'
+        },
+        prestationPrix: {
+            required: true,
+            numeric: true,
+            min: 0,
+            requiredMessage: 'Le prix est requis',
+            numericMessage: 'Veuillez entrer un nombre valide',
+            minMessage: 'Le prix ne peut pas être négatif'
+        }
+    };
+
+    // Ajouter la validation de la durée uniquement pour les types normal et forfait
+    if (type !== 'option') {
+        validationRules.prestationDuree = {
+            numeric: true,
+            min: 0,
+            numericMessage: 'Veuillez entrer un nombre valide',
+            minMessage: 'La durée ne peut pas être négative'
+        };
+    }
+
+    // Ajouter la validation du nombre de séances pour les forfaits
+    if (type === 'forfait') {
+        validationRules.prestationNbSeances = {
+            required: true,
+            numeric: true,
+            min: 1,
+            requiredMessage: 'Le nombre de séances est requis',
+            numericMessage: 'Veuillez entrer un nombre valide',
+            minMessage: 'Le nombre de séances doit être au moins 1'
+        };
+    }
+
+    const isValid = validateForm('formPrestation', validationRules);
+    if (!isValid) {
+        showError('Veuillez corriger les erreurs dans le formulaire');
         return;
     }
 
@@ -979,10 +1081,18 @@ async function ouvrirModalSupprimerPrestation(prestationId) {
 document.getElementById('btnConfirmerSuppressionPrestation')?.addEventListener('click', async function() {
     const confirmation = document.getElementById('confirmationSuppressionPrestation').value;
 
-    if (confirmation !== 'SUPPRIMER') {
-        showWarning('Veuillez taper "SUPPRIMER" pour confirmer');
-        document.getElementById('prestationSuppressionError').textContent = 'Veuillez taper "SUPPRIMER" pour confirmer';
-        document.getElementById('prestationSuppressionError').style.display = 'block';
+    // Valider le champ de confirmation
+    const isValid = validateField('confirmationSuppressionPrestation', {
+        custom: (value) => {
+            const valid = value === 'SUPPRIMER';
+            return {
+                valid: valid,
+                message: 'Veuillez taper exactement "SUPPRIMER" pour confirmer'
+            };
+        }
+    });
+
+    if (!isValid) {
         return;
     }
 
@@ -1322,6 +1432,78 @@ async function handlePrestationDrop(e) {
 document.addEventListener('DOMContentLoaded', function() {
     initDragDropFamilles();
     initDragDropPrestations();
+
+    // Activer la validation en temps réel pour le formulaire famille
+    setupRealTimeValidation('familleNom', {
+        required: true,
+        minLength: 2,
+        maxLength: 100,
+        requiredMessage: 'Le nom de la famille est requis',
+        minLengthMessage: 'Le nom doit contenir au moins 2 caractères',
+        maxLengthMessage: 'Le nom ne peut pas dépasser 100 caractères'
+    });
+
+    setupRealTimeValidation('familleCouleurHex', {
+        required: true,
+        pattern: '^#[0-9A-Fa-f]{6}$',
+        requiredMessage: 'La couleur est requise',
+        patternMessage: 'Format de couleur invalide (ex: #E91E63)'
+    });
+
+    // Activer la validation en temps réel pour le formulaire prestation
+    setupRealTimeValidation('prestationNom', {
+        required: true,
+        minLength: 2,
+        maxLength: 200,
+        requiredMessage: 'Le nom de la prestation est requis',
+        minLengthMessage: 'Le nom doit contenir au moins 2 caractères',
+        maxLengthMessage: 'Le nom ne peut pas dépasser 200 caractères'
+    });
+
+    setupRealTimeValidation('prestationPrix', {
+        required: true,
+        numeric: true,
+        min: 0,
+        requiredMessage: 'Le prix est requis',
+        numericMessage: 'Veuillez entrer un nombre valide',
+        minMessage: 'Le prix ne peut pas être négatif'
+    });
+
+    setupRealTimeValidation('prestationDuree', {
+        numeric: true,
+        min: 0,
+        numericMessage: 'Veuillez entrer un nombre valide',
+        minMessage: 'La durée ne peut pas être négative'
+    });
+
+    setupRealTimeValidation('prestationNbSeances', {
+        numeric: true,
+        min: 1,
+        numericMessage: 'Veuillez entrer un nombre valide',
+        minMessage: 'Le nombre de séances doit être au moins 1'
+    });
+
+    setupRealTimeValidation('confirmationSuppressionFamille', {
+        custom: (value) => {
+            if (!value) return { valid: true };
+            const isValid = value === 'SUPPRIMER';
+            return {
+                valid: isValid,
+                message: 'Veuillez taper exactement "SUPPRIMER" pour confirmer'
+            };
+        }
+    });
+
+    setupRealTimeValidation('confirmationSuppressionPrestation', {
+        custom: (value) => {
+            if (!value) return { valid: true };
+            const isValid = value === 'SUPPRIMER';
+            return {
+                valid: isValid,
+                message: 'Veuillez taper exactement "SUPPRIMER" pour confirmer'
+            };
+        }
+    });
 });
 </script>
 {% endblock %}

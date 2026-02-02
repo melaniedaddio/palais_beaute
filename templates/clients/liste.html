@@ -537,6 +537,7 @@
                 </td>
                 <td>
                     <div class="client-actions">
+                        <a href="{% url 'core:client_detail' client.id %}" class="btn-action btn-voir">Voir</a>
                         {% if request.user.utilisateur.is_patron %}
                         <button class="btn-action btn-modifier" onclick="ouvrirModalClient({{ client.id }}, '{{ client.nom|escapejs }}', '{{ client.prenom|escapejs }}', '{{ client.telephone }}', '{{ client.email|default:""|escapejs }}')">Modifier</button>
                         {% endif %}

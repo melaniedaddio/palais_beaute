@@ -27,4 +27,5 @@ urlpatterns = [
     path('<str:institut_code>/api/forfaits/', views.api_forfaits_disponibles, name='api_forfaits_disponibles'),
     path('<str:institut_code>/api/forfaits/client/<int:client_id>/', views.api_forfaits_client, name='api_forfaits_client'),
     path('<str:institut_code>/api/forfaits/acheter/', views.api_forfait_acheter, name='api_forfait_acheter'),
+    path('<str:institut_code>/api/forfaits/<int:forfait_id>/supprimer/', views.api_forfait_supprimer, name='api_forfait_supprimer'),
 ]

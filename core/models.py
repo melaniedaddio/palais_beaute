@@ -3,6 +3,8 @@ import string
 
 from django.db import models
 from django.contrib.auth.models import User
+from django.contrib.auth.hashers import make_password, check_password
+from django.core.validators import MinValueValidator
 from django.utils import timezone
 
 
@@ -60,6 +62,18 @@ class Utilisateur(models.Model):
 
     def is_manager(self):
         return self.role == 'manager'
+
+    def set_pin(self, raw_pin):
+        """
+        Hash et enregistre le PIN de manière sécurisée.
+        """
+        self.pin = make_password(raw_pin)
+
+    def check_pin(self, raw_pin):
+        """
+        Vérifie si le PIN fourni correspond au PIN hashé.
+        """
+        return check_password(raw_pin, self.pin)
 
 
 class Employe(models.Model):
@@ -196,7 +210,10 @@ class Prestation(models.Model):
     famille = models.ForeignKey(FamillePrestation, on_delete=models.CASCADE, related_name='prestations')
 
     # Prix et durée
-    prix = models.IntegerField(help_text="Prix en CFA")
+    prix = models.IntegerField(
+        validators=[MinValueValidator(0)],
+        help_text="Prix en CFA"
+    )
     duree = models.DecimalField(
         max_digits=4,
         decimal_places=2,
@@ -356,13 +373,24 @@ class RendezVous(models.Model):
     famille = models.ForeignKey(FamillePrestation, on_delete=models.PROTECT)  # Pour la couleur
 
     # Prix (peut être modifié par rapport au prix standard)
-    prix_base = models.IntegerField()  # Prix de la prestation au moment du RDV
-    prix_options = models.IntegerField(default=0)  # Total des options
-    prix_total = models.IntegerField()  # prix_base + prix_options
+    prix_base = models.IntegerField(
+        validators=[MinValueValidator(0)]
+    )  # Prix de la prestation au moment du RDV
+    prix_options = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)]
+    )  # Total des options
+    prix_total = models.IntegerField(
+        validators=[MinValueValidator(0)]
+    )  # prix_base + prix_options
 
     # Modification de prix
     prix_modifie = models.BooleanField(default=False)  # True si le prix a été modifié
-    prix_original = models.IntegerField(null=True, blank=True)  # Prix avant modification
+    prix_original = models.IntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)]
+    )  # Prix avant modification
     raison_modification = models.CharField(max_length=200, blank=True, null=True)
 
     # Statut et validation
@@ -465,9 +493,16 @@ class RendezVousOption(models.Model):
     """
     rendez_vous = models.ForeignKey(RendezVous, on_delete=models.CASCADE, related_name='options_selectionnees')
     option = models.ForeignKey(Option, on_delete=models.PROTECT)
-    quantite = models.IntegerField(default=1)
-    prix_unitaire = models.IntegerField()  # Prix au moment de la sélection
-    prix_total = models.IntegerField()  # prix_unitaire * quantite
+    quantite = models.IntegerField(
+        default=1,
+        validators=[MinValueValidator(1)]
+    )
+    prix_unitaire = models.IntegerField(
+        validators=[MinValueValidator(0)]
+    )  # Prix au moment de la sélection
+    prix_total = models.IntegerField(
+        validators=[MinValueValidator(0)]
+    )  # prix_unitaire * quantite
 
     class Meta:
         verbose_name = "Option de rendez-vous"
@@ -484,9 +519,16 @@ class VenteExpressPrestation(models.Model):
     """
     rendez_vous = models.ForeignKey(RendezVous, on_delete=models.CASCADE, related_name='prestations_express')
     prestation = models.ForeignKey(Prestation, on_delete=models.PROTECT)
-    quantite = models.IntegerField(default=1)
-    prix_unitaire = models.IntegerField()
-    prix_total = models.IntegerField()
+    quantite = models.IntegerField(
+        default=1,
+        validators=[MinValueValidator(1)]
+    )
+    prix_unitaire = models.IntegerField(
+        validators=[MinValueValidator(0)]
+    )
+    prix_total = models.IntegerField(
+        validators=[MinValueValidator(0)]
+    )
 
     def save(self, *args, **kwargs):
         self.prix_total = self.prix_unitaire * self.quantite
@@ -510,7 +552,9 @@ class Paiement(models.Model):
 
     rendez_vous = models.ForeignKey(RendezVous, on_delete=models.CASCADE, related_name='paiements')
     mode = models.CharField(max_length=20, choices=MODE_CHOICES)
-    montant = models.IntegerField()
+    montant = models.IntegerField(
+        validators=[MinValueValidator(0)]
+    )
     date = models.DateTimeField(auto_now_add=True)
     utilisation_carte_cadeau = models.ForeignKey(
         'UtilisationCarteCadeau',
@@ -542,9 +586,16 @@ class Credit(models.Model):
     )
 
     # Montants
-    montant_total = models.IntegerField()  # Montant total de la prestation
-    montant_paye = models.IntegerField(default=0)  # Ce qui a été payé
-    reste_a_payer = models.IntegerField()  # Ce qui reste à payer
+    montant_total = models.IntegerField(
+        validators=[MinValueValidator(0)]
+    )  # Montant total de la prestation
+    montant_paye = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)]
+    )  # Ce qui a été payé
+    reste_a_payer = models.IntegerField(
+        validators=[MinValueValidator(0)]
+    )  # Ce qui reste à payer
 
     # Statut
     solde = models.BooleanField(default=False)  # True quand entièrement payé
@@ -584,7 +635,9 @@ class PaiementCredit(models.Model):
     ]
 
     credit = models.ForeignKey(Credit, on_delete=models.CASCADE, related_name='paiements')
-    montant = models.IntegerField()
+    montant = models.IntegerField(
+        validators=[MinValueValidator(0)]
+    )
     mode = models.CharField(max_length=20, choices=MODE_CHOICES)
     date = models.DateTimeField(auto_now_add=True)
     enregistre_par = models.ForeignKey(
@@ -640,12 +693,26 @@ class ForfaitClient(models.Model):
     )
 
     # Séances
-    nombre_seances_total = models.IntegerField(help_text="Nombre total de séances du forfait")
-    nombre_seances_utilisees = models.IntegerField(default=0, help_text="Nombre de séances déjà effectuées")
-    nombre_seances_programmees = models.IntegerField(default=0, help_text="Nombre de séances avec RDV planifié")
+    nombre_seances_total = models.IntegerField(
+        validators=[MinValueValidator(1)],
+        help_text="Nombre total de séances du forfait"
+    )
+    nombre_seances_utilisees = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Nombre de séances déjà effectuées"
+    )
+    nombre_seances_programmees = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Nombre de séances avec RDV planifié"
+    )
 
     # Prix
-    prix_total = models.IntegerField(help_text="Prix total du forfait")
+    prix_total = models.IntegerField(
+        validators=[MinValueValidator(0)],
+        help_text="Prix total du forfait"
+    )
 
     # Statut
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='actif')
@@ -739,7 +806,10 @@ class SeanceForfait(models.Model):
     )
 
     # Numéro de la séance (1, 2, 3, etc.)
-    numero = models.IntegerField(help_text="Numéro de la séance (1, 2, 3...)")
+    numero = models.IntegerField(
+        validators=[MinValueValidator(1)],
+        help_text="Numéro de la séance (1, 2, 3...)"
+    )
 
     # Lien avec le RDV (optionnel tant que pas programmée)
     rendez_vous = models.OneToOneField(
@@ -798,18 +868,43 @@ class ClotureCaisse(models.Model):
     date = models.DateField()
 
     # Montants calculés (depuis les paiements)
-    total_especes_calcule = models.IntegerField(default=0)
-    total_carte_calcule = models.IntegerField(default=0)
-    total_cheque_calcule = models.IntegerField(default=0)
-    total_om_calcule = models.IntegerField(default=0)
-    total_wave_calcule = models.IntegerField(default=0)
-    total_calcule = models.IntegerField(default=0)
+    total_especes_calcule = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)]
+    )
+    total_carte_calcule = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)]
+    )
+    total_cheque_calcule = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)]
+    )
+    total_om_calcule = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)]
+    )
+    total_wave_calcule = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)]
+    )
+    total_calcule = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)]
+    )
 
     # Montant réel saisi par le manager
-    montant_reel_especes = models.IntegerField(null=True, blank=True)
+    montant_reel_especes = models.IntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)]
+    )
 
     # Fond de caisse
-    fond_caisse = models.IntegerField(default=30000)
+    fond_caisse = models.IntegerField(
+        default=30000,
+        validators=[MinValueValidator(0)]
+    )
 
     # Écart
     ecart = models.IntegerField(default=0)  # montant_reel - (total_especes_calcule + fond_caisse)
@@ -976,8 +1071,12 @@ class CarteCadeau(models.Model):
         related_name='cartes_recues',
     )
 
-    montant_initial = models.IntegerField()
-    solde = models.IntegerField()
+    montant_initial = models.IntegerField(
+        validators=[MinValueValidator(0)]
+    )
+    solde = models.IntegerField(
+        validators=[MinValueValidator(0)]
+    )
 
     institut_achat = models.ForeignKey(
         'Institut',
@@ -1066,7 +1165,9 @@ class UtilisationCarteCadeau(models.Model):
         blank=True,
         related_name='paiements_carte_cadeau',
     )
-    montant = models.IntegerField()
+    montant = models.IntegerField(
+        validators=[MinValueValidator(0)]
+    )
     institut = models.ForeignKey(
         'Institut',
         on_delete=models.PROTECT,

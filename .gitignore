@@ -1,0 +1,91 @@
+# Variables d'environnement et secrets
+.env
+.env.local
+.env.*.local
+
+# Base de données SQLite
+*.sqlite3
+*.db
+
+# Fichiers Python
+*.py[cod]
+*$py.class
+*.so
+__pycache__/
+*.pyc
+.Python
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+/media
+/staticfiles
+/static_root
+
+# Sauvegarde de base de données
+*.sqlite3.backup*
+backup/
+backups/
+
+# Environnement virtuel
+venv/
+ENV/
+env/
+.venv
+.ENV
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Secrets et certificats
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
+
+# Logs
+logs/
+*.log
+
+# Cache
+.cache/
+*.cache
+
+# Tests
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
+# Documentation générée
+docs/_build/
+
+# OS
+Thumbs.db

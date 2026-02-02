@@ -316,7 +316,12 @@
                 </td>
                 <td>{{ carte.date_achat|date:"d/m/Y" }}</td>
                 <td>
-                    <a href="{% url 'core:imprimer_carte_cadeau' carte_id=carte.id %}" target="_blank" class="btn btn-outline" style="padding: 6px 12px; font-size: 12px;">Imprimer</a>
+                    <div style="display: flex; gap: 8px;">
+                        <a href="{% url 'core:imprimer_carte_cadeau' carte_id=carte.id %}" target="_blank" class="btn btn-outline" style="padding: 6px 12px; font-size: 12px;">Imprimer</a>
+                        {% if request.user.utilisateur.is_patron %}
+                        <button onclick="ouvrirModalSupprimerCarte({{ carte.id }}, '{{ carte.code }}', {{ carte.utilisations.count }})" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Supprimer</button>
+                        {% endif %}
+                    </div>
                 </td>
             </tr>
             {% empty %}
@@ -451,6 +456,45 @@
         </div>
 
         <div id="resultatVerification"></div>
+    </div>
+</div>
+
+<!-- Modal Supprimer Carte Cadeau -->
+<div id="modalSupprimerCarte" class="modal-backdrop" style="display: none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">⚠️ Supprimer la carte cadeau</h2>
+            <button class="modal-close" onclick="fermerModalSupprimerCarte()">&times;</button>
+        </div>
+
+        <div class="modal-body" style="text-align: center;">
+            <p style="margin-bottom: 20px;">
+                Êtes-vous sûr de vouloir supprimer la carte cadeau <strong id="carteCodeSupprimer"></strong> ?
+            </p>
+
+            <div class="alert alert-danger" id="alerteUtilisations" style="display: none;">
+                <strong>⚠️ ATTENTION</strong>
+                <p style="margin: 10px 0;">Cette carte a <strong id="nbUtilisations"></strong> utilisation(s).</p>
+                <p style="margin: 10px 0;">Impossible de la supprimer. Vous pouvez l'annuler à la place.</p>
+            </div>
+
+            <div id="confirmationSuppressionCarte" style="display: none;">
+                <div class="alert alert-danger">
+                    <strong>⚠️ ATTENTION</strong>
+                    <p style="margin: 10px 0;">Cette action est <strong>irréversible</strong>.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmationTexteCarte">Pour confirmer, tapez "SUPPRIMER" :</label>
+                    <input type="text" id="confirmationTexteCarte" class="form-input" placeholder="SUPPRIMER">
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn-secondary" onclick="fermerModalSupprimerCarte()">Annuler</button>
+                <button class="btn-danger" id="btnConfirmerSuppressionCarte" onclick="confirmerSuppressionCarte()">🗑️ Supprimer</button>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -665,12 +709,78 @@ async function rechercherCarte() {
     container.innerHTML = html;
 }
 
+// === Suppression carte cadeau ===
+let carteIdASupprimer = null;
+
+function ouvrirModalSupprimerCarte(carteId, code, nbUtilisations) {
+    carteIdASupprimer = carteId;
+    document.getElementById('carteCodeSupprimer').textContent = code;
+    document.getElementById('confirmationTexteCarte').value = '';
+
+    // Si la carte a des utilisations, afficher l'alerte et masquer la confirmation
+    if (nbUtilisations > 0) {
+        document.getElementById('nbUtilisations').textContent = nbUtilisations;
+        document.getElementById('alerteUtilisations').style.display = 'block';
+        document.getElementById('confirmationSuppressionCarte').style.display = 'none';
+        document.getElementById('btnConfirmerSuppressionCarte').style.display = 'none';
+    } else {
+        document.getElementById('alerteUtilisations').style.display = 'none';
+        document.getElementById('confirmationSuppressionCarte').style.display = 'block';
+        document.getElementById('btnConfirmerSuppressionCarte').style.display = 'inline-block';
+    }
+
+    document.getElementById('modalSupprimerCarte').style.display = 'flex';
+}
+
+function fermerModalSupprimerCarte() {
+    document.getElementById('modalSupprimerCarte').style.display = 'none';
+    carteIdASupprimer = null;
+}
+
+async function confirmerSuppressionCarte() {
+    const confirmation = document.getElementById('confirmationTexteCarte').value;
+
+    if (confirmation !== 'SUPPRIMER') {
+        showWarning('Veuillez taper exactement "SUPPRIMER" pour confirmer');
+        return;
+    }
+
+    const deleteButton = document.getElementById('btnConfirmerSuppressionCarte');
+    showLoader(deleteButton);
+
+    try {
+        const response = await fetch(`/api/cartes-cadeaux/${carteIdASupprimer}/supprimer/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        });
+
+        const data = await response.json();
+        hideLoader(deleteButton);
+
+        if (data.success) {
+            showSuccess(data.message);
+            fermerModalSupprimerCarte();
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showError(data.message);
+        }
+    } catch (error) {
+        hideLoader(deleteButton);
+        showError('Erreur lors de la suppression');
+    }
+}
+
 // Fermer les modals en cliquant sur le backdrop
 document.getElementById('modalVente').addEventListener('click', function(e) {
     if (e.target === this) fermerModalVente();
 });
 document.getElementById('modalVerification').addEventListener('click', function(e) {
     if (e.target === this) fermerModalVerification();
+});
+document.getElementById('modalSupprimerCarte').addEventListener('click', function(e) {
+    if (e.target === this) fermerModalSupprimerCarte();
 });
 
 // Initialiser autocomplete

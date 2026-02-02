@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.db.models import Q
-from .models import Utilisateur, Client, Employe, Institut, CarteCadeau, UtilisationCarteCadeau, ForfaitClient
+from .models import Utilisateur, Client, Employe, Institut, CarteCadeau, UtilisationCarteCadeau, ForfaitClient, RendezVous
 from .decorators import role_required
 
 
@@ -22,9 +22,13 @@ def login_view(request):
         try:
             utilisateur = Utilisateur.objects.select_related('user', 'institut').get(
                 id=user_id,
-                pin=pin,
                 actif=True
             )
+
+            # Vérifier le PIN hashé
+            if not utilisateur.check_pin(pin):
+                raise Utilisateur.DoesNotExist
+
             # Connexion de l'utilisateur Django
             login(request, utilisateur.user)
 
@@ -88,7 +92,9 @@ def client_detail(request, pk):
     client = get_object_or_404(Client, pk=pk)
 
     # Historique des rendez-vous validés
-    rendez_vous = client.rendezvous_set.filter(statut='valide').select_related(
+    rendez_vous = RendezVous.objects.filter(
+        client=client, statut='valide'
+    ).select_related(
         'institut', 'prestation', 'employe'
     ).prefetch_related('paiements').order_by('-date', '-heure_debut')[:50]
 
@@ -586,3 +592,35 @@ def imprimer_carte_cadeau(request, carte_id):
     return render(request, 'cartes_cadeaux/bon_cadeau_print.html', {
         'carte': carte,
     })
+
+
+@login_required
+@role_required(['patron'])
+@require_POST
+def api_supprimer_carte_cadeau(request, carte_id):
+    """API pour supprimer une carte cadeau (patron uniquement)"""
+    try:
+        carte = get_object_or_404(CarteCadeau, id=carte_id)
+
+        # Vérifier s'il y a des utilisations
+        nb_utilisations = carte.utilisations.count()
+
+        if nb_utilisations > 0:
+            return JsonResponse({
+                'success': False,
+                'message': f'Impossible de supprimer cette carte : {nb_utilisations} utilisation(s) enregistrée(s). Vous pouvez l\'annuler à la place.'
+            }, status=400)
+
+        code_carte = carte.code
+        carte.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Carte cadeau {code_carte} supprimée avec succès'
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=400)

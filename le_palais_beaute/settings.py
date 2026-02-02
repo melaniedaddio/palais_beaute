@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+from decouple import config, Csv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,14 +21,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-ly7a^=&5h%dxg4y%idxn)62j&x@_gqkizc_jx3yhdua07c7#gn'
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-ly7a^=&5h%dxg4y%idxn)62j&x@_gqkizc_jx3yhdua07c7#gn')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost', cast=Csv())
 
-CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:8000', 'http://localhost:8000']
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='http://127.0.0.1:8000,http://localhost:8000', cast=Csv())
 
 
 # Application definition
@@ -130,6 +131,19 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Durée de session : 1 heure
 SESSION_COOKIE_AGE = 3600
+
+# Sécurité des cookies
+SESSION_COOKIE_SECURE = not DEBUG  # HTTPS uniquement en production
+SESSION_COOKIE_HTTPONLY = True  # Pas accessible via JavaScript
+SESSION_COOKIE_SAMESITE = 'Lax'  # Protection CSRF
+CSRF_COOKIE_SECURE = not DEBUG  # HTTPS uniquement en production
+CSRF_COOKIE_HTTPONLY = True  # Pas accessible via JavaScript
+CSRF_COOKIE_SAMESITE = 'Lax'  # Protection CSRF
+
+# Sécurité générale
+SECURE_BROWSER_XSS_FILTER = True  # Protection XSS
+SECURE_CONTENT_TYPE_NOSNIFF = True  # Pas de sniffing MIME
+X_FRAME_OPTIONS = 'DENY'  # Pas d'embedding dans iframe
 
 # Login URL
 LOGIN_URL = 'core:login'

@@ -9,7 +9,7 @@ from datetime import datetime, date, time, timedelta
 from decimal import Decimal
 import json
 
-from core.decorators import institut_required
+from core.decorators import institut_required, role_required
 from core.models import (
     Institut, Employe, Client, Prestation, Option, RendezVous,
     RendezVousOption, Paiement, Credit, FamillePrestation, ClotureCaisse,
@@ -1174,6 +1174,50 @@ def api_forfait_acheter(request, institut_code):
                 'prix_total': forfait.prix_total,
                 'montant_paye': montant_effectif,
             }
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=400)
+
+
+@login_required
+@role_required(['patron'])
+@require_POST
+def api_forfait_supprimer(request, institut_code, forfait_id):
+    """API pour supprimer un forfait (patron uniquement)"""
+    try:
+        forfait = get_object_or_404(ForfaitClient, id=forfait_id)
+
+        # Vérifier s'il y a des séances effectuées
+        nb_seances_effectuees = forfait.seances.filter(statut='effectuee').count()
+
+        if nb_seances_effectuees > 0:
+            return JsonResponse({
+                'success': False,
+                'message': f'Impossible de supprimer ce forfait : {nb_seances_effectuees} séance(s) déjà effectuée(s). Vous pouvez l\'annuler à la place.'
+            }, status=400)
+
+        # Vérifier s'il y a des séances programmées avec RDV
+        nb_seances_programmees = forfait.seances.filter(statut='programmee', rendez_vous__isnull=False).count()
+
+        if nb_seances_programmees > 0:
+            return JsonResponse({
+                'success': False,
+                'message': f'Impossible de supprimer ce forfait : {nb_seances_programmees} séance(s) programmée(s) avec rendez-vous. Annulez les RDV d\'abord.'
+            }, status=400)
+
+        prestation_nom = forfait.prestation.nom
+        client_nom = forfait.client.get_full_name()
+
+        # Supprimer le forfait (les séances seront supprimées en cascade)
+        forfait.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Forfait {prestation_nom} de {client_nom} supprimé avec succès'
         })
 
     except Exception as e:

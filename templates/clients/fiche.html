@@ -441,6 +441,12 @@
                     {% endfor %}
                 </div>
             </div>
+
+            {% if request.user.utilisateur.is_patron %}
+            <div style="margin-top: 15px; text-align: right;">
+                <button onclick="ouvrirModalSupprimerForfait({{ forfait.id }}, '{{ forfait.prestation.nom }}', '{{ forfait.client.get_full_name }}', {{ forfait.seances.count }}, {{ forfait.nombre_seances_utilisees }})" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Supprimer le forfait</button>
+            </div>
+            {% endif %}
         </div>
         {% endfor %}
     </div>
@@ -603,6 +609,117 @@ document.getElementById('formModifier').addEventListener('submit', async functio
         showError('Erreur: ' + error.message);
     }
 });
-</script>
+
+{% if request.user.utilisateur.is_patron %}
+// === Suppression forfait ===
+let forfaitIdASupprimer = null;
+
+function ouvrirModalSupprimerForfait(forfaitId, prestationNom, clientNom, nbSeances, nbSeancesUtilisees) {
+    forfaitIdASupprimer = forfaitId;
+    document.getElementById('forfaitInfoSupprimer').innerHTML = `<strong>${prestationNom}</strong> pour ${clientNom}`;
+    document.getElementById('confirmationTexteForfait').value = '';
+
+    // Si le forfait a des séances effectuées, afficher l'alerte
+    if (nbSeancesUtilisees > 0) {
+        document.getElementById('nbSeancesEffectuees').textContent = nbSeancesUtilisees;
+        document.getElementById('alerteSeancesEffectuees').style.display = 'block';
+        document.getElementById('confirmationSuppressionForfait').style.display = 'none';
+        document.getElementById('btnConfirmerSuppressionForfait').style.display = 'none';
+    } else {
+        document.getElementById('alerteSeancesEffectuees').style.display = 'none';
+        document.getElementById('confirmationSuppressionForfait').style.display = 'block';
+        document.getElementById('btnConfirmerSuppressionForfait').style.display = 'inline-block';
+    }
+
+    document.getElementById('modalSupprimerForfait').classList.add('active');
+}
+
+function fermerModalSupprimerForfait() {
+    document.getElementById('modalSupprimerForfait').classList.remove('active');
+    forfaitIdASupprimer = null;
+}
+
+async function confirmerSuppressionForfait() {
+    const confirmation = document.getElementById('confirmationTexteForfait').value;
+
+    if (confirmation !== 'SUPPRIMER') {
+        showWarning('Veuillez taper exactement "SUPPRIMER" pour confirmer');
+        return;
+    }
+
+    const deleteButton = document.getElementById('btnConfirmerSuppressionForfait');
+    showLoader(deleteButton);
+
+    try {
+        const response = await fetch(`/agenda/klinic/api/forfaits/${forfaitIdASupprimer}/supprimer/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        });
+
+        const data = await response.json();
+        hideLoader(deleteButton);
+
+        if (data.success) {
+            showSuccess(data.message);
+            fermerModalSupprimerForfait();
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showError(data.message);
+        }
+    } catch (error) {
+        hideLoader(deleteButton);
+        showError('Erreur lors de la suppression');
+    }
+}
+
+document.getElementById('modalSupprimerForfait').addEventListener('click', function(e) {
+    if (e.target === this) {
+        fermerModalSupprimerForfait();
+    }
+});
 {% endif %}
+</script>
+
+<!-- Modal Supprimer Forfait -->
+<div id="modalSupprimerForfait" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h2>⚠️ Supprimer le forfait</h2>
+        </div>
+
+        <div style="text-align: center;">
+            <p style="margin-bottom: 20px;">
+                Êtes-vous sûr de vouloir supprimer le forfait <span id="forfaitInfoSupprimer"></span> ?
+            </p>
+
+            <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: none;" id="alerteSeancesEffectuees">
+                <strong>⚠️ ATTENTION</strong>
+                <p style="margin: 10px 0;">Ce forfait a <strong id="nbSeancesEffectuees"></strong> séance(s) déjà effectuée(s).</p>
+                <p style="margin: 10px 0;">Impossible de le supprimer. Vous pouvez l'annuler à la place.</p>
+            </div>
+
+            <div id="confirmationSuppressionForfait" style="display: none;">
+                <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <strong>⚠️ ATTENTION</strong>
+                    <p style="margin: 10px 0;">Cette action est <strong>irréversible</strong>.</p>
+                    <p style="margin: 10px 0;">Le forfait et toutes ses séances seront supprimés.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmationTexteForfait">Pour confirmer, tapez "SUPPRIMER" :</label>
+                    <input type="text" id="confirmationTexteForfait" class="form-control" placeholder="SUPPRIMER">
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="fermerModalSupprimerForfait()">Annuler</button>
+                <button type="button" class="btn-submit" style="background: var(--danger);" id="btnConfirmerSuppressionForfait" onclick="confirmerSuppressionForfait()">🗑️ Supprimer</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% endblock %}
