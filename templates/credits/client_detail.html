@@ -459,20 +459,30 @@
 
             <div class="form-group">
                 <label for="mode">Mode de paiement</label>
-                <select class="form-control" id="mode" name="mode" required>
+                <select class="form-control" id="mode" name="mode" required onchange="toggleCarteCadeau()">
                     <option value="especes">Espèces</option>
                     <option value="carte">Carte bancaire</option>
                     <option value="cheque">Chèque</option>
                     <option value="om">Orange Money</option>
                     <option value="wave">Wave</option>
+                    <option value="carte_cadeau">Carte cadeau</option>
                 </select>
+            </div>
+
+            <!-- Section Carte Cadeau (affichée si mode = carte_cadeau) -->
+            <div class="form-group" id="section-carte-cadeau" style="display: none;">
+                <label>Sélectionner une carte cadeau</label>
+                <div id="liste-cartes-cadeaux" style="background: #f0f8f0; border-radius: 8px; padding: 12px;">
+                    <p style="color: #888; text-align: center; margin: 0;">Chargement des cartes...</p>
+                </div>
+                <input type="hidden" id="carte-cadeau-id" name="carte_cadeau_id">
             </div>
 
             <div class="modal-actions">
                 <button type="button" class="btn-modal btn-secondary" onclick="fermerModalReglement()">
                     Annuler
                 </button>
-                <button type="submit" class="btn-modal btn-primary">
+                <button type="submit" id="btn-enregistrer-paiement" class="btn-modal btn-primary">
                     Enregistrer le paiement
                 </button>
             </div>
@@ -483,16 +493,25 @@
 <script>
 let currentCreditId = null;
 let currentResteAPayer = 0;
+let cartesCadeauxClient = [];
+let carteCadeauSelectionnee = null;
 
 function ouvrirModalReglement(creditId, resteAPayer, description) {
     currentCreditId = creditId;
     currentResteAPayer = resteAPayer;
+    carteCadeauSelectionnee = null;
 
     document.getElementById('credit-id').value = creditId;
     document.getElementById('modal-credit-description').textContent = description;
     document.getElementById('modal-reste-a-payer').textContent = resteAPayer.toLocaleString('fr-FR');
     document.getElementById('montant').value = resteAPayer;
     document.getElementById('montant').max = resteAPayer;
+    document.getElementById('mode').value = 'especes';
+    document.getElementById('carte-cadeau-id').value = '';
+    document.getElementById('section-carte-cadeau').style.display = 'none';
+
+    // Charger les cartes cadeaux du client
+    chargerCartesCadeaux();
 
     document.getElementById('modalReglement').classList.add('active');
 }
@@ -501,6 +520,100 @@ function fermerModalReglement() {
     document.getElementById('modalReglement').classList.remove('active');
     document.getElementById('formReglement').reset();
     currentCreditId = null;
+    carteCadeauSelectionnee = null;
+}
+
+// Charger les cartes cadeaux du client
+function chargerCartesCadeaux() {
+    const clientId = {{ client.id }};
+    const liste = document.getElementById('liste-cartes-cadeaux');
+
+    fetch('/api/cartes-cadeaux/client/?client_id=' + clientId)
+        .then(r => r.json())
+        .then(data => {
+            cartesCadeauxClient = data.cartes || [];
+
+            if (cartesCadeauxClient.length === 0) {
+                liste.innerHTML = '<p style="color: #888; text-align: center; margin: 0;">Aucune carte cadeau disponible</p>';
+                return;
+            }
+
+            let html = '';
+            cartesCadeauxClient.forEach(c => {
+                html += `<div class="carte-cadeau-item" data-carte-id="${c.id}" data-solde="${c.solde}" onclick="selecterCarteCadeau(${c.id}, ${c.solde})"
+                         style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; margin-bottom: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;">
+                    <div style="flex: 1;">
+                        <strong style="color: #333;">${c.code}</strong>
+                        <div style="color: #888; font-size: 12px;">Solde : ${parseInt(c.solde).toLocaleString('fr-FR')} CFA</div>
+                    </div>
+                    <div class="carte-check" style="width: 24px; height: 24px; border: 2px solid #ddd; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    </div>
+                </div>`;
+            });
+            liste.innerHTML = html;
+        })
+        .catch(error => {
+            console.error('Erreur lors du chargement des cartes cadeaux:', error);
+            liste.innerHTML = '<p style="color: #dc3545; text-align: center; margin: 0;">Erreur lors du chargement</p>';
+        });
+}
+
+// Sélectionner une carte cadeau
+function selecterCarteCadeau(carteId, solde) {
+    carteCadeauSelectionnee = { id: carteId, solde: solde };
+    document.getElementById('carte-cadeau-id').value = carteId;
+
+    // Mettre à jour l'affichage visuel
+    document.querySelectorAll('.carte-cadeau-item').forEach(item => {
+        const check = item.querySelector('.carte-check');
+        if (parseInt(item.dataset.carteId) === carteId) {
+            item.style.borderColor = '#27ae60';
+            item.style.background = '#f0fff4';
+            check.innerHTML = '<span style="color: #27ae60; font-weight: bold;">✓</span>';
+            check.style.borderColor = '#27ae60';
+        } else {
+            item.style.borderColor = 'transparent';
+            item.style.background = 'white';
+            check.innerHTML = '';
+            check.style.borderColor = '#ddd';
+        }
+    });
+
+    // Ajuster le montant max au solde de la carte ou au reste à payer
+    const montantMax = Math.min(solde, currentResteAPayer);
+    document.getElementById('montant').max = montantMax;
+    document.getElementById('montant').value = montantMax;
+}
+
+// Afficher/masquer la section carte cadeau
+function toggleCarteCadeau() {
+    const mode = document.getElementById('mode').value;
+    const sectionCarteCadeau = document.getElementById('section-carte-cadeau');
+
+    if (mode === 'carte_cadeau') {
+        sectionCarteCadeau.style.display = 'block';
+        // Réinitialiser la sélection
+        carteCadeauSelectionnee = null;
+        document.getElementById('carte-cadeau-id').value = '';
+        document.querySelectorAll('.carte-cadeau-item').forEach(item => {
+            item.style.borderColor = 'transparent';
+            item.style.background = 'white';
+            const check = item.querySelector('.carte-check');
+            if (check) {
+                check.innerHTML = '';
+                check.style.borderColor = '#ddd';
+            }
+        });
+        // Réinitialiser le montant max
+        document.getElementById('montant').max = currentResteAPayer;
+    } else {
+        sectionCarteCadeau.style.display = 'none';
+        carteCadeauSelectionnee = null;
+        document.getElementById('carte-cadeau-id').value = '';
+        // Réinitialiser le montant max
+        document.getElementById('montant').max = currentResteAPayer;
+        document.getElementById('montant').value = currentResteAPayer;
+    }
 }
 
 // Fermer le modal en cliquant à l'extérieur
@@ -516,16 +629,35 @@ document.getElementById('formReglement').addEventListener('submit', async functi
 
     const montant = document.getElementById('montant').value;
     const mode = document.getElementById('mode').value;
+    const carteCadeauId = document.getElementById('carte-cadeau-id').value;
 
     if (parseFloat(montant) > currentResteAPayer) {
         showWarning('Le montant ne peut pas dépasser le reste à payer');
         return;
     }
 
+    // Validation carte cadeau
+    if (mode === 'carte_cadeau') {
+        if (!carteCadeauId) {
+            showWarning('Veuillez sélectionner une carte cadeau');
+            return;
+        }
+        if (carteCadeauSelectionnee && parseFloat(montant) > carteCadeauSelectionnee.solde) {
+            showWarning('Le montant dépasse le solde de la carte cadeau');
+            return;
+        }
+    }
+
     const formData = new FormData();
     formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
     formData.append('montant', montant);
     formData.append('mode', mode);
+    if (mode === 'carte_cadeau' && carteCadeauId) {
+        formData.append('carte_cadeau_id', carteCadeauId);
+    }
+
+    const submitBtn = this.querySelector('button[type="submit"]');
+    showLoader(submitBtn, 'Enregistrement...');
 
     try {
         const response = await fetch(`/credits/{{ institut.code }}/api/credit/${currentCreditId}/regler/`, {
@@ -539,9 +671,11 @@ document.getElementById('formReglement').addEventListener('submit', async functi
             showSuccess(data.message);
             setTimeout(() => location.reload(), 1000);
         } else {
+            hideLoader(submitBtn);
             showError(data.message);
         }
     } catch (error) {
+        hideLoader(submitBtn);
         showError('Erreur lors du règlement: ' + error.message);
     }
 });

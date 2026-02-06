@@ -7,8 +7,58 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.db.models import Q
+from django.utils import timezone
 from .models import Utilisateur, Client, Employe, Institut, CarteCadeau, UtilisationCarteCadeau, ForfaitClient, RendezVous
 from .decorators import role_required
+import re
+
+
+def normaliser_telephone(telephone):
+    """
+    Normalise un numéro de téléphone en supprimant tous les caractères non numériques.
+    Exemples :
+        "77 123 45 67" -> "771234567"
+        "+221 77-123-45-67" -> "221771234567"
+        "77.123.45.67" -> "771234567"
+    """
+    if not telephone:
+        return ""
+    return re.sub(r'[^0-9]', '', telephone)
+
+
+def normaliser_nom(nom):
+    """
+    Normalise un nom pour la comparaison (minuscules, sans accents, sans espaces multiples).
+    """
+    if not nom:
+        return ""
+    # Mettre en minuscules et supprimer les espaces en début/fin
+    nom = nom.lower().strip()
+    # Remplacer les espaces multiples par un seul espace
+    nom = re.sub(r'\s+', ' ', nom)
+    return nom
+
+
+def trouver_client_existant(nom, prenom, telephone):
+    """
+    Recherche un client existant avec le même téléphone normalisé ET le même nom/prénom normalisé.
+    Retourne le client existant ou None.
+    """
+    tel_normalise = normaliser_telephone(telephone)
+    nom_normalise = normaliser_nom(nom)
+    prenom_normalise = normaliser_nom(prenom)
+
+    # Rechercher parmi tous les clients
+    for client in Client.objects.all():
+        client_tel = normaliser_telephone(client.telephone)
+        client_nom = normaliser_nom(client.nom)
+        client_prenom = normaliser_nom(client.prenom)
+
+        # Vérifier si téléphone ET nom complet correspondent
+        if client_tel == tel_normalise and client_nom == nom_normalise and client_prenom == prenom_normalise:
+            return client
+
+    return None
 
 
 def login_view(request):
@@ -126,25 +176,47 @@ def client_create(request):
     Création d'un nouveau client
     """
     if request.method == 'POST':
-        nom = request.POST.get('nom')
-        prenom = request.POST.get('prenom')
-        telephone = request.POST.get('telephone')
+        nom = request.POST.get('nom', '').strip()
+        prenom = request.POST.get('prenom', '').strip()
+        telephone = request.POST.get('telephone', '').strip()
         sexe = request.POST.get('sexe', 'F')
         notes = request.POST.get('notes', '')
 
-        # Vérifier que le téléphone n'existe pas déjà
-        if Client.objects.filter(telephone=telephone).exists():
-            messages.error(request, 'Ce numéro de téléphone existe déjà')
-        else:
-            client = Client.objects.create(
-                nom=nom,
-                prenom=prenom,
-                telephone=telephone,
-                sexe=sexe,
-                notes=notes
+        # Normaliser le téléphone
+        telephone_normalise = normaliser_telephone(telephone)
+
+        # Vérifier si un client avec le même nom ET téléphone existe déjà
+        client_existant = trouver_client_existant(nom, prenom, telephone)
+        if client_existant:
+            messages.warning(
+                request,
+                f'Ce client existe déjà : {client_existant.get_full_name()} ({client_existant.telephone}). '
+                f'<a href="{client_existant.id}/" class="alert-link">Voir sa fiche</a>'
             )
-            messages.success(request, f'Client {client.get_full_name()} créé avec succès')
-            return redirect('core:client_detail', pk=client.pk)
+        else:
+            # Vérifier si le téléphone normalisé existe déjà
+            doublon_telephone = None
+            for c in Client.objects.all():
+                if normaliser_telephone(c.telephone) == telephone_normalise:
+                    doublon_telephone = c
+                    break
+
+            if doublon_telephone:
+                messages.warning(
+                    request,
+                    f'Ce numéro de téléphone est déjà utilisé par : {doublon_telephone.get_full_name()}. '
+                    f'<a href="{doublon_telephone.id}/" class="alert-link">Voir sa fiche</a>'
+                )
+            else:
+                client = Client.objects.create(
+                    nom=nom,
+                    prenom=prenom,
+                    telephone=telephone_normalise if telephone_normalise else telephone,
+                    sexe=sexe,
+                    notes=notes
+                )
+                messages.success(request, f'Client {client.get_full_name()} créé avec succès')
+                return redirect('core:client_detail', pk=client.pk)
 
     return render(request, 'clients/create.html')
 
@@ -189,13 +261,45 @@ def api_client_creer(request):
     if not all([nom, prenom, telephone]):
         return JsonResponse({'success': False, 'message': 'Nom, prénom et téléphone sont requis'})
 
-    if Client.objects.filter(telephone=telephone).exists():
-        return JsonResponse({'success': False, 'message': 'Ce numéro de téléphone existe déjà'})
+    # Normaliser le téléphone pour le stockage
+    telephone_normalise = normaliser_telephone(telephone)
+
+    # Vérifier si un client avec le même nom ET téléphone existe déjà
+    client_existant = trouver_client_existant(nom, prenom, telephone)
+    if client_existant:
+        return JsonResponse({
+            'success': False,
+            'duplicate': True,
+            'message': f'Ce client existe déjà : {client_existant.get_full_name()} ({client_existant.telephone})',
+            'existing_client': {
+                'id': client_existant.id,
+                'nom': client_existant.nom,
+                'prenom': client_existant.prenom,
+                'telephone': client_existant.telephone,
+                'full_name': client_existant.get_full_name()
+            }
+        })
+
+    # Vérifier si le téléphone normalisé existe déjà (même si nom différent)
+    for c in Client.objects.all():
+        if normaliser_telephone(c.telephone) == telephone_normalise:
+            return JsonResponse({
+                'success': False,
+                'duplicate': True,
+                'message': f'Ce numéro de téléphone est déjà utilisé par : {c.get_full_name()}',
+                'existing_client': {
+                    'id': c.id,
+                    'nom': c.nom,
+                    'prenom': c.prenom,
+                    'telephone': c.telephone,
+                    'full_name': c.get_full_name()
+                }
+            })
 
     client = Client.objects.create(
         nom=nom,
         prenom=prenom,
-        telephone=telephone,
+        telephone=telephone_normalise if telephone_normalise else telephone,
         email=email
     )
 
@@ -426,9 +530,17 @@ def cartes_cadeaux_list(request):
         'acheteur', 'beneficiaire', 'institut_achat'
     ).all()
 
-    statut = request.GET.get('statut')
+    # Par défaut, afficher les cartes actives
+    statut = request.GET.get('statut', 'active')
     if statut:
-        cartes = cartes.filter(statut=statut)
+        # Pour le filtre "annulee", inclure aussi les cartes supprimées
+        if statut == 'annulee':
+            cartes = cartes.filter(statut__in=['annulee', 'supprimee'])
+        elif statut == 'toutes':
+            # Afficher toutes les cartes sans filtre
+            pass
+        else:
+            cartes = cartes.filter(statut=statut)
 
     search = request.GET.get('search', '')
     if search:
@@ -445,7 +557,7 @@ def cartes_cadeaux_list(request):
     return render(request, 'cartes_cadeaux/liste.html', {
         'cartes': cartes,
         'search': search,
-        'statut_filtre': statut or '',
+        'statut_filtre': statut,
         'instituts': instituts,
     })
 
@@ -568,18 +680,48 @@ def api_verifier_carte_cadeau(request):
 @login_required
 def api_rechercher_cartes_client(request):
     """Rechercher les cartes cadeaux actives d'un client (bénéficiaire)."""
+    from datetime import timedelta
+
     client_id = request.GET.get('client_id')
 
     if not client_id:
         return JsonResponse({'cartes': []})
 
-    cartes = CarteCadeau.objects.filter(
-        beneficiaire_id=client_id,
-        statut='active',
-        solde__gt=0,
-    ).values('id', 'code', 'solde', 'montant_initial')
+    try:
+        now = timezone.now()
 
-    return JsonResponse({'cartes': list(cartes)})
+        # Récupérer les cartes actives avec solde > 0
+        # Filtrer par date_achat (toujours disponible) pour éviter les problèmes si migration pas appliquée
+        cartes_queryset = CarteCadeau.objects.filter(
+            beneficiaire_id=client_id,
+            statut='active',
+            solde__gt=0,
+            date_achat__gt=now - timedelta(days=180)  # Non expirées (< 6 mois)
+        )
+
+        cartes = []
+        for carte in cartes_queryset:
+            # Calculer jours restants basé sur date_achat (toujours disponible)
+            expiration_estimee = carte.date_achat + timedelta(days=180)
+            delta = expiration_estimee - now
+            jours_restants = max(0, delta.days)
+
+            cartes.append({
+                'id': carte.id,
+                'code': carte.code,
+                'solde': carte.solde,
+                'montant_initial': carte.montant_initial,
+                'date_expiration': expiration_estimee.strftime('%d/%m/%Y'),
+                'jours_restants': jours_restants,
+            })
+
+        return JsonResponse({'cartes': cartes})
+
+    except Exception as e:
+        import traceback
+        print(f"Erreur API cartes cadeaux: {e}")
+        print(traceback.format_exc())
+        return JsonResponse({'cartes': [], 'error': str(e)}, status=500)
 
 
 @login_required
@@ -602,17 +744,16 @@ def api_supprimer_carte_cadeau(request, carte_id):
     try:
         carte = get_object_or_404(CarteCadeau, id=carte_id)
 
-        # Vérifier s'il y a des utilisations
-        nb_utilisations = carte.utilisations.count()
-
-        if nb_utilisations > 0:
+        # Vérifier si la carte est déjà supprimée
+        if carte.statut == 'supprimee':
             return JsonResponse({
                 'success': False,
-                'message': f'Impossible de supprimer cette carte : {nb_utilisations} utilisation(s) enregistrée(s). Vous pouvez l\'annuler à la place.'
+                'message': 'Cette carte est déjà supprimée'
             }, status=400)
 
         code_carte = carte.code
-        carte.delete()
+        carte.statut = 'supprimee'
+        carte.save()
 
         return JsonResponse({
             'success': True,

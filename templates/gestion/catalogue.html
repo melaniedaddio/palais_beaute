@@ -861,9 +861,6 @@ function ouvrirModalNouvellePrestation(familleId) {
     document.getElementById('prestationUnite').value = '';
     document.getElementById('prestationNbSeances').value = '1';
 
-    // Décocher tous les instituts
-    document.querySelectorAll('.prestation-institut').forEach(cb => cb.checked = false);
-
     // Masquer l'erreur
     document.getElementById('prestationError').style.display = 'none';
 
@@ -910,11 +907,6 @@ async function ouvrirModalModifierPrestation(prestationId) {
         document.getElementById('prestationUnite').value = prestation.unite;
         document.getElementById('prestationNbSeances').value = prestation.nb_seances;
 
-        // Cocher les instituts
-        document.querySelectorAll('.prestation-institut').forEach(cb => {
-            cb.checked = prestation.instituts.includes(parseInt(cb.value));
-        });
-
         // Masquer l'erreur
         document.getElementById('prestationError').style.display = 'none';
 
@@ -949,9 +941,6 @@ document.getElementById('btnSavePrestation')?.addEventListener('click', async fu
     const unite = document.getElementById('prestationUnite').value.trim();
     const nbSeances = parseInt(document.getElementById('prestationNbSeances').value) || 1;
 
-    // Récupérer les instituts cochés
-    const instituts = Array.from(document.querySelectorAll('.prestation-institut:checked')).map(cb => parseInt(cb.value));
-
     // Valider le formulaire avant la soumission
     const validationRules = {
         prestationNom: {
@@ -975,10 +964,12 @@ document.getElementById('btnSavePrestation')?.addEventListener('click', async fu
     // Ajouter la validation de la durée uniquement pour les types normal et forfait
     if (type !== 'option') {
         validationRules.prestationDuree = {
+            required: true,
             numeric: true,
-            min: 0,
+            min: 5,
+            requiredMessage: 'La durée est requise',
             numericMessage: 'Veuillez entrer un nombre valide',
-            minMessage: 'La durée ne peut pas être négative'
+            minMessage: 'La durée doit être d\'au moins 5 minutes'
         };
     }
 
@@ -1010,8 +1001,7 @@ document.getElementById('btnSavePrestation')?.addEventListener('click', async fu
         prix,
         duree_minutes: dureeMinutes,
         unite: type === 'option' ? unite : '',
-        nb_seances: type === 'forfait' ? nbSeances : 1,
-        instituts
+        nb_seances: type === 'forfait' ? nbSeances : 1
     };
 
     if (!prestationId) {
@@ -1470,10 +1460,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     setupRealTimeValidation('prestationDuree', {
+        required: true,
         numeric: true,
-        min: 0,
+        min: 5,
+        requiredMessage: 'La durée est requise',
         numericMessage: 'Veuillez entrer un nombre valide',
-        minMessage: 'La durée ne peut pas être négative'
+        minMessage: 'La durée doit être d\'au moins 5 minutes'
     });
 
     setupRealTimeValidation('prestationNbSeances', {

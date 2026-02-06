@@ -681,6 +681,12 @@ document.getElementById('formClient').addEventListener('submit', async function(
         if (data.success) {
             showSuccess(data.message);
             setTimeout(() => location.reload(), 1000);
+        } else if (data.duplicate && data.existing_client) {
+            // Client existant trouvé
+            showWarning(data.message);
+            if (confirm('Voulez-vous voir la fiche de ce client ?')) {
+                window.location.href = '/clients/' + data.existing_client.id + '/';
+            }
         } else {
             showError(data.message);
         }

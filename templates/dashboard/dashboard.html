@@ -483,6 +483,11 @@
     <div class="stat-card success">
         <div class="stat-label">Chiffre d'affaires</div>
         <div class="stat-value">{{ ca_total|floatformat:0 }} <span class="stat-unit">CFA</span></div>
+        {% if ca_cartes_vendues_total > 0 %}
+        <div style="font-size: 0.7em; color: var(--text-light); margin-top: 5px;">
+            dont {{ ca_cartes_vendues_total|floatformat:0 }} CFA de cartes cadeaux vendues
+        </div>
+        {% endif %}
     </div>
     <div class="stat-card warning">
         <div class="stat-label">Crédits en cours</div>
@@ -516,6 +521,11 @@
                 <div class="institut-stat">
                     <div class="institut-stat-label">CA période</div>
                     <div class="institut-stat-value">{{ stat.ca|floatformat:0 }}</div>
+                    {% if stat.ca_cartes_vendues > 0 %}
+                    <div style="font-size: 0.7em; opacity: 0.8; margin-top: 3px;">
+                        dont {{ stat.ca_cartes_vendues|floatformat:0 }} cartes cadeaux
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="institut-stat">
                     <div class="institut-stat-label">{% if stat.institut.code == 'express' %}Ventes{% else %}RDV{% endif %} validé(e)s</div>
@@ -528,8 +538,65 @@
                 </div>
                 {% endif %}
             </div>
+            {% if stat.nb_clotures > 0 %}
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.3);">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="font-size: 0.9em;">
+                        <span style="opacity: 0.8;">Espèces attendu:</span> <strong>{{ stat.total_especes_calcule|floatformat:0 }}</strong>
+                    </div>
+                    <div style="font-size: 0.9em;">
+                        <span style="opacity: 0.8;">Espèces réel:</span> <strong>{{ stat.total_especes_reel|floatformat:0 }}</strong>
+                    </div>
+                    <div style="font-size: 0.9em; padding: 3px 10px; border-radius: 5px; {% if stat.total_ecart > 0 %}background: rgba(40, 167, 69, 0.8);{% elif stat.total_ecart < 0 %}background: rgba(220, 53, 69, 0.8);{% else %}background: rgba(255,255,255,0.2);{% endif %}">
+                        <span style="opacity: 0.8;">Écart:</span> <strong>{% if stat.total_ecart > 0 %}+{% endif %}{{ stat.total_ecart|floatformat:0 }}</strong>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
         {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Récapitulatif des écarts par clôture -->
+{% if clotures_periode %}
+<div class="dashboard-card" style="margin-bottom: 30px;">
+    <div class="dashboard-card-header">
+        <h2 class="dashboard-card-title">Écarts de caisse</h2>
+        <span style="padding: 5px 15px; border-radius: 15px; font-weight: 600; font-size: 0.9em; {% if total_ecart_periode != 0 %}background: #f8d7da; color: #721c24;{% else %}background: #e9ecef; color: #495057;{% endif %}">
+            Total: {% if total_ecart_periode > 0 %}+{% endif %}{{ total_ecart_periode|floatformat:0 }} CFA
+        </span>
+    </div>
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #f8f9fa;">
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Date & Heure</th>
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Institut</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #dee2e6;">Espèces attendu</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #dee2e6;">Espèces réel</th>
+                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #dee2e6;">Écart</th>
+                    <th style="padding: 12px; text-align: center; border-bottom: 2px solid #dee2e6;">Clôturé par</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cloture in clotures_periode %}
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 12px;">{{ cloture.date|date:"d/m/Y" }} <span style="color: var(--text-light);">{{ cloture.date_cloture|date:"H:i" }}</span></td>
+                    <td style="padding: 12px;"><strong>{{ cloture.institut.nom }}</strong></td>
+                    <td style="padding: 12px; text-align: right;">{{ cloture.total_especes_calcule|floatformat:0 }} CFA</td>
+                    <td style="padding: 12px; text-align: right;">{{ cloture.montant_reel_especes|floatformat:0 }} CFA</td>
+                    <td style="padding: 12px; text-align: right;">
+                        <span style="padding: 3px 10px; border-radius: 5px; font-weight: 600; {% if cloture.ecart != 0 %}background: #f8d7da; color: #721c24;{% else %}background: #e9ecef; color: #495057;{% endif %}">
+                            {% if cloture.ecart > 0 %}+{% endif %}{{ cloture.ecart|floatformat:0 }} CFA
+                        </span>
+                    </td>
+                    <td style="padding: 12px; text-align: center;">{{ cloture.cloture_par.username|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endif %}
@@ -551,6 +618,15 @@
         </div>
         <div class="chart-container">
             <canvas id="chartInstituts"></canvas>
+        </div>
+    </div>
+
+    <div class="dashboard-card">
+        <div class="dashboard-card-header">
+            <h2 class="dashboard-card-title">CA par moyen de paiement (global)</h2>
+        </div>
+        <div class="chart-container">
+            <canvas id="chartPaiementsGlobal"></canvas>
         </div>
     </div>
 </div>
@@ -927,6 +1003,74 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Erreur chargement stats:', error);
         });
+
+    // Graphique CA par moyen de paiement (global)
+    const dataPaiementsGlobal = {{ ca_par_paiement_json|safe }};
+    if (dataPaiementsGlobal && dataPaiementsGlobal.length > 0) {
+        const ctxPaiementsGlobal = document.getElementById('chartPaiementsGlobal').getContext('2d');
+        const colorsPaiementsGlobal = [
+            'rgba(102, 126, 234, 0.8)',  // Bleu pour Espèces
+            'rgba(232, 180, 184, 0.8)',  // Rose pour Carte
+            'rgba(201, 168, 106, 0.8)',  // Or pour Chèque
+            'rgba(152, 212, 187, 0.8)',  // Vert pour Orange Money
+            'rgba(184, 169, 201, 0.8)',  // Violet pour Wave
+            'rgba(245, 195, 150, 0.8)',  // Orange pour Carte cadeau
+            'rgba(139, 90, 90, 0.8)',    // Marron pour Forfait
+            'rgba(126, 200, 200, 0.8)'   // Cyan pour Offert
+        ];
+
+        new Chart(ctxPaiementsGlobal, {
+            type: 'doughnut',
+            data: {
+                labels: dataPaiementsGlobal.map(p => p.mode),
+                datasets: [{
+                    label: 'CA (CFA)',
+                    data: dataPaiementsGlobal.map(p => p.ca),
+                    backgroundColor: colorsPaiementsGlobal,
+                    borderColor: 'white',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            boxWidth: 15,
+                            font: { size: 11 },
+                            generateLabels: function(chart) {
+                                const data = chart.data;
+                                return data.labels.map((label, i) => {
+                                    const value = data.datasets[0].data[i];
+                                    const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return {
+                                        text: `${label} (${percentage}%)`,
+                                        fillStyle: data.datasets[0].backgroundColor[i],
+                                        hidden: false,
+                                        index: i
+                                    };
+                                });
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return `${label}: ${value.toLocaleString('fr-FR')} CFA (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
 
     // Graphiques détaillés par institut
     let chartEmployes = null;

@@ -1,5 +1,6 @@
 import random
 import string
+from datetime import timedelta
 
 from django.db import models
 from django.contrib.auth.models import User
@@ -632,6 +633,7 @@ class PaiementCredit(models.Model):
         ('cheque', 'Chèque'),
         ('om', 'Orange Money'),
         ('wave', 'Wave'),
+        ('carte_cadeau', 'Carte cadeau'),
     ]
 
     credit = models.ForeignKey(Credit, on_delete=models.CASCADE, related_name='paiements')
@@ -644,6 +646,13 @@ class PaiementCredit(models.Model):
         'Utilisateur',
         on_delete=models.SET_NULL,
         null=True
+    )
+    utilisation_carte_cadeau = models.ForeignKey(
+        'UtilisationCarteCadeau',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='paiements_credit'
     )
 
     class Meta:
@@ -1056,6 +1065,7 @@ class CarteCadeau(models.Model):
         ('active', 'Active'),
         ('soldee', 'Soldée'),
         ('annulee', 'Annulée'),
+        ('supprimee', 'Supprimée'),
     ]
 
     code = models.CharField(max_length=20, unique=True, editable=False)
@@ -1087,6 +1097,7 @@ class CarteCadeau(models.Model):
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='active')
 
     date_achat = models.DateTimeField(auto_now_add=True)
+    date_expiration = models.DateTimeField(null=True, blank=True, help_text="Date d'expiration (6 mois après l'achat)")
     date_derniere_utilisation = models.DateTimeField(null=True, blank=True)
 
     mode_paiement_achat = models.CharField(
@@ -1119,10 +1130,17 @@ class CarteCadeau(models.Model):
     def save(self, *args, **kwargs):
         if not self.code:
             self.code = self.generer_code()
+        # Définir la date d'expiration à 6 mois après l'achat si non définie
+        if not self.date_expiration and self.date_achat:
+            self.date_expiration = self.date_achat + timedelta(days=180)
         if self.solde <= 0:
             self.solde = 0
             self.statut = 'soldee'
         super().save(*args, **kwargs)
+        # Si c'est une nouvelle carte, définir l'expiration après la sauvegarde (date_achat sera rempli)
+        if not self.date_expiration:
+            self.date_expiration = self.date_achat + timedelta(days=180)
+            super().save(update_fields=['date_expiration'])
 
     @staticmethod
     def generer_code():
@@ -1135,13 +1153,36 @@ class CarteCadeau(models.Model):
             code = f"CG-{annee}-{code_aleatoire}"
         return code
 
+    @property
+    def est_expiree(self):
+        """Vérifie si la carte est expirée (plus de 6 mois depuis l'achat)."""
+        if self.date_expiration:
+            return timezone.now() > self.date_expiration
+        # Pour les anciennes cartes sans date d'expiration, vérifier 6 mois depuis l'achat
+        if self.date_achat:
+            return timezone.now() > (self.date_achat + timedelta(days=180))
+        return False
+
+    @property
+    def jours_restants(self):
+        """Retourne le nombre de jours restants avant expiration."""
+        if self.date_expiration:
+            delta = self.date_expiration - timezone.now()
+            return max(0, delta.days)
+        return 0
+
     def utiliser(self, montant):
         """Utilise un montant de la carte. Retourne le montant réellement débité."""
         if self.statut != 'active':
             raise ValueError("Cette carte n'est plus active")
+        if self.est_expiree:
+            raise ValueError("Cette carte est expirée")
         montant_debite = min(montant, self.solde)
         self.solde -= montant_debite
         self.date_derniere_utilisation = timezone.now()
+        # Passer à soldée si le solde atteint 0
+        if self.solde <= 0:
+            self.statut = 'soldee'
         self.save()
         return montant_debite
 

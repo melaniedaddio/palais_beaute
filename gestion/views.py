@@ -262,6 +262,14 @@ def creer_prestation(request):
                 'error': 'Une prestation avec ce nom existe déjà dans cette famille'
             })
 
+        # Vérifier que la durée est fournie pour les prestations normales et forfaits
+        type_prestation = data.get('type_prestation', 'normal')
+        if type_prestation != 'option' and not data.get('duree_minutes'):
+            return JsonResponse({
+                'success': False,
+                'error': 'La durée est obligatoire pour ce type de prestation'
+            })
+
         # Déterminer l'ordre (dernière position)
         dernier_ordre = Prestation.objects.filter(
             famille=famille
@@ -271,17 +279,13 @@ def creer_prestation(request):
         prestation = Prestation.objects.create(
             nom=data['nom'],
             famille=famille,
-            type_prestation=data.get('type_prestation', 'normal'),
+            type_prestation=type_prestation,
             prix=data.get('prix', 0),
             duree_minutes=data.get('duree_minutes'),
             unite=data.get('unite', ''),
             nombre_seances=data.get('nb_seances', 1),
             ordre_affichage=dernier_ordre + 1
         )
-
-        # Associer les instituts
-        if 'instituts' in data:
-            prestation.instituts.set(data['instituts'])
 
         return JsonResponse({
             'success': True,
@@ -292,7 +296,7 @@ def creer_prestation(request):
                 'prix': float(prestation.prix),
                 'duree_minutes': prestation.duree_minutes,
                 'unite': prestation.unite,
-                'nb_seances': prestation.nb_seances,
+                'nb_seances': prestation.nombre_seances,
                 'actif': prestation.actif
             }
         })
@@ -323,6 +327,14 @@ def modifier_prestation(request, prestation_id):
                     'error': 'Une prestation avec ce nom existe déjà dans cette famille'
                 })
 
+        # Vérifier que la durée est fournie pour les prestations normales et forfaits
+        type_prestation = data.get('type_prestation', prestation.type_prestation)
+        if type_prestation != 'option' and 'duree_minutes' in data and not data.get('duree_minutes'):
+            return JsonResponse({
+                'success': False,
+                'error': 'La durée est obligatoire pour ce type de prestation'
+            })
+
         # Mettre à jour les champs
         if 'nom' in data:
             prestation.nom = data['nom']
@@ -339,10 +351,6 @@ def modifier_prestation(request, prestation_id):
 
         prestation.save()
 
-        # Mettre à jour les instituts
-        if 'instituts' in data:
-            prestation.instituts.set(data['instituts'])
-
         return JsonResponse({
             'success': True,
             'prestation': {
@@ -352,7 +360,7 @@ def modifier_prestation(request, prestation_id):
                 'prix': float(prestation.prix),
                 'duree_minutes': prestation.duree_minutes,
                 'unite': prestation.unite,
-                'nb_seances': prestation.nb_seances,
+                'nb_seances': prestation.nombre_seances,
                 'actif': prestation.actif
             }
         })

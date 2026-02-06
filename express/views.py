@@ -12,7 +12,7 @@ from core.decorators import role_required
 from core.models import (
     Institut, Employe, Client, Prestation, FamillePrestation,
     RendezVous, VenteExpressPrestation, Paiement, Credit, ClotureCaisse,
-    PaiementCredit, CarteCadeau
+    PaiementCredit, CarteCadeau, UtilisationCarteCadeau
 )
 
 
@@ -189,20 +189,57 @@ def creer_vente(request):
         if type_paiement == 'complet':
             montant_paye = prix_total
         elif type_paiement == 'differe':
-            montant_paye = 0
+            montant_paye = Decimal('0')
         else:  # partiel
             montant_paye = Decimal(montant_paye)
 
-        # Créer le paiement si montant > 0
-        if montant_paye > 0:
+        montant_restant = int(montant_paye)
+
+        # 1. Traiter les cartes cadeaux si présentes (comme dans l'agenda)
+        cartes_json = request.POST.get('cartes_cadeaux', '')
+        montant_total_cartes = 0
+        if cartes_json:
+            cartes_data = json.loads(cartes_json)
+            for carte_item in cartes_data:
+                carte = CarteCadeau.objects.get(
+                    id=carte_item['carte_id'],
+                    beneficiaire=client,
+                    statut='active',
+                )
+                montant_a_utiliser = min(
+                    int(carte_item['montant']),
+                    carte.solde,
+                    montant_restant,
+                )
+                if montant_a_utiliser > 0:
+                    utilisation = UtilisationCarteCadeau.objects.create(
+                        carte=carte,
+                        rendez_vous=rdv,
+                        montant=montant_a_utiliser,
+                        institut=institut,
+                        enregistre_par=request.user.utilisateur,
+                    )
+                    carte.utiliser(montant_a_utiliser)
+                    Paiement.objects.create(
+                        rendez_vous=rdv,
+                        mode='carte_cadeau',
+                        montant=montant_a_utiliser,
+                        utilisation_carte_cadeau=utilisation,
+                    )
+                    montant_total_cartes += montant_a_utiliser
+                    montant_restant -= montant_a_utiliser
+
+        # 2. Créer le paiement pour le reste (espèces/carte bancaire/etc.)
+        if montant_restant > 0:
             Paiement.objects.create(
                 rendez_vous=rdv,
                 mode=moyen_paiement,
-                montant=int(montant_paye)
+                montant=montant_restant,
             )
 
-        # Créer un crédit si paiement partiel ou différé
-        if montant_paye < prix_total:
+        # 3. Si paiement partiel ou différé, créer un crédit
+        montant_effectif = montant_total_cartes + montant_restant
+        if montant_effectif < prix_total:
             description = ", ".join([p['nom'] for p in prestations_data])
             if len(description) > 200:
                 description = description[:197] + "..."
@@ -212,7 +249,7 @@ def creer_vente(request):
                 institut=institut,
                 rendez_vous=rdv,
                 montant_total=int(prix_total),
-                montant_paye=int(montant_paye),
+                montant_paye=int(montant_effectif),
                 description=description
             )
 

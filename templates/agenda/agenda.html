@@ -138,8 +138,13 @@
 
                 <div class="form-group">
                     <label>Client</label>
-                    <input type="text" id="rdv-client-search" class="form-control"
-                           placeholder="Rechercher un client..." autocomplete="off">
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="rdv-client-search" class="form-control"
+                               placeholder="Rechercher un client..." autocomplete="off" style="flex: 1;">
+                        <button type="button" class="btn btn-secondary" onclick="ouvrirModalNouveauClient()" title="Créer un nouveau client" style="padding: 8px 12px; white-space: nowrap;">
+                            + Client
+                        </button>
+                    </div>
                     <input type="hidden" id="rdv-client" name="client_id" required>
                     <input type="hidden" id="rdv-seance-forfait" name="seance_forfait_id">
                     <div id="rdv-client-results" class="autocomplete-results"></div>
@@ -231,7 +236,7 @@
 
                 <div class="form-group">
                     <label>Type de paiement</label>
-                    <select id="validation-type-paiement" class="form-control" onchange="updateMontantPaiement()">
+                    <select id="validation-type-paiement" name="type_paiement" class="form-control" onchange="updateMontantPaiement()">
                         <option value="complet">Paiement complet</option>
                         <option value="partiel">Paiement partiel</option>
                         <option value="differe">Paiement différé</option>
@@ -240,7 +245,7 @@
 
                 <div id="montant-paiement-group" class="form-group" style="display: none;">
                     <label>Montant payé</label>
-                    <input type="number" id="validation-montant" class="form-control" step="0.01"
+                    <input type="number" id="validation-montant" name="montant" class="form-control" step="0.01"
                            onchange="calculerReste()">
                     <small id="reste-a-payer" style="display: block; margin-top: 5px; color: #c9a86a;"></small>
                 </div>
@@ -412,6 +417,41 @@
 </div>
 {% endif %}
 
+<!-- Modal Créer Client Rapide -->
+<div id="modal-nouveau-client" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3>Nouveau Client</h3>
+            <span class="modal-close" onclick="fermerModalNouveauClient()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="form-nouveau-client">
+                <div class="form-group">
+                    <label>Prénom *</label>
+                    <input type="text" id="nouveau-client-prenom" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Nom *</label>
+                    <input type="text" id="nouveau-client-nom" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Téléphone *</label>
+                    <input type="tel" id="nouveau-client-telephone" class="form-control" required placeholder="Ex: 77 123 45 67">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="nouveau-client-email" class="form-control" placeholder="Optionnel">
+                </div>
+                <div id="nouveau-client-error" class="alert alert-danger" style="display: none;"></div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="fermerModalNouveauClient()">Annuler</button>
+            <button type="button" class="btn btn-primary" onclick="creerNouveauClient()">Créer le client</button>
+        </div>
+    </div>
+</div>
+
 <style>
 .agenda-table {
     width: 100%;
@@ -449,6 +489,7 @@
     transition: transform 0.2s;
     z-index: 5;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    overflow: hidden;
 }
 
 .rdv-card:hover {
@@ -485,11 +526,17 @@
 .rdv-client {
     font-weight: 600;
     margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .rdv-prestation {
     font-size: 11px;
     color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .rdv-prix {
@@ -497,6 +544,9 @@
     font-weight: 600;
     margin-top: 2px;
     color: #c9a86a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .autocomplete-results {
@@ -912,9 +962,16 @@ function chargerPrestations(retryCount = 0) {
     prestations.forEach(p => {
         const option = document.createElement('option');
         option.value = p.id;
-        option.textContent = p.nom + ' - ' + p.prix + ' CFA (' + p.duree + 'h)';
+        let label = p.nom + ' - ' + p.prix + ' CFA (' + p.duree + 'h)';
+        if (p.type_prestation === 'forfait') {
+            label = '📦 ' + label + ' [Forfait ' + p.nombre_seances + ' séances]';
+        }
+        option.textContent = label;
         option.dataset.prix = p.prix;
         option.dataset.duree = p.duree;
+        option.dataset.type = p.type_prestation || 'normal';
+        option.dataset.nbSeances = p.nombre_seances || 1;
+        option.dataset.nom = p.nom;
         prestationSelect.appendChild(option);
     });
 }
@@ -926,6 +983,7 @@ function calculerTotal() {
 
     if (!selectedOption || !selectedOption.value) {
         document.getElementById('rdv-prix-total').textContent = '0 CFA';
+        document.getElementById('prestation-info').innerHTML = '';
         return;
     }
 
@@ -943,8 +1001,47 @@ function calculerTotal() {
 
     // Afficher info prestation
     const duree = selectedOption.dataset.duree;
-    document.getElementById('prestation-info').innerHTML =
-        '<strong>Durée :</strong> ' + duree + 'h | <strong>Prix de base :</strong> ' + prixBase.toLocaleString('fr-FR') + ' CFA';
+    const typePrestation = selectedOption.dataset.type;
+    let infoHtml = '<strong>Durée :</strong> ' + duree + 'h | <strong>Prix de base :</strong> ' + prixBase.toLocaleString('fr-FR') + ' CFA';
+
+    {% if institut.code == 'klinic' %}
+    // Vérifier si c'est une prestation forfait
+    if (typePrestation === 'forfait') {
+        const clientId = document.getElementById('rdv-client').value;
+        const prestationId = selectedOption.value;
+        const prestationNom = selectedOption.dataset.nom;
+        const nbSeances = selectedOption.dataset.nbSeances;
+
+        // Vérifier si le client a un forfait actif pour cette prestation
+        if (clientId && clientForfaitsData) {
+            const forfaitActif = clientForfaitsData.find(f => f.prestation_id == prestationId && f.seances_restantes > 0);
+
+            if (!forfaitActif) {
+                // Pas de forfait actif - proposer d'en acheter un
+                infoHtml += `
+                    <div style="margin-top: 10px; padding: 12px; background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%); border: 2px solid #ffc107; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="color: #856404;">📦 Ce client n'a pas ce forfait</strong>
+                                <div style="font-size: 12px; color: #856404;">${prestationNom} - ${nbSeances} séances</div>
+                            </div>
+                            <button type="button" class="btn" onclick="proposerVenteForfait(${prestationId}, '${prestationNom.replace(/'/g, "\\'")}', ${prixBase}, ${nbSeances})"
+                                    style="padding: 6px 12px; background: #9b59b6; color: white; font-size: 12px;">
+                                Vendre ce forfait
+                            </button>
+                        </div>
+                    </div>`;
+            }
+        } else if (!clientId) {
+            infoHtml += `
+                <div style="margin-top: 10px; padding: 8px; background: #f8d7da; border-radius: 6px; font-size: 12px; color: #721c24;">
+                    ⚠️ Sélectionnez d'abord un client pour vérifier ses forfaits
+                </div>`;
+        }
+    }
+    {% endif %}
+
+    document.getElementById('prestation-info').innerHTML = infoHtml;
 }
 
 // Nouveau RDV
@@ -1648,6 +1745,8 @@ document.getElementById('rdv-client-search').addEventListener('input', function(
                         {% if institut.code == 'klinic' %}
                         // Charger les forfaits du client
                         chargerForfaitsClient(client.id);
+                        // Recalculer le total pour afficher la proposition de forfait
+                        setTimeout(() => calculerTotal(), 500);
                         {% endif %}
                     };
                     resultsDiv.appendChild(item);
@@ -1662,6 +1761,92 @@ document.getElementById('rdv-client-search').addEventListener('input', function(
         });
 });
 
+// ============================
+// CRÉATION RAPIDE DE CLIENT
+// ============================
+
+function ouvrirModalNouveauClient() {
+    document.getElementById('nouveau-client-prenom').value = '';
+    document.getElementById('nouveau-client-nom').value = '';
+    document.getElementById('nouveau-client-telephone').value = '';
+    document.getElementById('nouveau-client-email').value = '';
+    document.getElementById('nouveau-client-error').style.display = 'none';
+    document.getElementById('modal-nouveau-client').style.display = 'flex';
+    document.getElementById('nouveau-client-prenom').focus();
+}
+
+function fermerModalNouveauClient() {
+    document.getElementById('modal-nouveau-client').style.display = 'none';
+}
+
+function creerNouveauClient() {
+    const prenom = document.getElementById('nouveau-client-prenom').value.trim();
+    const nom = document.getElementById('nouveau-client-nom').value.trim();
+    const telephone = document.getElementById('nouveau-client-telephone').value.trim();
+    const email = document.getElementById('nouveau-client-email').value.trim();
+    const errorDiv = document.getElementById('nouveau-client-error');
+
+    // Validation
+    if (!prenom || !nom || !telephone) {
+        errorDiv.textContent = 'Prénom, nom et téléphone sont requis';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    showPageLoader('Création du client...');
+
+    const formData = new FormData();
+    formData.append('prenom', prenom);
+    formData.append('nom', nom);
+    formData.append('telephone', telephone);
+    if (email) formData.append('email', email);
+
+    fetch('/api/clients/creer/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        hidePageLoader();
+        if (data.success) {
+            // Remplir automatiquement le champ client
+            document.getElementById('rdv-client').value = data.client_id;
+            document.getElementById('rdv-client-search').value = prenom + ' ' + nom;
+
+            showSuccess(data.message);
+            fermerModalNouveauClient();
+
+            {% if institut.code == 'klinic' %}
+            // Charger les forfaits du client (pour Klinic)
+            chargerForfaitsClient(data.client_id);
+            {% endif %}
+        } else if (data.duplicate && data.existing_client) {
+            // Client existant trouvé - proposer de l'utiliser
+            showWarning(data.message);
+            if (confirm('Voulez-vous utiliser ce client existant ?')) {
+                document.getElementById('rdv-client').value = data.existing_client.id;
+                document.getElementById('rdv-client-search').value = data.existing_client.full_name;
+                fermerModalNouveauClient();
+                {% if institut.code == 'klinic' %}
+                chargerForfaitsClient(data.existing_client.id);
+                {% endif %}
+            }
+        } else {
+            errorDiv.textContent = data.message;
+            errorDiv.style.display = 'block';
+        }
+    })
+    .catch(error => {
+        hidePageLoader();
+        console.error('Erreur:', error);
+        errorDiv.textContent = 'Erreur lors de la création du client';
+        errorDiv.style.display = 'block';
+    });
+}
+
 {% if institut.code == 'klinic' %}
 // ============================
 // FORFAITS MULTI-SÉANCES
@@ -1669,6 +1854,33 @@ document.getElementById('rdv-client-search').addEventListener('input', function(
 
 let forfaitsData = [];
 let clientForfaitsData = [];
+
+// Proposer la vente d'un forfait depuis la sélection de prestation
+function proposerVenteForfait(prestationId, prestationNom, prix, nbSeances) {
+    const clientId = document.getElementById('rdv-client').value;
+    const clientNom = document.getElementById('rdv-client-search').value;
+
+    if (!clientId) {
+        showWarning('Veuillez d\'abord sélectionner un client');
+        return;
+    }
+
+    // Ouvrir le modal de vente de forfait
+    ouvrirModalForfait();
+
+    // Pré-remplir avec le client
+    document.getElementById('forfait-client-id').value = clientId;
+    document.getElementById('forfait-client-search').value = clientNom;
+
+    // Pré-sélectionner le forfait
+    const forfaitSelect = document.getElementById('forfait-prestation');
+    forfaitSelect.value = prestationId;
+
+    // Déclencher la mise à jour du prix
+    updateForfaitPrix();
+
+    showInfo('Forfait "' + prestationNom + '" pré-sélectionné pour ' + clientNom);
+}
 
 // Charger les forfaits actifs d'un client
 function chargerForfaitsClient(clientId) {

@@ -70,6 +70,11 @@
     color: #721c24;
 }
 
+.badge-supprimee {
+    background: #6c757d;
+    color: #fff;
+}
+
 /* Modal styles */
 .modal-backdrop {
     position: fixed;
@@ -275,10 +280,10 @@
 <div class="card">
     <form method="GET" class="filters-row">
         <select name="statut" onchange="this.form.submit()">
-            <option value="">Tous les statuts</option>
             <option value="active" {% if statut_filtre == 'active' %}selected{% endif %}>Active</option>
             <option value="soldee" {% if statut_filtre == 'soldee' %}selected{% endif %}>Soldée</option>
-            <option value="annulee" {% if statut_filtre == 'annulee' %}selected{% endif %}>Annulée</option>
+            <option value="annulee" {% if statut_filtre == 'annulee' %}selected{% endif %}>Annulée / Supprimée</option>
+            <option value="toutes" {% if statut_filtre == 'toutes' %}selected{% endif %}>Tous les statuts</option>
         </select>
         <input type="text" name="search" placeholder="Rechercher (code, nom...)" value="{{ search }}">
         <button type="submit" class="btn btn-primary">Rechercher</button>
@@ -298,7 +303,8 @@
                 <th>Montant</th>
                 <th>Solde</th>
                 <th>Statut</th>
-                <th>Date</th>
+                <th>Achat</th>
+                <th>Expiration</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -310,11 +316,25 @@
                 <td>{{ carte.montant_initial|floatformat:0 }} CFA</td>
                 <td>{{ carte.solde|floatformat:0 }} CFA</td>
                 <td>
-                    <span class="badge badge-{{ carte.statut }}{% if carte.statut == 'active' %}active{% elif carte.statut == 'soldee' %}soldee{% else %}annulee{% endif %}">
+                    <span class="badge badge-{{ carte.statut }}">
                         {{ carte.get_statut_display }}
                     </span>
                 </td>
                 <td>{{ carte.date_achat|date:"d/m/Y" }}</td>
+                <td>
+                    {% if carte.date_expiration %}
+                        {% if carte.est_expiree %}
+                            <span style="color: #dc3545; font-weight: 600;">Expirée</span>
+                        {% elif carte.jours_restants <= 30 %}
+                            <span style="color: #ffc107; font-weight: 600;">{{ carte.date_expiration|date:"d/m/Y" }}</span>
+                            <br><small style="color: #ffc107;">({{ carte.jours_restants }}j restants)</small>
+                        {% else %}
+                            {{ carte.date_expiration|date:"d/m/Y" }}
+                        {% endif %}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
                 <td>
                     <div style="display: flex; gap: 8px;">
                         <a href="{% url 'core:imprimer_carte_cadeau' carte_id=carte.id %}" target="_blank" class="btn btn-outline" style="padding: 6px 12px; font-size: 12px;">Imprimer</a>
@@ -326,7 +346,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="7" style="text-align: center; padding: 30px; color: var(--text-light);">
+                <td colspan="8" style="text-align: center; padding: 30px; color: var(--text-light);">
                     Aucune carte cadeau trouvée
                 </td>
             </tr>
@@ -347,8 +367,13 @@
 
             <div class="form-group">
                 <label>Personne qui offre *</label>
-                <input type="text" id="searchAcheteur" placeholder="Rechercher un client..." autocomplete="off">
-                <div id="resultsAcheteur" style="position: relative;"></div>
+                <div style="display: flex; gap: 8px;">
+                    <div style="flex: 1; position: relative;">
+                        <input type="text" id="searchAcheteur" placeholder="Rechercher un client..." autocomplete="off" style="width: 100%;">
+                        <div id="resultsAcheteur" style="position: relative;"></div>
+                    </div>
+                    <button type="button" class="btn btn-outline" onclick="ouvrirModalNouveauClient('acheteur')" style="padding: 8px 12px; white-space: nowrap;">+ Client</button>
+                </div>
                 <input type="hidden" id="acheteurId">
                 <div id="acheteurSelected" style="display: none; margin-top: 8px; padding: 8px; background: var(--bg-section); border-radius: 8px; font-size: 13px;"></div>
             </div>
@@ -360,8 +385,13 @@
                     <label for="memePersonne" style="margin-bottom: 0;">Même personne que l'acheteur</label>
                 </div>
                 <div id="beneficiaireSection">
-                    <input type="text" id="searchBeneficiaire" placeholder="Rechercher un client..." autocomplete="off">
-                    <div id="resultsBeneficiaire" style="position: relative;"></div>
+                    <div style="display: flex; gap: 8px;">
+                        <div style="flex: 1; position: relative;">
+                            <input type="text" id="searchBeneficiaire" placeholder="Rechercher un client..." autocomplete="off" style="width: 100%;">
+                            <div id="resultsBeneficiaire" style="position: relative;"></div>
+                        </div>
+                        <button type="button" class="btn btn-outline" onclick="ouvrirModalNouveauClient('beneficiaire')" style="padding: 8px 12px; white-space: nowrap;">+ Client</button>
+                    </div>
                     <input type="hidden" id="beneficiaireId">
                     <div id="beneficiaireSelected" style="display: none; margin-top: 8px; padding: 8px; background: var(--bg-section); border-radius: 8px; font-size: 13px;"></div>
                 </div>
@@ -497,11 +527,52 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Nouveau Client -->
+<div id="modalNouveauClient" class="modal-backdrop" style="display: none;">
+    <div class="modal" style="max-width: 450px;">
+        <div class="modal-header">
+            <h2 class="modal-title">Nouveau Client</h2>
+            <button class="modal-close" onclick="fermerModalNouveauClient()">&times;</button>
+        </div>
+        <div class="form-group">
+            <label>Prénom *</label>
+            <input type="text" id="nouveauClientPrenom" placeholder="Prénom">
+        </div>
+        <div class="form-group">
+            <label>Nom *</label>
+            <input type="text" id="nouveauClientNom" placeholder="Nom">
+        </div>
+        <div class="form-group">
+            <label>Téléphone *</label>
+            <input type="tel" id="nouveauClientTelephone" placeholder="77 123 45 67">
+        </div>
+        <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="nouveauClientEmail" placeholder="Optionnel">
+        </div>
+        <input type="hidden" id="nouveauClientType" value="">
+        <div id="nouveauClientError" style="display: none; padding: 10px; background: #f8d7da; color: #721c24; border-radius: 8px; margin-bottom: 15px;"></div>
+        <div class="btn-group">
+            <button class="btn btn-outline" onclick="fermerModalNouveauClient()">Annuler</button>
+            <button class="btn btn-primary" onclick="creerNouveauClient()">Créer le client</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 // === Autocomplete clients ===
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+}
+
 function setupAutocomplete(inputId, resultsId, hiddenId, selectedId) {
     const input = document.getElementById(inputId);
     const resultsContainer = document.getElementById(resultsId);
@@ -523,12 +594,15 @@ function setupAutocomplete(inputId, resultsId, hiddenId, selectedId) {
             if (data.clients.length > 0) {
                 html = '<div style="position: absolute; z-index: 100; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-height: 200px; overflow-y: auto; width: 100%;">';
                 data.clients.forEach(c => {
+                    const safeName = escapeHtml(c.full_name);
+                    const safeTel = escapeHtml(c.telephone);
                     html += `<div style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--border);"
                                   onmouseover="this.style.background='var(--bg-section)'"
                                   onmouseout="this.style.background='white'"
-                                  onclick="selectClient('${hiddenId}', '${selectedId}', '${inputId}', '${resultsId}', ${c.id}, '${c.full_name}', '${c.telephone}')">
-                                <div style="font-weight: 500;">${c.full_name}</div>
-                                <div style="font-size: 12px; color: var(--text-light);">${c.telephone}</div>
+                                  data-id="${c.id}" data-name="${safeName}" data-tel="${safeTel}"
+                                  onclick="selectClientFromData(this, '${hiddenId}', '${selectedId}', '${inputId}', '${resultsId}')">
+                                <div style="font-weight: 500;">${safeName}</div>
+                                <div style="font-size: 12px; color: var(--text-light);">${safeTel}</div>
                              </div>`;
                 });
                 html += '</div>';
@@ -536,6 +610,17 @@ function setupAutocomplete(inputId, resultsId, hiddenId, selectedId) {
             resultsContainer.innerHTML = html;
         }, 300);
     });
+}
+
+function selectClientFromData(element, hiddenId, selectedId, inputId, resultsId) {
+    const id = element.dataset.id;
+    const name = element.dataset.name;
+    const tel = element.dataset.tel;
+    document.getElementById(hiddenId).value = id;
+    document.getElementById(selectedId).textContent = `${name} - ${tel}`;
+    document.getElementById(selectedId).style.display = 'block';
+    document.getElementById(inputId).value = '';
+    document.getElementById(resultsId).innerHTML = '';
 }
 
 function selectClient(hiddenId, selectedId, inputId, resultsId, id, name, tel) {
@@ -660,7 +745,7 @@ async function rechercherCarte() {
     }
 
     const c = data.carte;
-    let statutClass = c.statut === 'active' ? 'badge-active' : c.statut === 'soldee' ? 'badge-soldee' : 'badge-annulee';
+    let statutClass = 'badge-' + c.statut;
 
     let html = `
         <div class="carte-info-box">
@@ -772,6 +857,96 @@ async function confirmerSuppressionCarte() {
     }
 }
 
+// === Nouveau client ===
+function ouvrirModalNouveauClient(type) {
+    document.getElementById('nouveauClientPrenom').value = '';
+    document.getElementById('nouveauClientNom').value = '';
+    document.getElementById('nouveauClientTelephone').value = '';
+    document.getElementById('nouveauClientEmail').value = '';
+    document.getElementById('nouveauClientType').value = type;
+    document.getElementById('nouveauClientError').style.display = 'none';
+    document.getElementById('modalNouveauClient').style.display = 'flex';
+    document.getElementById('nouveauClientPrenom').focus();
+}
+
+function fermerModalNouveauClient() {
+    document.getElementById('modalNouveauClient').style.display = 'none';
+}
+
+async function creerNouveauClient() {
+    const prenom = document.getElementById('nouveauClientPrenom').value.trim();
+    const nom = document.getElementById('nouveauClientNom').value.trim();
+    const telephone = document.getElementById('nouveauClientTelephone').value.trim();
+    const email = document.getElementById('nouveauClientEmail').value.trim();
+    const type = document.getElementById('nouveauClientType').value;
+    const errorDiv = document.getElementById('nouveauClientError');
+
+    if (!prenom || !nom || !telephone) {
+        errorDiv.textContent = 'Prénom, nom et téléphone sont requis';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('prenom', prenom);
+    formData.append('nom', nom);
+    formData.append('telephone', telephone);
+    if (email) formData.append('email', email);
+
+    try {
+        const resp = await fetch('/api/clients/creer/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            body: formData
+        });
+
+        const data = await resp.json();
+
+        if (data.success) {
+            // Remplir automatiquement le champ correspondant
+            const fullName = prenom + ' ' + nom;
+            if (type === 'acheteur') {
+                document.getElementById('acheteurId').value = data.client_id;
+                document.getElementById('acheteurSelected').textContent = fullName + ' - ' + telephone;
+                document.getElementById('acheteurSelected').style.display = 'block';
+                document.getElementById('searchAcheteur').value = '';
+            } else if (type === 'beneficiaire') {
+                document.getElementById('beneficiaireId').value = data.client_id;
+                document.getElementById('beneficiaireSelected').textContent = fullName + ' - ' + telephone;
+                document.getElementById('beneficiaireSelected').style.display = 'block';
+                document.getElementById('searchBeneficiaire').value = '';
+            }
+
+            showSuccess('Client créé avec succès');
+            fermerModalNouveauClient();
+        } else if (data.duplicate && data.existing_client) {
+            // Client existant trouvé - proposer de l'utiliser
+            showWarning(data.message);
+            if (confirm('Voulez-vous utiliser ce client existant ?')) {
+                const client = data.existing_client;
+                if (type === 'acheteur') {
+                    document.getElementById('acheteurId').value = client.id;
+                    document.getElementById('acheteurSelected').textContent = client.full_name + ' - ' + client.telephone;
+                    document.getElementById('acheteurSelected').style.display = 'block';
+                    document.getElementById('searchAcheteur').value = '';
+                } else if (type === 'beneficiaire') {
+                    document.getElementById('beneficiaireId').value = client.id;
+                    document.getElementById('beneficiaireSelected').textContent = client.full_name + ' - ' + client.telephone;
+                    document.getElementById('beneficiaireSelected').style.display = 'block';
+                    document.getElementById('searchBeneficiaire').value = '';
+                }
+                fermerModalNouveauClient();
+            }
+        } else {
+            errorDiv.textContent = data.message || 'Erreur lors de la création';
+            errorDiv.style.display = 'block';
+        }
+    } catch (error) {
+        errorDiv.textContent = 'Erreur réseau';
+        errorDiv.style.display = 'block';
+    }
+}
+
 // Fermer les modals en cliquant sur le backdrop
 document.getElementById('modalVente').addEventListener('click', function(e) {
     if (e.target === this) fermerModalVente();
@@ -781,6 +956,9 @@ document.getElementById('modalVerification').addEventListener('click', function(
 });
 document.getElementById('modalSupprimerCarte').addEventListener('click', function(e) {
     if (e.target === this) fermerModalSupprimerCarte();
+});
+document.getElementById('modalNouveauClient').addEventListener('click', function(e) {
+    if (e.target === this) fermerModalNouveauClient();
 });
 
 // Initialiser autocomplete

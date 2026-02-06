@@ -72,7 +72,27 @@ def index(request):
             # Pas de dates clôturées : exclure complètement Express
             paiements_query = paiements_query.exclude(rendez_vous__institut=express)
 
-    ca_total = paiements_query.aggregate(total=Sum('montant'))['total'] or 0
+    ca_paiements_total = paiements_query.aggregate(total=Sum('montant'))['total'] or 0
+
+    # Cartes cadeaux vendues dans la période (ajoutées au CA total)
+    cartes_query = CarteCadeau.objects.filter(
+        date_achat__date__gte=date_debut,
+        date_achat__date__lte=date_fin,
+        statut__in=['active', 'soldee']
+    )
+    if express:
+        if dates_cloturees_express:
+            # Inclure Express uniquement pour les dates clôturées
+            cartes_query = cartes_query.filter(
+                Q(~Q(institut_achat=express)) |
+                Q(institut_achat=express, date_achat__date__in=dates_cloturees_express)
+            )
+        else:
+            # Pas de dates clôturées : exclure complètement Express
+            cartes_query = cartes_query.exclude(institut_achat=express)
+
+    ca_cartes_vendues_total = cartes_query.aggregate(total=Sum('montant_initial'))['total'] or 0
+    ca_total = ca_paiements_total + ca_cartes_vendues_total
 
     # RDV de la période sélectionnée
     # Pour Express : n'inclure que les jours clôturés
@@ -133,11 +153,20 @@ def index(request):
         if institut.code == 'express':
             if dates_cloturees_express:
                 # CA de l'institut (seulement dates clôturées)
-                ca_institut = Paiement.objects.filter(
+                ca_paiements = Paiement.objects.filter(
                     rendez_vous__institut=institut,
                     rendez_vous__date__in=dates_cloturees_express,
                     rendez_vous__statut='valide'
                 ).aggregate(total=Sum('montant'))['total'] or 0
+
+                # Cartes cadeaux vendues (dates clôturées)
+                ca_cartes_vendues = CarteCadeau.objects.filter(
+                    institut_achat=institut,
+                    date_achat__date__in=dates_cloturees_express,
+                    statut__in=['active', 'soldee']
+                ).aggregate(total=Sum('montant_initial'))['total'] or 0
+
+                ca_institut = ca_paiements + ca_cartes_vendues
 
                 # Nombre de RDV validés (seulement dates clôturées)
                 rdv_count = RendezVous.objects.filter(
@@ -147,15 +176,27 @@ def index(request):
                 ).count()
             else:
                 # Pas de dates clôturées : CA et RDV à 0
+                ca_paiements = 0
+                ca_cartes_vendues = 0
                 ca_institut = 0
                 rdv_count = 0
         else:
             # Autres instituts : comportement normal
-            ca_institut = Paiement.objects.filter(
+            ca_paiements = Paiement.objects.filter(
                 rendez_vous__institut=institut,
                 rendez_vous__date__range=[date_debut, date_fin],
                 rendez_vous__statut='valide'
             ).aggregate(total=Sum('montant'))['total'] or 0
+
+            # Cartes cadeaux vendues dans cet institut
+            ca_cartes_vendues = CarteCadeau.objects.filter(
+                institut_achat=institut,
+                date_achat__date__gte=date_debut,
+                date_achat__date__lte=date_fin,
+                statut__in=['active', 'soldee']
+            ).aggregate(total=Sum('montant_initial'))['total'] or 0
+
+            ca_institut = ca_paiements + ca_cartes_vendues
 
             rdv_count = RendezVous.objects.filter(
                 institut=institut,
@@ -175,17 +216,32 @@ def index(request):
             total=Sum('total_calcule')
         )['total'] or 0
 
+        # Calculer les écarts du jour
+        ecarts_jour = clotures_jour.aggregate(
+            total_ecart=Sum('ecart'),
+            total_especes_calcule=Sum('total_especes_calcule'),
+            total_especes_reel=Sum('montant_reel_especes')
+        )
+        total_ecart = ecarts_jour['total_ecart'] or 0
+        total_especes_calcule = ecarts_jour['total_especes_calcule'] or 0
+        total_especes_reel = ecarts_jour['total_especes_reel'] or 0
+
         nb_clotures = clotures_jour.count()
         derniere_cloture = clotures_jour.order_by('-date_cloture').first()
 
         stats_par_institut.append({
             'institut': institut,
             'ca': ca_institut,
+            'ca_paiements': ca_paiements,
+            'ca_cartes_vendues': ca_cartes_vendues,
             'rdv_count': rdv_count,
             'cloture': derniere_cloture,  # Pour compatibilité
             'clotures': clotures_jour,
             'nb_clotures': nb_clotures,
             'total_jour': total_jour,
+            'total_ecart': total_ecart,
+            'total_especes_calcule': total_especes_calcule,
+            'total_especes_reel': total_especes_reel,
         })
 
     # Top 10 clients (par CA total)
@@ -262,11 +318,53 @@ def index(request):
         'client', 'prestation', 'institut',
     ).order_by('-date_achat')[:10]
 
+    # CA global par moyen de paiement (pour le graphique)
+    ca_par_paiement_query = paiements_query.values('mode').annotate(
+        ca_total=Sum('montant')
+    ).order_by('-ca_total')
+
+    mode_display_map = {
+        'especes': 'Espèces',
+        'carte': 'Carte',
+        'cheque': 'Chèque',
+        'om': 'Orange Money',
+        'wave': 'Wave',
+        'carte_cadeau': 'Carte cadeau',
+        'forfait': 'Forfait',
+        'offert': 'Offert',
+    }
+
+    ca_par_paiement = [
+        {
+            'mode': mode_display_map.get(p['mode'], p['mode']),
+            'ca': float(p['ca_total']) if p['ca_total'] else 0
+        }
+        for p in ca_par_paiement_query
+    ]
+
+    # Ajouter les ventes de cartes cadeaux au graphique par mode de paiement
+    if ca_cartes_vendues_total > 0:
+        ca_par_paiement.append({
+            'mode': 'Ventes cartes cadeaux',
+            'ca': float(ca_cartes_vendues_total)
+        })
+
+    # Clôtures de la période avec écarts
+    clotures_periode = ClotureCaisse.objects.filter(
+        date__range=[date_debut, date_fin],
+        cloture=True
+    ).select_related('institut', 'cloture_par').order_by('-date', '-date_cloture')
+
+    # Total des écarts de la période
+    total_ecart_periode = clotures_periode.aggregate(total=Sum('ecart'))['total'] or 0
+
     context = {
         'periode': periode,
         'date_debut': date_debut,
         'date_fin': date_fin,
         'ca_total': ca_total,
+        'ca_paiements_total': ca_paiements_total,
+        'ca_cartes_vendues_total': ca_cartes_vendues_total,
         'rdv_periode': rdv_periode,
         'rdv_valides_periode': rdv_valides_periode,
         'total_credits': total_credits,
@@ -290,6 +388,11 @@ def index(request):
         'forfaits_seances_restantes': forfaits_actifs['seances_restantes'] or 0,
         'seances_forfait_effectuees': seances_effectuees_periode,
         'forfaits_recents': forfaits_recents,
+        # CA global par paiement
+        'ca_par_paiement_json': json.dumps(ca_par_paiement),
+        # Clôtures et écarts
+        'clotures_periode': clotures_periode,
+        'total_ecart_periode': total_ecart_periode,
     }
 
     return render(request, 'dashboard/dashboard.html', context)

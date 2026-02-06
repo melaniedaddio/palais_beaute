@@ -130,7 +130,7 @@ def api_prestations(request, institut_code):
         famille__institut=institut,
         actif=True
     ).select_related('famille').values(
-        'id', 'nom', 'prix', 'duree', 'famille_id', 'famille__nom'
+        'id', 'nom', 'prix', 'duree', 'famille_id', 'famille__nom', 'type_prestation', 'nombre_seances'
     )
 
     return JsonResponse(list(prestations), safe=False)

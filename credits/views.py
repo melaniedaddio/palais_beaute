@@ -8,7 +8,7 @@ from decimal import Decimal
 import json
 
 from core.decorators import institut_required
-from core.models import Institut, Client, Credit, Paiement, PaiementCredit
+from core.models import Institut, Client, Credit, Paiement, PaiementCredit, CarteCadeau, UtilisationCarteCadeau
 
 
 @login_required
@@ -115,6 +115,7 @@ def regler_credit(request, institut_code, credit_id):
         # Récupérer les données
         montant = Decimal(request.POST.get('montant', 0))
         mode_paiement = request.POST.get('mode', 'especes')
+        carte_cadeau_id = request.POST.get('carte_cadeau_id')
 
         # Validation
         if montant <= 0:
@@ -129,12 +130,54 @@ def regler_credit(request, institut_code, credit_id):
                 'message': f'Le montant ne peut pas dépasser le reste à payer ({credit.reste_a_payer} CFA)'
             }, status=400)
 
+        utilisation = None
+
+        # Traitement spécial pour carte cadeau
+        if mode_paiement == 'carte_cadeau':
+            if not carte_cadeau_id:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Veuillez sélectionner une carte cadeau'
+                }, status=400)
+
+            # Récupérer et valider la carte cadeau
+            carte = CarteCadeau.objects.filter(
+                id=carte_cadeau_id,
+                beneficiaire=credit.client,
+                statut='active'
+            ).first()
+
+            if not carte:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Carte cadeau non trouvée ou non valide pour ce client'
+                }, status=400)
+
+            if carte.solde < int(montant):
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Solde insuffisant sur la carte cadeau ({carte.solde} CFA disponibles)'
+                }, status=400)
+
+            # Créer l'utilisation de la carte cadeau
+            utilisation = UtilisationCarteCadeau.objects.create(
+                carte=carte,
+                rendez_vous=credit.rendez_vous,
+                montant=int(montant),
+                institut=institut,
+                enregistre_par=request.user.utilisateur,
+            )
+
+            # Débiter la carte
+            carte.utiliser(int(montant))
+
         # Créer le paiement (le save() du modèle PaiementCredit met à jour automatiquement le crédit)
         paiement = PaiementCredit.objects.create(
             credit=credit,
             montant=int(montant),
             mode=mode_paiement,
-            enregistre_par=request.user.utilisateur
+            enregistre_par=request.user.utilisateur,
+            utilisation_carte_cadeau=utilisation
         )
 
         # Recharger le crédit pour obtenir les valeurs à jour
