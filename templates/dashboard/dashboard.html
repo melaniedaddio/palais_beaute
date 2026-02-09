@@ -481,15 +481,37 @@
 <!-- Stats globales -->
 <div class="stats-grid">
     <div class="stat-card success">
-        <div class="stat-label">Chiffre d'affaires</div>
+        <div class="stat-label">CA encaissé</div>
         <div class="stat-value">{{ ca_total|floatformat:0 }} <span class="stat-unit">CFA</span></div>
         {% if ca_cartes_vendues_total > 0 %}
         <div style="font-size: 0.7em; color: var(--text-light); margin-top: 5px;">
             dont {{ ca_cartes_vendues_total|floatformat:0 }} CFA de cartes cadeaux vendues
         </div>
         {% endif %}
+        {% if ca_credits_total > 0 %}
+        <div style="font-size: 0.7em; color: var(--text-light); margin-top: 3px;">
+            dont {{ ca_credits_total|floatformat:0 }} CFA de crédits encaissés
+        </div>
+        {% endif %}
+        {% if ca_forfaits_total > 0 %}
+        <div style="font-size: 0.7em; color: var(--text-light); margin-top: 3px;">
+            dont {{ ca_forfaits_total|floatformat:0 }} CFA de forfaits vendus
+        </div>
+        {% endif %}
     </div>
-    <div class="stat-card warning">
+    {% if ca_credits_total > 0 %}
+    <div class="stat-card" style="border-left: 4px solid #4a90d9;">
+        <div class="stat-label">Crédits encaissés</div>
+        <div class="stat-value">{{ ca_credits_total|floatformat:0 }} <span class="stat-unit">CFA</span></div>
+    </div>
+    {% endif %}
+    {% if ca_forfaits_total > 0 %}
+    <div class="stat-card" style="border-left: 4px solid #9b59b6;">
+        <div class="stat-label">Forfaits vendus</div>
+        <div class="stat-value" style="color: #9b59b6;">{{ ca_forfaits_total|floatformat:0 }} <span class="stat-unit">CFA</span></div>
+    </div>
+    {% endif %}
+    <div class="stat-card danger">
         <div class="stat-label">Crédits en cours</div>
         <div class="stat-value">{{ total_credits|floatformat:0 }} <span class="stat-unit">CFA</span></div>
     </div>
@@ -526,11 +548,33 @@
                         dont {{ stat.ca_cartes_vendues|floatformat:0 }} cartes cadeaux
                     </div>
                     {% endif %}
+                    {% if stat.ca_credits > 0 %}
+                    <div style="font-size: 0.7em; opacity: 0.8; margin-top: 3px;">
+                        dont {{ stat.ca_credits|floatformat:0 }} crédits encaissés
+                    </div>
+                    {% endif %}
+                    {% if stat.ca_forfaits > 0 %}
+                    <div style="font-size: 0.7em; opacity: 0.8; margin-top: 3px;">
+                        dont {{ stat.ca_forfaits|floatformat:0 }} forfaits vendus
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="institut-stat">
                     <div class="institut-stat-label">{% if stat.institut.code == 'express' %}Ventes{% else %}RDV{% endif %} validé(e)s</div>
                     <div class="institut-stat-value">{{ stat.rdv_count }}</div>
                 </div>
+                {% if stat.ca_credits > 0 %}
+                <div class="institut-stat">
+                    <div class="institut-stat-label">Crédits encaissés</div>
+                    <div class="institut-stat-value" style="color: #4a90d9;">{{ stat.ca_credits|floatformat:0 }}</div>
+                </div>
+                {% endif %}
+                {% if stat.credits_en_cours > 0 %}
+                <div class="institut-stat">
+                    <div class="institut-stat-label">Crédits en cours</div>
+                    <div class="institut-stat-value" style="color: #dc3545;">{{ stat.credits_en_cours|floatformat:0 }}</div>
+                </div>
+                {% endif %}
                 {% if stat.nb_clotures > 0 %}
                 <div class="institut-stat">
                     <div class="institut-stat-label">Total du jour</div>
@@ -603,6 +647,7 @@
 
 <!-- Graphiques -->
 <div class="dashboard-grid">
+    {% if periode != 'jour' %}
     <div class="dashboard-card">
         <div class="dashboard-card-header">
             <h2 class="dashboard-card-title">Evolution du CA</h2>
@@ -611,6 +656,7 @@
             <canvas id="chartCA"></canvas>
         </div>
     </div>
+    {% endif %}
 
     <div class="dashboard-card">
         <div class="dashboard-card-header">
@@ -914,41 +960,44 @@ document.addEventListener('DOMContentLoaded', function() {
     fetch('{% url "dashboard:api_stats" %}?periode=' + periode)
         .then(response => response.json())
         .then(data => {
-            // Graphique Evolution du CA
-            const ctxCA = document.getElementById('chartCA').getContext('2d');
-            new Chart(ctxCA, {
-                type: 'line',
-                data: {
-                    labels: data.ca_evolution.map(d => d.date),
-                    datasets: [{
-                        label: 'CA (CFA)',
-                        data: data.ca_evolution.map(d => d.ca),
-                        borderColor: '#667eea',
-                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                        fill: true,
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
+            // Graphique Evolution du CA (masqué pour la vue jour)
+            const chartCAElement = document.getElementById('chartCA');
+            if (chartCAElement) {
+                const ctxCA = chartCAElement.getContext('2d');
+                new Chart(ctxCA, {
+                    type: 'line',
+                    data: {
+                        labels: data.ca_evolution.map(d => d.date),
+                        datasets: [{
+                            label: 'CA (CFA)',
+                            data: data.ca_evolution.map(d => d.ca),
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }]
                     },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: function(value) {
-                                    return value.toLocaleString('fr-FR') + ' CFA';
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return value.toLocaleString('fr-FR') + ' CFA';
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            });
+                });
+            }
 
             // Graphique CA par institut
             const ctxInstituts = document.getElementById('chartInstituts').getContext('2d');
@@ -1008,16 +1057,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const dataPaiementsGlobal = {{ ca_par_paiement_json|safe }};
     if (dataPaiementsGlobal && dataPaiementsGlobal.length > 0) {
         const ctxPaiementsGlobal = document.getElementById('chartPaiementsGlobal').getContext('2d');
-        const colorsPaiementsGlobal = [
-            'rgba(102, 126, 234, 0.8)',  // Bleu pour Espèces
-            'rgba(232, 180, 184, 0.8)',  // Rose pour Carte
-            'rgba(201, 168, 106, 0.8)',  // Or pour Chèque
-            'rgba(152, 212, 187, 0.8)',  // Vert pour Orange Money
-            'rgba(184, 169, 201, 0.8)',  // Violet pour Wave
-            'rgba(245, 195, 150, 0.8)',  // Orange pour Carte cadeau
-            'rgba(139, 90, 90, 0.8)',    // Marron pour Forfait
-            'rgba(126, 200, 200, 0.8)'   // Cyan pour Offert
-        ];
+        const colorMapGlobal = {
+            'Espèces': 'rgba(102, 126, 234, 0.8)',
+            'Carte': 'rgba(232, 180, 184, 0.8)',
+            'Chèque': 'rgba(201, 168, 106, 0.8)',
+            'Orange Money': 'rgba(152, 212, 187, 0.8)',
+            'Wave': 'rgba(184, 169, 201, 0.8)',
+            'Carte cadeau': 'rgba(245, 195, 150, 0.8)',
+            'Forfait': 'rgba(139, 90, 90, 0.8)',
+            'Offert': 'rgba(126, 200, 200, 0.8)'
+        };
+        const colorsPaiementsGlobal = dataPaiementsGlobal.map(p => colorMapGlobal[p.mode] || 'rgba(180, 180, 180, 0.8)');
 
         new Chart(ctxPaiementsGlobal, {
             type: 'doughnut',

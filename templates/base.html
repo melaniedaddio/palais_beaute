@@ -1100,16 +1100,6 @@
                         </div>
 
                         <div class="nav-section">
-                            <div class="nav-section-title">Clôture Caisse</div>
-                            <a href="{% url 'agenda:cloture_caisse' institut_code='palais' %}" class="nav-item">
-                                Clôture Le Palais
-                            </a>
-                            <a href="{% url 'agenda:cloture_caisse' institut_code='klinic' %}" class="nav-item">
-                                Clôture La Klinic
-                            </a>
-                        </div>
-
-                        <div class="nav-section">
                             <div class="nav-section-title">Gestion</div>
                             <a href="{% url 'gestion:catalogue' %}" class="nav-item {% if request.resolver_match.app_name == 'gestion' %}active{% endif %}">
                                 Catalogue
@@ -1164,11 +1154,6 @@
                             <a href="{% url 'credits:index' institut_code=request.user.utilisateur.institut.code %}" class="nav-item">
                                 Crédits
                             </a>
-                            {% if request.user.utilisateur.institut.code != 'express' %}
-                            <a href="{% url 'agenda:cloture_caisse' institut_code=request.user.utilisateur.institut.code %}" class="nav-item">
-                                Clôture Caisse
-                            </a>
-                            {% endif %}
                         </div>
                     {% endif %}
                 {% endif %}

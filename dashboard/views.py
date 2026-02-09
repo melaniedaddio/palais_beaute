@@ -3,7 +3,8 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date as dt_date
+from calendar import monthrange
 from core.decorators import role_required
 from core.models import (
     Institut, Client, RendezVous, Paiement, Credit, PaiementCredit,
@@ -55,69 +56,106 @@ def index(request):
 
     # Stats globales - CA total (tous paiements RDV validés)
     # Pour Express : n'inclure que les jours clôturés
-    paiements_query = Paiement.objects.filter(
+    base_paiements = Paiement.objects.filter(
         rendez_vous__date__range=[date_debut, date_fin],
         rendez_vous__statut='valide'
     )
 
-    # Exclure Express si pas de dates clôturées
     if express:
+        # Non-Express
+        ca_paiements_non_express = base_paiements.exclude(
+            rendez_vous__institut=express
+        ).aggregate(total=Sum('montant'))['total'] or 0
+        # Express : uniquement dates clôturées
+        ca_paiements_express = 0
         if dates_cloturees_express:
-            # Inclure Express uniquement pour les dates clôturées
-            paiements_query = paiements_query.filter(
-                Q(~Q(rendez_vous__institut=express)) |
-                Q(rendez_vous__institut=express, rendez_vous__date__in=dates_cloturees_express)
+            ca_paiements_express = base_paiements.filter(
+                rendez_vous__institut=express,
+                rendez_vous__date__in=dates_cloturees_express
+            ).aggregate(total=Sum('montant'))['total'] or 0
+        ca_paiements_total = ca_paiements_non_express + ca_paiements_express
+        # Garder la query complète pour le graphique par mode de paiement
+        if dates_cloturees_express:
+            paiements_query = base_paiements.exclude(
+                rendez_vous__institut=express
+            ) | base_paiements.filter(
+                rendez_vous__institut=express,
+                rendez_vous__date__in=dates_cloturees_express
             )
         else:
-            # Pas de dates clôturées : exclure complètement Express
-            paiements_query = paiements_query.exclude(rendez_vous__institut=express)
-
-    ca_paiements_total = paiements_query.aggregate(total=Sum('montant'))['total'] or 0
+            paiements_query = base_paiements.exclude(rendez_vous__institut=express)
+    else:
+        ca_paiements_total = base_paiements.aggregate(total=Sum('montant'))['total'] or 0
+        paiements_query = base_paiements
 
     # Cartes cadeaux vendues dans la période (ajoutées au CA total)
-    cartes_query = CarteCadeau.objects.filter(
+    base_cartes = CarteCadeau.objects.filter(
         date_achat__date__gte=date_debut,
         date_achat__date__lte=date_fin,
         statut__in=['active', 'soldee']
     )
     if express:
+        ca_cartes_non_express = base_cartes.exclude(
+            institut_achat=express
+        ).aggregate(total=Sum('montant_initial'))['total'] or 0
+        ca_cartes_express = 0
         if dates_cloturees_express:
-            # Inclure Express uniquement pour les dates clôturées
-            cartes_query = cartes_query.filter(
-                Q(~Q(institut_achat=express)) |
-                Q(institut_achat=express, date_achat__date__in=dates_cloturees_express)
-            )
-        else:
-            # Pas de dates clôturées : exclure complètement Express
-            cartes_query = cartes_query.exclude(institut_achat=express)
+            ca_cartes_express = base_cartes.filter(
+                institut_achat=express,
+                date_achat__date__in=dates_cloturees_express
+            ).aggregate(total=Sum('montant_initial'))['total'] or 0
+        ca_cartes_vendues_total = ca_cartes_non_express + ca_cartes_express
+    else:
+        ca_cartes_vendues_total = base_cartes.aggregate(total=Sum('montant_initial'))['total'] or 0
 
-    ca_cartes_vendues_total = cartes_query.aggregate(total=Sum('montant_initial'))['total'] or 0
-    ca_total = ca_paiements_total + ca_cartes_vendues_total
+    # Crédits encaissés dans la période
+    # Non-Express : filtre par plage de dates
+    ca_credits_non_express = PaiementCredit.objects.filter(
+        date__date__gte=date_debut,
+        date__date__lte=date_fin
+    ).exclude(credit__institut=express).aggregate(total=Sum('montant'))['total'] or 0 if express else \
+        PaiementCredit.objects.filter(
+            date__date__gte=date_debut,
+            date__date__lte=date_fin
+        ).aggregate(total=Sum('montant'))['total'] or 0
+
+    # Express : uniquement les dates clôturées
+    ca_credits_express = 0
+    if express and dates_cloturees_express:
+        ca_credits_express = PaiementCredit.objects.filter(
+            credit__institut=express,
+            date__date__in=dates_cloturees_express
+        ).aggregate(total=Sum('montant'))['total'] or 0
+
+    ca_credits_total = ca_credits_non_express + ca_credits_express
+
+    # Forfaits vendus dans la période (montant encaissé à l'achat)
+    # Les forfaits sont uniquement pour La Klinic (pas d'Express)
+    ca_forfaits_total = ForfaitClient.objects.filter(
+        date_achat__date__gte=date_debut,
+        date_achat__date__lte=date_fin
+    ).aggregate(total=Sum('montant_paye_initial'))['total'] or 0
+
+    ca_total = ca_paiements_total + ca_cartes_vendues_total + ca_credits_total + ca_forfaits_total
 
     # RDV de la période sélectionnée
     # Pour Express : n'inclure que les jours clôturés
-    rdv_query = RendezVous.objects.filter(date__range=[date_debut, date_fin])
-    rdv_valides_query = RendezVous.objects.filter(
-        date__range=[date_debut, date_fin],
-        statut='valide'
-    )
+    base_rdv = RendezVous.objects.filter(date__range=[date_debut, date_fin])
+    base_rdv_valides = base_rdv.filter(statut='valide')
 
     if express:
+        rdv_non_express = base_rdv.exclude(institut=express).count()
+        rdv_valides_non_express = base_rdv_valides.exclude(institut=express).count()
+        rdv_express = 0
+        rdv_valides_express = 0
         if dates_cloturees_express:
-            rdv_query = rdv_query.filter(
-                Q(~Q(institut=express)) |
-                Q(institut=express, date__in=dates_cloturees_express)
-            )
-            rdv_valides_query = rdv_valides_query.filter(
-                Q(~Q(institut=express)) |
-                Q(institut=express, date__in=dates_cloturees_express)
-            )
-        else:
-            rdv_query = rdv_query.exclude(institut=express)
-            rdv_valides_query = rdv_valides_query.exclude(institut=express)
-
-    rdv_periode = rdv_query.count()
-    rdv_valides_periode = rdv_valides_query.count()
+            rdv_express = base_rdv.filter(institut=express, date__in=dates_cloturees_express).count()
+            rdv_valides_express = base_rdv_valides.filter(institut=express, date__in=dates_cloturees_express).count()
+        rdv_periode = rdv_non_express + rdv_express
+        rdv_valides_periode = rdv_valides_non_express + rdv_valides_express
+    else:
+        rdv_periode = base_rdv.count()
+        rdv_valides_periode = base_rdv_valides.count()
 
     # Crédits en cours
     credits_en_cours = Credit.objects.filter(solde=False).aggregate(
@@ -130,21 +168,23 @@ def index(request):
 
     # Clients actifs (ayant eu un RDV sur la période)
     # Pour Express : n'inclure que les jours clôturés
-    clients_actifs_query = RendezVous.objects.filter(
+    base_clients_actifs = RendezVous.objects.filter(
         date__range=[date_debut, date_fin],
         statut='valide'
     )
 
     if express:
+        clients_non_express = set(base_clients_actifs.exclude(
+            institut=express
+        ).values_list('client', flat=True))
+        clients_express = set()
         if dates_cloturees_express:
-            clients_actifs_query = clients_actifs_query.filter(
-                Q(~Q(institut=express)) |
-                Q(institut=express, date__in=dates_cloturees_express)
-            )
-        else:
-            clients_actifs_query = clients_actifs_query.exclude(institut=express)
-
-    clients_actifs = clients_actifs_query.values('client').distinct().count()
+            clients_express = set(base_clients_actifs.filter(
+                institut=express, date__in=dates_cloturees_express
+            ).values_list('client', flat=True))
+        clients_actifs = len(clients_non_express | clients_express)
+    else:
+        clients_actifs = base_clients_actifs.values('client').distinct().count()
 
     # Stats par institut
     stats_par_institut = []
@@ -166,7 +206,14 @@ def index(request):
                     statut__in=['active', 'soldee']
                 ).aggregate(total=Sum('montant_initial'))['total'] or 0
 
-                ca_institut = ca_paiements + ca_cartes_vendues
+                # Crédits encaissés (dates clôturées)
+                ca_credits = PaiementCredit.objects.filter(
+                    credit__institut=institut,
+                    date__date__in=dates_cloturees_express
+                ).aggregate(total=Sum('montant'))['total'] or 0
+
+                ca_forfaits = 0  # Pas de forfaits pour Express
+                ca_institut = ca_paiements + ca_cartes_vendues + ca_credits
 
                 # Nombre de RDV validés (seulement dates clôturées)
                 rdv_count = RendezVous.objects.filter(
@@ -178,6 +225,8 @@ def index(request):
                 # Pas de dates clôturées : CA et RDV à 0
                 ca_paiements = 0
                 ca_cartes_vendues = 0
+                ca_credits = 0
+                ca_forfaits = 0
                 ca_institut = 0
                 rdv_count = 0
         else:
@@ -196,7 +245,21 @@ def index(request):
                 statut__in=['active', 'soldee']
             ).aggregate(total=Sum('montant_initial'))['total'] or 0
 
-            ca_institut = ca_paiements + ca_cartes_vendues
+            # Crédits encaissés dans cet institut
+            ca_credits = PaiementCredit.objects.filter(
+                credit__institut=institut,
+                date__date__gte=date_debut,
+                date__date__lte=date_fin
+            ).aggregate(total=Sum('montant'))['total'] or 0
+
+            # Forfaits vendus dans cet institut (encaissé à l'achat)
+            ca_forfaits = ForfaitClient.objects.filter(
+                institut=institut,
+                date_achat__date__gte=date_debut,
+                date_achat__date__lte=date_fin
+            ).aggregate(total=Sum('montant_paye_initial'))['total'] or 0
+
+            ca_institut = ca_paiements + ca_cartes_vendues + ca_credits + ca_forfaits
 
             rdv_count = RendezVous.objects.filter(
                 institut=institut,
@@ -229,11 +292,20 @@ def index(request):
         nb_clotures = clotures_jour.count()
         derniere_cloture = clotures_jour.order_by('-date_cloture').first()
 
+        # Crédits en cours pour cet institut
+        credits_institut = Credit.objects.filter(institut=institut, solde=False).aggregate(
+            total=Sum('montant_total') - Sum('montant_paye')
+        )
+        credits_en_cours_institut = credits_institut['total'] or 0
+
         stats_par_institut.append({
             'institut': institut,
             'ca': ca_institut,
             'ca_paiements': ca_paiements,
             'ca_cartes_vendues': ca_cartes_vendues,
+            'ca_credits': ca_credits,
+            'ca_forfaits': ca_forfaits,
+            'credits_en_cours': credits_en_cours_institut,
             'rdv_count': rdv_count,
             'cloture': derniere_cloture,  # Pour compatibilité
             'clotures': clotures_jour,
@@ -340,14 +412,8 @@ def index(request):
             'ca': float(p['ca_total']) if p['ca_total'] else 0
         }
         for p in ca_par_paiement_query
+        if p['ca_total'] and p['ca_total'] > 0
     ]
-
-    # Ajouter les ventes de cartes cadeaux au graphique par mode de paiement
-    if ca_cartes_vendues_total > 0:
-        ca_par_paiement.append({
-            'mode': 'Ventes cartes cadeaux',
-            'ca': float(ca_cartes_vendues_total)
-        })
 
     # Clôtures de la période avec écarts
     clotures_periode = ClotureCaisse.objects.filter(
@@ -365,6 +431,8 @@ def index(request):
         'ca_total': ca_total,
         'ca_paiements_total': ca_paiements_total,
         'ca_cartes_vendues_total': ca_cartes_vendues_total,
+        'ca_credits_total': ca_credits_total,
+        'ca_forfaits_total': ca_forfaits_total,
         'rdv_periode': rdv_periode,
         'rdv_valides_periode': rdv_valides_periode,
         'total_credits': total_credits,
@@ -406,26 +474,25 @@ def api_stats_chart(request):
     periode = request.GET.get('periode', 'mois')
 
     # Définir les dates et la granularité selon la période
+    # IMPORTANT : mêmes plages que le dashboard index pour cohérence des totaux
     if periode == 'jour':
-        # Aujourd'hui par heure (on montre juste le total)
         date_debut = today
         date_fin = today
         labels = ['Aujourd\'hui']
         dates = [today]
     elif periode == 'semaine':
-        # 7 derniers jours
-        date_debut = today - timedelta(days=6)
+        date_debut = today - timedelta(days=today.weekday())
         date_fin = today
-        dates = [today - timedelta(days=i) for i in range(6, -1, -1)]
+        nb_jours = (date_fin - date_debut).days
+        dates = [date_debut + timedelta(days=i) for i in range(nb_jours + 1)]
         labels = [d.strftime('%d/%m') for d in dates]
     elif periode == 'mois':
-        # 30 derniers jours
-        date_debut = today - timedelta(days=29)
+        date_debut = today.replace(day=1)
         date_fin = today
-        dates = [today - timedelta(days=i) for i in range(29, -1, -1)]
+        nb_jours = (date_fin - date_debut).days
+        dates = [date_debut + timedelta(days=i) for i in range(nb_jours + 1)]
         labels = [d.strftime('%d/%m') for d in dates]
     else:  # annee
-        # 12 derniers mois
         date_debut = today.replace(month=1, day=1)
         date_fin = today
         labels = []
@@ -446,47 +513,92 @@ def api_stats_chart(request):
             ).values_list('date', flat=True)
         )
 
-    # Données CA évolution
-    data_ca = []
-    if periode == 'annee':
-        # Par mois
-        for year, month in dates:
-            from calendar import monthrange
-            last_day = monthrange(year, month)[1]
-            if month == today.month and year == today.year:
-                last_day = today.day
-
-            # Pour Express : n'inclure que les jours clôturés du mois
-            paiements = Paiement.objects.filter(
-                rendez_vous__date__year=year,
-                rendez_vous__date__month=month,
-                rendez_vous__date__day__lte=last_day,
-                rendez_vous__statut='valide'
-            )
-
-            if express and dates_cloturees_express:
-                paiements = paiements.filter(
+    # Fonction utilitaire pour calculer le CA total d'une date ou période
+    def calculer_ca_complet(d_debut, d_fin, institut_filter=None):
+        """Calcule le CA complet (paiements + cartes + crédits + forfaits)."""
+        # Paiements RDV
+        paiements_qs = Paiement.objects.filter(
+            rendez_vous__date__range=[d_debut, d_fin],
+            rendez_vous__statut='valide'
+        )
+        if institut_filter:
+            paiements_qs = paiements_qs.filter(rendez_vous__institut=institut_filter)
+            # Express : seulement dates clôturées
+            if institut_filter.code == 'express' and dates_cloturees_express:
+                paiements_qs = paiements_qs.filter(rendez_vous__date__in=dates_cloturees_express)
+        elif express:
+            if dates_cloturees_express:
+                paiements_qs = paiements_qs.filter(
                     Q(~Q(rendez_vous__institut=express)) |
                     Q(rendez_vous__institut=express, rendez_vous__date__in=dates_cloturees_express)
                 )
-            elif express:
-                paiements = paiements.exclude(rendez_vous__institut=express)
+            else:
+                paiements_qs = paiements_qs.exclude(rendez_vous__institut=express)
+        ca_paiements = paiements_qs.aggregate(total=Sum('montant'))['total'] or 0
 
-            ca = paiements.aggregate(total=Sum('montant'))['total'] or 0
+        # Cartes cadeaux vendues
+        cartes_qs = CarteCadeau.objects.filter(
+            statut__in=['active', 'soldee'],
+            date_achat__date__gte=d_debut,
+            date_achat__date__lte=d_fin
+        )
+        credits_qs = PaiementCredit.objects.filter(
+            date__date__gte=d_debut,
+            date__date__lte=d_fin
+        )
+        forfaits_qs = ForfaitClient.objects.filter(
+            date_achat__date__gte=d_debut,
+            date_achat__date__lte=d_fin
+        )
+
+        if institut_filter:
+            cartes_qs = cartes_qs.filter(institut_achat=institut_filter)
+            credits_qs = credits_qs.filter(credit__institut=institut_filter)
+            forfaits_qs = forfaits_qs.filter(institut=institut_filter)
+
+            if institut_filter.code == 'express':
+                if dates_cloturees_express:
+                    ca_cartes = cartes_qs.filter(date_achat__date__in=dates_cloturees_express).aggregate(total=Sum('montant_initial'))['total'] or 0
+                    ca_credits = credits_qs.filter(date__date__in=dates_cloturees_express).aggregate(total=Sum('montant'))['total'] or 0
+                else:
+                    ca_cartes = 0
+                    ca_credits = 0
+                ca_forfaits = 0  # Pas de forfaits pour Express
+            else:
+                ca_cartes = cartes_qs.aggregate(total=Sum('montant_initial'))['total'] or 0
+                ca_credits = credits_qs.aggregate(total=Sum('montant'))['total'] or 0
+                ca_forfaits = forfaits_qs.aggregate(total=Sum('montant_paye_initial'))['total'] or 0
+        elif express:
+            if dates_cloturees_express:
+                ca_cartes = (cartes_qs.exclude(institut_achat=express).aggregate(total=Sum('montant_initial'))['total'] or 0) + \
+                    (cartes_qs.filter(institut_achat=express, date_achat__date__in=dates_cloturees_express).aggregate(total=Sum('montant_initial'))['total'] or 0)
+                ca_credits = (credits_qs.exclude(credit__institut=express).aggregate(total=Sum('montant'))['total'] or 0) + \
+                    (credits_qs.filter(credit__institut=express, date__date__in=dates_cloturees_express).aggregate(total=Sum('montant'))['total'] or 0)
+            else:
+                ca_cartes = cartes_qs.exclude(institut_achat=express).aggregate(total=Sum('montant_initial'))['total'] or 0
+                ca_credits = credits_qs.exclude(credit__institut=express).aggregate(total=Sum('montant'))['total'] or 0
+            ca_forfaits = forfaits_qs.aggregate(total=Sum('montant_paye_initial'))['total'] or 0
+        else:
+            ca_cartes = cartes_qs.aggregate(total=Sum('montant_initial'))['total'] or 0
+            ca_credits = credits_qs.aggregate(total=Sum('montant'))['total'] or 0
+            ca_forfaits = forfaits_qs.aggregate(total=Sum('montant_paye_initial'))['total'] or 0
+
+        return ca_paiements + ca_cartes + ca_credits + ca_forfaits
+
+    # Données CA évolution
+    data_ca = []
+    if periode == 'annee':
+        for year, month in dates:
+            last_day = monthrange(year, month)[1]
+            if month == today.month and year == today.year:
+                last_day = today.day
+            d_debut_mois = dt_date(year, month, 1)
+            d_fin_mois = dt_date(year, month, last_day)
+            ca = calculer_ca_complet(d_debut_mois, d_fin_mois)
             data_ca.append({'date': f'{month:02d}/{year}', 'ca': ca})
     else:
-        # Par jour
         for i, date in enumerate(dates):
-            paiements = Paiement.objects.filter(
-                rendez_vous__date=date,
-                rendez_vous__statut='valide'
-            )
-
-            # Pour Express : n'inclure que si date clôturée
-            if express and date not in dates_cloturees_express:
-                paiements = paiements.exclude(rendez_vous__institut=express)
-
-            ca = paiements.aggregate(total=Sum('montant'))['total'] or 0
+            ca = calculer_ca_complet(date, date)
             data_ca.append({'date': labels[i], 'ca': ca})
 
     # CA par institut
@@ -497,52 +609,24 @@ def api_stats_chart(request):
         data_instituts[institut.nom] = []
         if periode == 'annee':
             for year, month in dates:
-                from calendar import monthrange
                 last_day = monthrange(year, month)[1]
                 if month == today.month and year == today.year:
                     last_day = today.day
 
-                # Pour Express : n'inclure que les jours clôturés
-                if institut.code == 'express':
-                    if dates_cloturees_express:
-                        ca = Paiement.objects.filter(
-                            rendez_vous__institut=institut,
-                            rendez_vous__date__year=year,
-                            rendez_vous__date__month=month,
-                            rendez_vous__date__day__lte=last_day,
-                            rendez_vous__date__in=dates_cloturees_express,
-                            rendez_vous__statut='valide'
-                        ).aggregate(total=Sum('montant'))['total'] or 0
-                    else:
-                        ca = 0
+                if institut.code == 'express' and not dates_cloturees_express:
+                    ca = 0
                 else:
-                    ca = Paiement.objects.filter(
-                        rendez_vous__institut=institut,
-                        rendez_vous__date__year=year,
-                        rendez_vous__date__month=month,
-                        rendez_vous__date__day__lte=last_day,
-                        rendez_vous__statut='valide'
-                    ).aggregate(total=Sum('montant'))['total'] or 0
+                    d_debut_mois = dt_date(year, month, 1)
+                    d_fin_mois = dt_date(year, month, last_day)
+                    ca = calculer_ca_complet(d_debut_mois, d_fin_mois, institut)
 
                 data_instituts[institut.nom].append(ca)
         else:
             for date in dates:
-                # Pour Express : n'inclure que si date clôturée
-                if institut.code == 'express':
-                    if date in dates_cloturees_express:
-                        ca = Paiement.objects.filter(
-                            rendez_vous__institut=institut,
-                            rendez_vous__date=date,
-                            rendez_vous__statut='valide'
-                        ).aggregate(total=Sum('montant'))['total'] or 0
-                    else:
-                        ca = 0
+                if institut.code == 'express' and date not in dates_cloturees_express:
+                    ca = 0
                 else:
-                    ca = Paiement.objects.filter(
-                        rendez_vous__institut=institut,
-                        rendez_vous__date=date,
-                        rendez_vous__statut='valide'
-                    ).aggregate(total=Sum('montant'))['total'] or 0
+                    ca = calculer_ca_complet(date, date, institut)
 
                 data_instituts[institut.nom].append(ca)
 

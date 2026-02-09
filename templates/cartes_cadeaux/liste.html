@@ -919,8 +919,53 @@ async function creerNouveauClient() {
 
             showSuccess('Client créé avec succès');
             fermerModalNouveauClient();
+        } else if (data.name_duplicate && data.existing_client) {
+            // Doublon potentiel par nom+prénom
+            if (confirm(data.message + '\n\nVoulez-vous quand même créer ce client ?')) {
+                formData.append('confirmer_doublon', '1');
+                const resp2 = await fetch('/api/clients/creer/', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                    body: formData
+                });
+                const data2 = await resp2.json();
+                if (data2.success) {
+                    const fullName2 = prenom + ' ' + nom;
+                    if (type === 'acheteur') {
+                        document.getElementById('acheteurId').value = data2.client_id;
+                        document.getElementById('acheteurSelected').textContent = fullName2 + ' - ' + telephone;
+                        document.getElementById('acheteurSelected').style.display = 'block';
+                        document.getElementById('searchAcheteur').value = '';
+                    } else if (type === 'beneficiaire') {
+                        document.getElementById('beneficiaireId').value = data2.client_id;
+                        document.getElementById('beneficiaireSelected').textContent = fullName2 + ' - ' + telephone;
+                        document.getElementById('beneficiaireSelected').style.display = 'block';
+                        document.getElementById('searchBeneficiaire').value = '';
+                    }
+                    showSuccess('Client créé avec succès');
+                    fermerModalNouveauClient();
+                } else {
+                    errorDiv.textContent = data2.message;
+                    errorDiv.style.display = 'block';
+                }
+            } else {
+                // Utiliser le client existant
+                const client = data.existing_client;
+                if (type === 'acheteur') {
+                    document.getElementById('acheteurId').value = client.id;
+                    document.getElementById('acheteurSelected').textContent = client.full_name + ' - ' + client.telephone;
+                    document.getElementById('acheteurSelected').style.display = 'block';
+                    document.getElementById('searchAcheteur').value = '';
+                } else if (type === 'beneficiaire') {
+                    document.getElementById('beneficiaireId').value = client.id;
+                    document.getElementById('beneficiaireSelected').textContent = client.full_name + ' - ' + client.telephone;
+                    document.getElementById('beneficiaireSelected').style.display = 'block';
+                    document.getElementById('searchBeneficiaire').value = '';
+                }
+                fermerModalNouveauClient();
+            }
         } else if (data.duplicate && data.existing_client) {
-            // Client existant trouvé - proposer de l'utiliser
+            // Client existant trouvé (même téléphone) - proposer de l'utiliser
             showWarning(data.message);
             if (confirm('Voulez-vous utiliser ce client existant ?')) {
                 const client = data.existing_client;

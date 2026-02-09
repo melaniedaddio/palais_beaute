@@ -8,7 +8,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.db.models import Q
 from django.utils import timezone
-from .models import Utilisateur, Client, Employe, Institut, CarteCadeau, UtilisationCarteCadeau, ForfaitClient, RendezVous
+from .models import Utilisateur, Client, Employe, Institut, CarteCadeau, UtilisationCarteCadeau, ForfaitClient, RendezVous, Credit
 from .decorators import role_required
 import re
 
@@ -61,11 +61,46 @@ def trouver_client_existant(nom, prenom, telephone):
     return None
 
 
+def trouver_doublon_nom(nom, prenom):
+    """
+    Recherche un client existant avec le même nom ET prénom normalisés (indépendamment du téléphone).
+    Retourne le client existant ou None.
+    """
+    nom_normalise = normaliser_nom(nom)
+    prenom_normalise = normaliser_nom(prenom)
+
+    for client in Client.objects.all():
+        if normaliser_nom(client.nom) == nom_normalise and normaliser_nom(client.prenom) == prenom_normalise:
+            return client
+
+    return None
+
+
 def login_view(request):
     """
     Page de connexion avec code PIN à 6 chiffres
     """
+    MAX_TENTATIVES = 5
+    DUREE_BLOCAGE = 300  # 5 minutes en secondes
+
     if request.method == 'POST':
+        # Rate limiting : vérifier les tentatives échouées
+        tentatives = request.session.get('login_tentatives', 0)
+        blocage_jusqu = request.session.get('login_blocage_jusqu', None)
+
+        if blocage_jusqu:
+            temps_restant = blocage_jusqu - timezone.now().timestamp()
+            if temps_restant > 0:
+                minutes = int(temps_restant // 60) + 1
+                messages.error(request, f'Trop de tentatives. Réessayez dans {minutes} minute(s).')
+                utilisateurs = Utilisateur.objects.filter(actif=True).select_related('user', 'institut').order_by('user__username')
+                return render(request, 'login.html', {'utilisateurs': utilisateurs})
+            else:
+                # Blocage expiré, réinitialiser
+                request.session['login_tentatives'] = 0
+                request.session['login_blocage_jusqu'] = None
+                tentatives = 0
+
         user_id = request.POST.get('user_id')
         pin = request.POST.get('pin')
 
@@ -78,6 +113,10 @@ def login_view(request):
             # Vérifier le PIN hashé
             if not utilisateur.check_pin(pin):
                 raise Utilisateur.DoesNotExist
+
+            # Connexion réussie : réinitialiser le compteur
+            request.session['login_tentatives'] = 0
+            request.session['login_blocage_jusqu'] = None
 
             # Connexion de l'utilisateur Django
             login(request, utilisateur.user)
@@ -92,7 +131,15 @@ def login_view(request):
                 return redirect('agenda:index', institut_code=utilisateur.institut.code)
 
         except Utilisateur.DoesNotExist:
-            messages.error(request, 'Code PIN incorrect')
+            tentatives += 1
+            request.session['login_tentatives'] = tentatives
+
+            if tentatives >= MAX_TENTATIVES:
+                request.session['login_blocage_jusqu'] = timezone.now().timestamp() + DUREE_BLOCAGE
+                messages.error(request, f'Trop de tentatives ({MAX_TENTATIVES}). Compte bloqué pendant 5 minutes.')
+            else:
+                restantes = MAX_TENTATIVES - tentatives
+                messages.error(request, f'Code PIN incorrect ({restantes} tentative(s) restante(s))')
 
     # Récupérer tous les utilisateurs actifs pour la liste déroulante
     utilisateurs = Utilisateur.objects.filter(actif=True).select_related('user', 'institut').order_by('user__username')
@@ -114,9 +161,10 @@ def logout_view(request):
 @login_required
 def clients_list(request):
     """
-    Liste de tous les clients avec recherche
+    Liste de tous les clients avec recherche et filtres
     """
     search = request.GET.get('search', '')
+    filtre = request.GET.get('filtre', '')
     clients = Client.objects.all()
 
     if search:
@@ -126,11 +174,25 @@ def clients_list(request):
             Q(telephone__icontains=search)
         )
 
-    clients = clients.order_by('nom', 'prenom')
+    if filtre == 'dettes':
+        # Clients avec crédits non soldés
+        clients_avec_dettes = Credit.objects.filter(solde=False).values_list('client_id', flat=True).distinct()
+        clients = clients.filter(id__in=clients_avec_dettes)
+    elif filtre == 'forfaits':
+        # Clients avec forfaits actifs
+        clients_avec_forfaits = ForfaitClient.objects.filter(statut='actif').values_list('client_id', flat=True).distinct()
+        clients = clients.filter(id__in=clients_avec_forfaits)
+    elif filtre == 'cartes':
+        # Clients bénéficiaires d'une carte cadeau active
+        clients_avec_cartes = CarteCadeau.objects.filter(statut='active').values_list('beneficiaire_id', flat=True).distinct()
+        clients = clients.filter(id__in=clients_avec_cartes)
+
+    clients = clients.order_by('-actif', 'nom', 'prenom')
 
     return render(request, 'clients/liste.html', {
         'clients': clients,
-        'search': search
+        'search': search,
+        'filtre': filtre,
     })
 
 
@@ -208,6 +270,20 @@ def client_create(request):
                     f'<a href="{doublon_telephone.id}/" class="alert-link">Voir sa fiche</a>'
                 )
             else:
+                # Vérifier si un client avec le même nom+prénom existe (doublon potentiel)
+                confirmer = request.POST.get('confirmer_doublon') == '1'
+                doublon_nom = trouver_doublon_nom(nom, prenom)
+                if doublon_nom and not confirmer:
+                    messages.warning(
+                        request,
+                        f'Un client avec le même nom existe déjà : {doublon_nom.get_full_name()} ({doublon_nom.telephone}). '
+                        f'<a href="{doublon_nom.id}/" class="alert-link">Voir sa fiche</a>. '
+                        f'Si c\'est bien un nouveau client, cliquez à nouveau sur Enregistrer.'
+                    )
+                    return render(request, 'clients/create.html', {
+                        'confirmer_doublon': True,
+                        'form_data': {'nom': nom, 'prenom': prenom, 'telephone': telephone, 'sexe': sexe, 'notes': notes}
+                    })
                 client = Client.objects.create(
                     nom=nom,
                     prenom=prenom,
@@ -296,6 +372,24 @@ def api_client_creer(request):
                 }
             })
 
+    # Vérifier si un client avec le même nom+prénom existe (doublon potentiel)
+    confirmer = request.POST.get('confirmer_doublon') == '1'
+    if not confirmer:
+        doublon_nom = trouver_doublon_nom(nom, prenom)
+        if doublon_nom:
+            return JsonResponse({
+                'success': False,
+                'name_duplicate': True,
+                'message': f'Un client avec le même nom existe déjà : {doublon_nom.get_full_name()} ({doublon_nom.telephone})',
+                'existing_client': {
+                    'id': doublon_nom.id,
+                    'nom': doublon_nom.nom,
+                    'prenom': doublon_nom.prenom,
+                    'telephone': doublon_nom.telephone,
+                    'full_name': doublon_nom.get_full_name()
+                }
+            })
+
     client = Client.objects.create(
         nom=nom,
         prenom=prenom,
@@ -359,12 +453,56 @@ def api_client_supprimer(request, pk):
     client = get_object_or_404(Client, pk=pk)
     nom_client = client.get_full_name()
 
-    # Supprimer le client
+    # Vérifier si le client a des données liées
+    nb_rdv = client.rendez_vous.count()
+    nb_credits = client.credits.filter(solde=False).count()
+    nb_forfaits = client.forfaits.filter(statut='actif').count()
+    nb_cartes = client.cartes_achetees.filter(statut='active').count() + \
+                client.cartes_recues.filter(statut='active').count()
+
+    if nb_rdv > 0 or nb_credits > 0 or nb_forfaits > 0 or nb_cartes > 0:
+        details = []
+        if nb_rdv > 0:
+            details.append(f'{nb_rdv} rendez-vous')
+        if nb_credits > 0:
+            details.append(f'{nb_credits} crédit(s) non soldé(s)')
+        if nb_forfaits > 0:
+            details.append(f'{nb_forfaits} forfait(s) actif(s)')
+        if nb_cartes > 0:
+            details.append(f'{nb_cartes} carte(s) cadeau active(s)')
+
+        return JsonResponse({
+            'success': False,
+            'message': f'Impossible de supprimer {nom_client} : {", ".join(details)}. '
+                       f'Vous pouvez désactiver ce client à la place.',
+            'has_data': True
+        })
+
     client.delete()
 
     return JsonResponse({
         'success': True,
         'message': f'Client {nom_client} supprimé avec succès'
+    })
+
+
+@login_required
+def api_client_desactiver(request, pk):
+    """API pour désactiver un client (patron seulement)"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Méthode non autorisée'}, status=405)
+
+    if not request.user.utilisateur.is_patron:
+        return JsonResponse({'success': False, 'message': 'Action non autorisée'}, status=403)
+
+    client = get_object_or_404(Client, pk=pk)
+    client.actif = not client.actif
+    client.save()
+
+    statut = 'activé' if client.actif else 'désactivé'
+    return JsonResponse({
+        'success': True,
+        'message': f'Client {client.get_full_name()} {statut} avec succès'
     })
 
 
@@ -526,6 +664,9 @@ def api_employe_supprimer(request, pk):
 @login_required
 def cartes_cadeaux_list(request):
     """Liste des cartes cadeaux."""
+    # Marquer automatiquement les cartes expirées
+    CarteCadeau.marquer_cartes_expirees()
+
     cartes = CarteCadeau.objects.select_related(
         'acheteur', 'beneficiaire', 'institut_achat'
     ).all()
@@ -643,6 +784,11 @@ def api_verifier_carte_cadeau(request):
             'utilisations__rendez_vous__prestation'
         ).get(code=code)
 
+        # Basculer en expirée si nécessaire
+        if carte.statut == 'active' and carte.est_expiree:
+            carte.statut = 'expiree'
+            carte.save(update_fields=['statut'])
+
         utilisations = []
         for u in carte.utilisations.all():
             util_data = {
@@ -680,8 +826,6 @@ def api_verifier_carte_cadeau(request):
 @login_required
 def api_rechercher_cartes_client(request):
     """Rechercher les cartes cadeaux actives d'un client (bénéficiaire)."""
-    from datetime import timedelta
-
     client_id = request.GET.get('client_id')
 
     if not client_id:
@@ -690,29 +834,25 @@ def api_rechercher_cartes_client(request):
     try:
         now = timezone.now()
 
+        # Marquer les cartes expirées avant la recherche
+        CarteCadeau.marquer_cartes_expirees()
+
         # Récupérer les cartes actives avec solde > 0
-        # Filtrer par date_achat (toujours disponible) pour éviter les problèmes si migration pas appliquée
         cartes_queryset = CarteCadeau.objects.filter(
             beneficiaire_id=client_id,
             statut='active',
             solde__gt=0,
-            date_achat__gt=now - timedelta(days=180)  # Non expirées (< 6 mois)
         )
 
         cartes = []
         for carte in cartes_queryset:
-            # Calculer jours restants basé sur date_achat (toujours disponible)
-            expiration_estimee = carte.date_achat + timedelta(days=180)
-            delta = expiration_estimee - now
-            jours_restants = max(0, delta.days)
-
             cartes.append({
                 'id': carte.id,
                 'code': carte.code,
                 'solde': carte.solde,
                 'montant_initial': carte.montant_initial,
-                'date_expiration': expiration_estimee.strftime('%d/%m/%Y'),
-                'jours_restants': jours_restants,
+                'date_expiration': carte.date_expiration.strftime('%d/%m/%Y') if carte.date_expiration else '',
+                'jours_restants': carte.jours_restants,
             })
 
         return JsonResponse({'cartes': cartes})

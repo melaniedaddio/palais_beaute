@@ -105,6 +105,18 @@ def index(request):
         cloture=True
     ).exists()
 
+    # CA encaissé : paiements RDV + crédits encaissés ce jour
+    ca_paiements_rdv = Paiement.objects.filter(
+        rendez_vous__in=ventes
+    ).aggregate(total=Sum('montant'))['total'] or 0
+
+    credits_encaisses = PaiementCredit.objects.filter(
+        credit__institut=institut,
+        date__date=date_selectionnee
+    ).aggregate(total=Sum('montant'))['total'] or 0
+
+    ca_encaisse = ca_paiements_rdv + credits_encaisses
+
     context = {
         'institut': institut,
         'date_selectionnee': date_selectionnee,
@@ -114,6 +126,8 @@ def index(request):
         'total_jour': totaux['total'] or 0,
         'total_especes': paiements_especes,
         'total_carte': paiements_carte,
+        'ca_encaisse': ca_encaisse,
+        'credits_encaisses': credits_encaisses,
         'caisse_cloturee': caisse_cloturee,
     }
 

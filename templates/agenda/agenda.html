@@ -54,29 +54,28 @@
         <div class="stat-label">Absents / Annulés</div>
         <div class="stat-value" id="stat-absents" style="color: #dc3545;">{{ rdv_annules_absents_count }}</div>
     </div>
+    {% if request.user.utilisateur.is_patron %}
     <div class="stat-card">
-        <div class="stat-label">Chiffre d'affaires</div>
+        <div class="stat-label">CA réel</div>
         <div class="stat-value" id="stat-ca">0 <span class="stat-unit">CFA</span></div>
     </div>
-</div>
-
-<!-- Légende des couleurs -->
-<div class="card" style="margin-bottom: 20px;">
-    <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap; padding: 10px;">
-        <strong>Légende :</strong>
-        {% for famille in familles %}
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <div style="width: 20px; height: 20px; background-color: {{ famille.couleur }}; border-radius: 3px; border: 1px solid #ddd;"></div>
-            <span style="font-size: 14px;">{{ famille.nom }}</span>
-        </div>
-        {% endfor %}
-        {% if institut.code == 'klinic' %}
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <div style="width: 20px; height: 20px; background-color: #9b59b6; border-radius: 3px; border: 1px solid #ddd;"></div>
-            <span style="font-size: 14px;">Séance forfait</span>
-        </div>
-        {% endif %}
+    <div class="stat-card">
+        <div class="stat-label">CA encaissé</div>
+        <div class="stat-value" id="stat-ca-encaisse" style="color: #28a745;"><script>document.write(Number({{ ca_encaisse|default:0 }}).toLocaleString('fr-FR'))</script> <span class="stat-unit">CFA</span></div>
     </div>
+    {% if credits_encaisses > 0 %}
+    <div class="stat-card">
+        <div class="stat-label">Crédits encaissés</div>
+        <div class="stat-value" style="color: #17a2b8;"><script>document.write(Number({{ credits_encaisses }}).toLocaleString('fr-FR'))</script> <span class="stat-unit">CFA</span></div>
+    </div>
+    {% endif %}
+    {% if ca_forfaits_reel > 0 %}
+    <div class="stat-card">
+        <div class="stat-label">Forfaits vendus</div>
+        <div class="stat-value" style="color: #9b59b6;"><script>document.write(Number({{ ca_forfaits_encaisse }}).toLocaleString('fr-FR'))</script> <span class="stat-unit">CFA</span></div>
+    </div>
+    {% endif %}
+    {% endif %}
 </div>
 
 <!-- Grille de l'agenda -->
@@ -170,7 +169,7 @@
 
                 <div class="form-group">
                     <label>Prestation</label>
-                    <select id="rdv-prestation" name="prestation_id" required class="form-control" onchange="calculerTotal()">
+                    <select id="rdv-prestation" name="prestation_id" required class="form-control" onchange="calculerTotal(true)">
                         <option value="">-- Sélectionner une prestation --</option>
                     </select>
                     <div id="prestation-info" style="margin-top: 8px; font-size: 13px; color: #666;"></div>
@@ -192,7 +191,7 @@
                 <div class="form-group">
                     <label>Prix de base</label>
                     <input type="number" id="rdv-prix-base" name="prix_base" class="form-control"
-                           onchange="calculerTotal()" step="0.01">
+                           onchange="calculerTotal(false)" step="0.01">
                 </div>
 
                 <div class="form-group">
@@ -232,6 +231,13 @@
                         <strong style="font-size: 16px;">Prix total : </strong>
                         <span id="validation-prix-total" style="font-size: 20px; font-weight: 700; color: #c9a86a;"></span>
                     </div>
+                </div>
+
+                <!-- Notice forfait (masquée par défaut) -->
+                <div id="forfait-validation-notice" style="display: none; background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); border: 2px solid #9b59b6; border-radius: 8px; padding: 15px; margin-bottom: 15px; text-align: center;">
+                    <div style="font-size: 24px; margin-bottom: 5px;">📦</div>
+                    <strong style="color: #9b59b6;">Séance de forfait</strong>
+                    <div style="font-size: 13px; color: #6b4d8a; margin-top: 5px;">Aucun paiement requis — le forfait a déjà été réglé.</div>
                 </div>
 
                 <div class="form-group">
@@ -359,7 +365,7 @@
                         </label>
                         <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f9f9f9; border-radius: 8px; cursor: pointer;">
                             <input type="radio" name="forfait_type_paiement" value="partiel" onchange="toggleForfaitMontant()">
-                            <span>Acompte</span>
+                            <span>Paiement partiel</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f9f9f9; border-radius: 8px; cursor: pointer;">
                             <input type="radio" name="forfait_type_paiement" value="differe" onchange="toggleForfaitMontant()">
@@ -376,7 +382,7 @@
                 </div>
 
                 <!-- Moyen de paiement -->
-                <div class="form-group">
+                <div id="forfait-section-moyen-paiement" class="form-group">
                     <label>Moyen de paiement</label>
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
                         <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
@@ -715,15 +721,6 @@
         font-size: 22px !important;
     }
 
-    /* Légende sur mobile */
-    .card > div {
-        gap: 10px !important;
-    }
-
-    .card > div > div {
-        font-size: 12px !important;
-    }
-
     /* Agenda table mobile */
     .agenda-table th,
     .agenda-table td {
@@ -977,7 +974,7 @@ function chargerPrestations(retryCount = 0) {
 }
 
 // Calculer le prix total
-function calculerTotal() {
+function calculerTotal(fromPrestation = false) {
     const prestationSelect = document.getElementById('rdv-prestation');
     const selectedOption = prestationSelect.options[prestationSelect.selectedIndex];
 
@@ -987,8 +984,17 @@ function calculerTotal() {
         return;
     }
 
-    let prixBase = parseFloat(selectedOption.dataset.prix) || 0;
-    document.getElementById('rdv-prix-base').value = prixBase;
+    const prixBaseInput = document.getElementById('rdv-prix-base');
+    let prixBase;
+
+    // Ne remplir le prix catalogue que si c'est un changement de prestation
+    // (pas quand l'utilisateur modifie le prix manuellement)
+    if (fromPrestation || !prixBaseInput.value) {
+        prixBase = parseFloat(selectedOption.dataset.prix) || 0;
+        prixBaseInput.value = prixBase;
+    } else {
+        prixBase = parseFloat(prixBaseInput.value) || 0;
+    }
 
     // Ajouter le prix des options
     let prixOptions = 0;
@@ -1388,13 +1394,15 @@ function modifierRdv(rdv) {
     // Attendre un peu que les prestations se chargent
     setTimeout(() => {
         document.getElementById('rdv-prestation').value = rdv.prestation_id;
-        calculerTotal();
+        // Garder le prix du RDV (pas le prix catalogue)
+        document.getElementById('rdv-prix-base').value = rdv.prix_base;
+        calculerTotal(false);
 
         // Cocher les options
         document.querySelectorAll('input[name="options"]').forEach(checkbox => {
             checkbox.checked = rdv.options.some(opt => opt.id == checkbox.value);
         });
-        calculerTotal();
+        calculerTotal(false);
     }, 500);
 
     window.currentRdvId = rdv.id;
@@ -1430,6 +1438,19 @@ function modifierRdv(rdv) {
         footer.insertBefore(btnSupprimer, footer.firstChild);
         footer.insertBefore(btnValider, footer.querySelector('.btn-primary'));
     }
+
+    // Masquer Valider dès qu'un champ est modifié
+    function masquerBtnValider() {
+        const btn = document.getElementById('btn-valider-rdv');
+        if (btn) btn.style.display = 'none';
+    }
+    const champsRdv = '#rdv-employe, #rdv-date, #rdv-heure, #rdv-client, #rdv-famille, #rdv-prestation, #rdv-prix-base';
+    document.querySelectorAll(champsRdv).forEach(el => {
+        el.addEventListener('change', masquerBtnValider, { once: true });
+    });
+    document.querySelectorAll('#form-rdv input[name="options"]').forEach(el => {
+        el.addEventListener('change', masquerBtnValider, { once: true });
+    });
 }
 
 // Supprimer un RDV
@@ -1484,11 +1505,38 @@ function ouvrirModalValidation(rdvId) {
             // Effacer les validations précédentes
             clearValidation('validation-montant');
 
+            // Gérer l'affichage selon forfait ou non
+            const isForfait = rdv.est_seance_forfait;
+            const paiementSection = document.getElementById('section-moyen-paiement');
+            const typePaiementGroup = document.getElementById('validation-type-paiement').closest('.form-group');
+            const montantGroup = document.getElementById('montant-paiement-group');
+            const cartesSection = document.getElementById('section-cartes-cadeaux');
+            const forfaitNotice = document.getElementById('forfait-validation-notice');
+
+            if (isForfait) {
+                // Masquer tout le formulaire de paiement
+                typePaiementGroup.style.display = 'none';
+                montantGroup.style.display = 'none';
+                paiementSection.style.display = 'none';
+                if (cartesSection) cartesSection.style.display = 'none';
+                forfaitNotice.style.display = 'block';
+            } else {
+                // Afficher normalement
+                typePaiementGroup.style.display = '';
+                montantGroup.style.display = 'none';
+                paiementSection.style.display = '';
+                forfaitNotice.style.display = 'none';
+                // Réinitialiser le type de paiement
+                document.getElementById('validation-type-paiement').value = 'complet';
+            }
+
             hidePageLoader();
             document.getElementById('modal-validation').style.display = 'flex';
 
-            // Charger les cartes cadeaux du client
-            chargerCartesCadeaux(rdv.client_id);
+            // Charger les cartes cadeaux du client (sauf forfait)
+            if (!isForfait) {
+                chargerCartesCadeaux(rdv.client_id);
+            }
         })
         .catch(error => {
             hidePageLoader();
@@ -1572,12 +1620,20 @@ function fermerModalValidation() {
 function updateMontantPaiement() {
     const type = document.getElementById('validation-type-paiement').value;
     const group = document.getElementById('montant-paiement-group');
+    const sectionMoyen = document.getElementById('section-moyen-paiement');
+    const cartesSection = document.getElementById('section-cartes-cadeaux');
 
-    if (type === 'complet') {
+    if (type === 'differe') {
         group.style.display = 'none';
-    } else {
+        sectionMoyen.style.display = 'none';
+        if (cartesSection) cartesSection.style.display = 'none';
+    } else if (type === 'partiel') {
         group.style.display = 'block';
+        sectionMoyen.style.display = '';
         calculerReste();
+    } else {
+        group.style.display = 'none';
+        sectionMoyen.style.display = '';
     }
 }
 
@@ -1711,11 +1767,15 @@ function calculerStats() {
         });
     });
 
+    // Ajouter le CA réel des forfaits vendus ce jour
+    ca += {{ ca_forfaits_reel|default:0 }};
+
     document.getElementById('stat-total').textContent = total;
     document.getElementById('stat-valides').textContent = valides;
     document.getElementById('stat-attente').textContent = attente;
     // Le compteur absents/annulés est géré côté serveur car ces RDV sont exclus de rdvData
-    document.getElementById('stat-ca').textContent = ca.toLocaleString('fr-FR');
+    const statCa = document.getElementById('stat-ca');
+    if (statCa) statCa.innerHTML = ca.toLocaleString('fr-FR') + ' <span class="stat-unit">CFA</span>';
 }
 
 // Autocomplete client
@@ -1823,8 +1883,41 @@ function creerNouveauClient() {
             // Charger les forfaits du client (pour Klinic)
             chargerForfaitsClient(data.client_id);
             {% endif %}
+        } else if (data.name_duplicate && data.existing_client) {
+            // Doublon potentiel par nom+prénom
+            if (confirm(data.message + '\n\nVoulez-vous quand même créer ce client ?')) {
+                formData.append('confirmer_doublon', '1');
+                fetch('/api/clients/creer/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+                })
+                .then(r => r.json())
+                .then(data2 => {
+                    if (data2.success) {
+                        document.getElementById('rdv-client').value = data2.client_id;
+                        document.getElementById('rdv-client-search').value = prenom + ' ' + nom;
+                        showSuccess(data2.message);
+                        fermerModalNouveauClient();
+                        {% if institut.code == 'klinic' %}
+                        chargerForfaitsClient(data2.client_id);
+                        {% endif %}
+                    } else {
+                        errorDiv.textContent = data2.message;
+                        errorDiv.style.display = 'block';
+                    }
+                });
+            } else {
+                // Utiliser le client existant
+                document.getElementById('rdv-client').value = data.existing_client.id;
+                document.getElementById('rdv-client-search').value = data.existing_client.full_name;
+                fermerModalNouveauClient();
+                {% if institut.code == 'klinic' %}
+                chargerForfaitsClient(data.existing_client.id);
+                {% endif %}
+            }
         } else if (data.duplicate && data.existing_client) {
-            // Client existant trouvé - proposer de l'utiliser
+            // Client existant trouvé (même téléphone) - proposer de l'utiliser
             showWarning(data.message);
             if (confirm('Voulez-vous utiliser ce client existant ?')) {
                 document.getElementById('rdv-client').value = data.existing_client.id;
@@ -2072,7 +2165,18 @@ function updateForfaitPrix() {
 
 function toggleForfaitMontant() {
     const typePaiement = document.querySelector('input[name="forfait_type_paiement"]:checked').value;
-    document.getElementById('forfait-montant-container').style.display = typePaiement === 'partiel' ? 'block' : 'none';
+    const sectionMoyen = document.getElementById('forfait-section-moyen-paiement');
+
+    if (typePaiement === 'differe') {
+        document.getElementById('forfait-montant-container').style.display = 'none';
+        sectionMoyen.style.display = 'none';
+    } else if (typePaiement === 'partiel') {
+        document.getElementById('forfait-montant-container').style.display = 'block';
+        sectionMoyen.style.display = '';
+    } else {
+        document.getElementById('forfait-montant-container').style.display = 'none';
+        sectionMoyen.style.display = '';
+    }
 }
 
 function acheterForfait() {
@@ -2103,7 +2207,7 @@ function acheterForfait() {
                 required: true,
                 numeric: true,
                 min: 0,
-                requiredMessage: 'Le montant est requis pour un acompte',
+                requiredMessage: 'Le montant est requis pour un paiement partiel',
                 numericMessage: 'Veuillez entrer un nombre valide',
                 minMessage: 'Le montant ne peut pas être négatif'
             }
@@ -2138,6 +2242,30 @@ function acheterForfait() {
         if (data.success) {
             showSuccess(data.message);
             fermerModalForfait();
+
+            // Si le forfait a été acheté depuis le formulaire de RDV,
+            // recharger les forfaits du client et sélectionner la 1ère séance
+            const rdvClientId = document.getElementById('rdv-client').value;
+            const forfaitClientId = document.getElementById('forfait-client-id').value;
+
+            if (rdvClientId && forfaitClientId === rdvClientId && data.forfait) {
+                // Recharger les forfaits du client puis auto-sélectionner
+                fetch(`/agenda/{{ institut.code }}/api/forfaits/client/${rdvClientId}/`)
+                    .then(r => r.json())
+                    .then(fData => {
+                        clientForfaitsData = fData.forfaits;
+                        // Trouver le forfait nouvellement acheté
+                        const nouveauForfait = fData.forfaits.find(f => f.id === data.forfait.id);
+                        if (nouveauForfait && nouveauForfait.seances_disponibles.length > 0) {
+                            selectionnerSeanceForfait(
+                                nouveauForfait.id,
+                                nouveauForfait.seances_disponibles[0],
+                                nouveauForfait.prestation_nom,
+                                nouveauForfait.nombre_seances_total
+                            );
+                        }
+                    });
+            }
         } else {
             showError(data.message);
         }

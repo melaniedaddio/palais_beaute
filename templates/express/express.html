@@ -34,10 +34,22 @@
         <div class="stat-label">Total carte</div>
         <div class="stat-value">{{ total_carte|floatformat:0 }} <span class="stat-unit">CFA</span></div>
     </div>
+    {% if request.user.utilisateur.is_patron %}
     <div class="stat-card">
-        <div class="stat-label">Total du jour</div>
+        <div class="stat-label">CA réel</div>
         <div class="stat-value">{{ total_jour|floatformat:0 }} <span class="stat-unit">CFA</span></div>
     </div>
+    <div class="stat-card">
+        <div class="stat-label">CA encaissé</div>
+        <div class="stat-value" style="color: #28a745;">{{ ca_encaisse|floatformat:0 }} <span class="stat-unit">CFA</span></div>
+    </div>
+    {% if credits_encaisses > 0 %}
+    <div class="stat-card">
+        <div class="stat-label">Crédits encaissés</div>
+        <div class="stat-value" style="color: #17a2b8;">{{ credits_encaisses|floatformat:0 }} <span class="stat-unit">CFA</span></div>
+    </div>
+    {% endif %}
+    {% endif %}
 </div>
 
 <!-- Formulaire nouvelle vente -->
@@ -430,11 +442,17 @@ function calculerTotal() {
 function updatePaiement() {
     const type = document.querySelector('input[name="type_paiement"]:checked').value;
     const montantGroup = document.getElementById('montant-partiel-group');
+    const sectionMoyen = document.getElementById('section-moyen-paiement');
 
-    if (type === 'partiel') {
+    if (type === 'differe') {
+        montantGroup.style.display = 'none';
+        sectionMoyen.style.display = 'none';
+    } else if (type === 'partiel') {
         montantGroup.style.display = 'block';
+        sectionMoyen.style.display = '';
     } else {
         montantGroup.style.display = 'none';
+        sectionMoyen.style.display = '';
     }
 }
 
@@ -742,8 +760,37 @@ function creerNouveauClient() {
 
             showSuccess(data.message);
             fermerModalNouveauClient();
+        } else if (data.name_duplicate && data.existing_client) {
+            // Doublon potentiel par nom+prénom
+            if (confirm(data.message + '\n\nVoulez-vous quand même créer ce client ?')) {
+                formData.append('confirmer_doublon', '1');
+                fetch('/api/clients/creer/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+                })
+                .then(r => r.json())
+                .then(data2 => {
+                    if (data2.success) {
+                        document.getElementById('vente-client').value = data2.client_id;
+                        document.getElementById('vente-client-search').value = prenom + ' ' + nom;
+                        rechercherCartesCadeaux(data2.client_id);
+                        showSuccess(data2.message);
+                        fermerModalNouveauClient();
+                    } else {
+                        errorDiv.textContent = data2.message;
+                        errorDiv.style.display = 'block';
+                    }
+                });
+            } else {
+                // Utiliser le client existant
+                document.getElementById('vente-client').value = data.existing_client.id;
+                document.getElementById('vente-client-search').value = data.existing_client.full_name;
+                rechercherCartesCadeaux(data.existing_client.id);
+                fermerModalNouveauClient();
+            }
         } else if (data.duplicate && data.existing_client) {
-            // Client existant trouvé - proposer de l'utiliser
+            // Client existant trouvé (même téléphone) - proposer de l'utiliser
             showWarning(data.message);
             if (confirm('Voulez-vous utiliser ce client existant ?')) {
                 document.getElementById('vente-client').value = data.existing_client.id;

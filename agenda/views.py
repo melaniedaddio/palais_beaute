@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib import messages
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.utils import timezone
 from datetime import datetime, date, time, timedelta
 from decimal import Decimal
@@ -101,6 +101,29 @@ def index(request, institut_code):
         statut__in=['annule', 'annule_client', 'absent']
     ).count()
 
+    # CA encaissé : paiements RDV du jour
+    ca_paiements_rdv = Paiement.objects.filter(
+        rendez_vous__institut=institut,
+        rendez_vous__date=date_selectionnee,
+        rendez_vous__statut='valide'
+    ).aggregate(total=Sum('montant'))['total'] or 0
+
+    # Crédits encaissés ce jour pour cet institut
+    credits_encaisses = PaiementCredit.objects.filter(
+        credit__institut=institut,
+        date__date=date_selectionnee
+    ).aggregate(total=Sum('montant'))['total'] or 0
+
+    # Forfaits vendus ce jour pour cet institut
+    forfaits_du_jour = ForfaitClient.objects.filter(
+        institut=institut,
+        date_achat__date=date_selectionnee
+    )
+    ca_forfaits_reel = forfaits_du_jour.aggregate(total=Sum('prix_total'))['total'] or 0
+    ca_forfaits_encaisse = forfaits_du_jour.aggregate(total=Sum('montant_paye_initial'))['total'] or 0
+
+    ca_encaisse = ca_paiements_rdv + credits_encaisses + ca_forfaits_encaisse
+
     # Convertir rdv_par_employe en JSON pour le template
     import json
     rdv_par_employe_json = json.dumps(rdv_par_employe)
@@ -115,6 +138,10 @@ def index(request, institut_code):
         'options': options,
         'caisse_cloturee': caisse_cloturee,
         'rdv_annules_absents_count': rdv_annules_absents_count,
+        'ca_encaisse': ca_encaisse,
+        'credits_encaisses': credits_encaisses,
+        'ca_forfaits_reel': ca_forfaits_reel,
+        'ca_forfaits_encaisse': ca_forfaits_encaisse,
     }
 
     return render(request, 'agenda/agenda.html', context)
@@ -277,6 +304,7 @@ def api_rdv_details(request, institut_code, rdv_id):
         'prix_options': float(rdv.prix_options),
         'prix_total': float(rdv.prix_total),
         'statut': rdv.statut,
+        'est_seance_forfait': rdv.est_seance_forfait,
         'options': [{'id': opt.option.id, 'nom': opt.option.nom, 'prix': float(opt.prix)} for opt in options]
     }
 
@@ -1143,6 +1171,7 @@ def api_forfait_acheter(request, institut_code):
             institut=institut,
             nombre_seances_total=prestation.nombre_seances,
             prix_total=prix_forfait,
+            montant_paye_initial=montant_effectif,
             vendu_par=utilisateur,
         )
 

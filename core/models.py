@@ -111,6 +111,7 @@ class Client(models.Model):
     sexe = models.CharField(max_length=1, choices=SEXE_CHOICES, default='F')
     date_creation = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True, null=True)  # Notes optionnelles
+    actif = models.BooleanField(default=True)
 
     class Meta:
         verbose_name = "Client"
@@ -722,6 +723,11 @@ class ForfaitClient(models.Model):
         validators=[MinValueValidator(0)],
         help_text="Prix total du forfait"
     )
+    montant_paye_initial = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Montant payé à l'achat du forfait"
+    )
 
     # Statut
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='actif')
@@ -1063,6 +1069,7 @@ class CarteCadeau(models.Model):
     """
     STATUT_CHOICES = [
         ('active', 'Active'),
+        ('expiree', 'Expirée'),
         ('soldee', 'Soldée'),
         ('annulee', 'Annulée'),
         ('supprimee', 'Supprimée'),
@@ -1171,12 +1178,30 @@ class CarteCadeau(models.Model):
             return max(0, delta.days)
         return 0
 
+    @classmethod
+    def marquer_cartes_expirees(cls):
+        """Passe en statut 'expiree' toutes les cartes actives dont la date d'expiration est dépassée."""
+        now = timezone.now()
+        # Cartes avec date_expiration renseignée
+        cls.objects.filter(
+            statut='active',
+            date_expiration__lt=now
+        ).update(statut='expiree')
+        # Anciennes cartes sans date_expiration (fallback 180 jours après achat)
+        cls.objects.filter(
+            statut='active',
+            date_expiration__isnull=True,
+            date_achat__lt=now - timedelta(days=180)
+        ).update(statut='expiree')
+
     def utiliser(self, montant):
         """Utilise un montant de la carte. Retourne le montant réellement débité."""
+        if self.est_expiree:
+            self.statut = 'expiree'
+            self.save(update_fields=['statut'])
+            raise ValueError("Cette carte est expirée")
         if self.statut != 'active':
             raise ValueError("Cette carte n'est plus active")
-        if self.est_expiree:
-            raise ValueError("Cette carte est expirée")
         montant_debite = min(montant, self.solde)
         self.solde -= montant_debite
         self.date_derniere_utilisation = timezone.now()

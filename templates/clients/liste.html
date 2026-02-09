@@ -493,15 +493,36 @@
         <h1 class="page-title">Gestion des clients</h1>
         <p class="page-subtitle">{{ clients|length }} client(s) trouvé(s)</p>
     </div>
-    <div style="display: flex; gap: 15px; align-items: center;">
+    <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
         <form method="get" class="search-box">
             <input type="text" name="search" value="{{ search }}" placeholder="Rechercher un client...">
+            {% if filtre %}<input type="hidden" name="filtre" value="{{ filtre }}">{% endif %}
             <button type="submit">Rechercher</button>
         </form>
         <button class="btn-nouveau" onclick="ouvrirModalClient()">
             + Nouveau client
         </button>
     </div>
+</div>
+
+<!-- Filtres -->
+<div style="display: flex; gap: 10px; margin-bottom: 20px; margin-top: 15px; flex-wrap: wrap;">
+    <a href="?{% if search %}search={{ search }}{% endif %}"
+       style="padding: 8px 18px; border-radius: 20px; text-decoration: none; font-size: 0.9em; font-weight: 500; {% if not filtre %}background: var(--primary); color: white;{% else %}background: #f0f0f0; color: #666;{% endif %}">
+        Tous
+    </a>
+    <a href="?filtre=dettes{% if search %}&search={{ search }}{% endif %}"
+       style="padding: 8px 18px; border-radius: 20px; text-decoration: none; font-size: 0.9em; font-weight: 500; {% if filtre == 'dettes' %}background: #dc3545; color: white;{% else %}background: #f8d7da; color: #721c24;{% endif %}">
+        Avec dettes
+    </a>
+    <a href="?filtre=forfaits{% if search %}&search={{ search }}{% endif %}"
+       style="padding: 8px 18px; border-radius: 20px; text-decoration: none; font-size: 0.9em; font-weight: 500; {% if filtre == 'forfaits' %}background: #9b59b6; color: white;{% else %}background: #f3e8ff; color: #6b4d8a;{% endif %}">
+        Avec forfaits
+    </a>
+    <a href="?filtre=cartes{% if search %}&search={{ search }}{% endif %}"
+       style="padding: 8px 18px; border-radius: 20px; text-decoration: none; font-size: 0.9em; font-weight: 500; {% if filtre == 'cartes' %}background: #c9a86a; color: white;{% else %}background: #fef3e2; color: #8b6914;{% endif %}">
+        Avec carte cadeau
+    </a>
 </div>
 
 <div class="clients-table-container">
@@ -519,9 +540,10 @@
         </thead>
         <tbody>
             {% for client in clients %}
-            <tr>
+            <tr{% if not client.actif %} style="opacity: 0.5;"{% endif %}>
                 <td>
                     <span class="client-name">{{ client.get_full_name }}</span>
+                    {% if not client.actif %}<span class="client-badge" style="background: #6c757d; color: white; margin-left: 8px;">Inactif</span>{% endif %}
                 </td>
                 <td>
                     <span class="client-phone">{{ client.telephone }}</span>
@@ -529,7 +551,9 @@
                 <td>{{ client.email|default:"-" }}</td>
                 <td>{{ client.date_creation|date:"d/m/Y" }}</td>
                 <td>
-                    {% if client.credits_non_soldes %}
+                    {% if not client.actif %}
+                        <span class="client-badge" style="background: #6c757d; color: white;">Inactif</span>
+                    {% elif client.credits_non_soldes %}
                         <span class="client-badge dette">Dette</span>
                     {% else %}
                         <span class="client-badge actif">OK</span>
@@ -592,6 +616,7 @@
             <div class="modal-actions">
                 {% if request.user.utilisateur.is_patron %}
                 <button type="button" class="btn-delete" id="btn-supprimer-client" onclick="supprimerClient()" style="display: none;">Supprimer</button>
+                <button type="button" class="btn-delete" id="btn-desactiver-client" onclick="desactiverClient()" style="display: none; background: #ffc107; color: #333;">Désactiver</button>
                 {% endif %}
                 <button type="button" class="btn-cancel" onclick="fermerModalClient()">Annuler</button>
                 <button type="submit" class="btn-submit">Enregistrer</button>
@@ -640,6 +665,36 @@ async function supprimerClient() {
         if (data.success) {
             showSuccess('Client supprimé');
             setTimeout(() => location.reload(), 1000);
+        } else if (data.has_data) {
+            showError(data.message);
+            // Afficher le bouton désactiver comme alternative
+            const btnDesactiver = document.getElementById('btn-desactiver-client');
+            if (btnDesactiver) btnDesactiver.style.display = 'block';
+        } else {
+            showError(data.message);
+        }
+    } catch (error) {
+        showError('Erreur : ' + error.message);
+    }
+}
+
+async function desactiverClient() {
+    const clientId = document.getElementById('client-id').value;
+    if (!clientId) return;
+
+    try {
+        const response = await fetch(`/api/clients/${clientId}/desactiver/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 1000);
         } else {
             showError(data.message);
         }
@@ -681,8 +736,23 @@ document.getElementById('formClient').addEventListener('submit', async function(
         if (data.success) {
             showSuccess(data.message);
             setTimeout(() => location.reload(), 1000);
+        } else if (data.name_duplicate && data.existing_client) {
+            // Doublon potentiel par nom+prénom
+            if (confirm(data.message + '\n\nVoulez-vous quand même créer ce client ?')) {
+                formData.append('confirmer_doublon', '1');
+                const response2 = await fetch(url, { method: 'POST', body: formData });
+                const data2 = await response2.json();
+                if (data2.success) {
+                    showSuccess(data2.message);
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showError(data2.message);
+                }
+            } else {
+                window.location.href = '/clients/' + data.existing_client.id + '/';
+            }
         } else if (data.duplicate && data.existing_client) {
-            // Client existant trouvé
+            // Client existant trouvé (même téléphone)
             showWarning(data.message);
             if (confirm('Voulez-vous voir la fiche de ce client ?')) {
                 window.location.href = '/clients/' + data.existing_client.id + '/';

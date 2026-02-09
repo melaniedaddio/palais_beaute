@@ -15,6 +15,7 @@ urlpatterns = [
     path('api/clients/creer/', views.api_client_creer, name='api_client_creer'),
     path('api/clients/<int:pk>/modifier/', views.api_client_modifier, name='api_client_modifier'),
     path('api/clients/<int:pk>/supprimer/', views.api_client_supprimer, name='api_client_supprimer'),
+    path('api/clients/<int:pk>/desactiver/', views.api_client_desactiver, name='api_client_desactiver'),
 
     # Employés (patron uniquement)
     path('employes/', views.employes_list, name='employes_list'),
