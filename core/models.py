@@ -1034,13 +1034,13 @@ class ClotureCaisse(models.Model):
         self.total_om_calcule += ventes_cartes_om
         self.total_wave_calcule += ventes_cartes_wave
 
+        # total_calcule = argent réellement encaissé (sans carte_cadeau car déjà compté à la vente)
         self.total_calcule = (
             self.total_especes_calcule
             + self.total_carte_calcule
             + self.total_cheque_calcule
             + self.total_om_calcule
             + self.total_wave_calcule
-            + total_carte_cadeau_prestations
         )
 
         # Calculer l'écart si montant réel saisi

@@ -414,30 +414,33 @@
 {% block content %}
 {% csrf_token %}
 <div class="page-container">
-    <div class="catalogue-header">
-        <h1 class="catalogue-title">📚 Catalogue des Prestations</h1>
-        <div class="header-actions">
-            <a href="{% url 'gestion:export_catalogue_excel' %}?institut={{ institut_actif.code }}" class="btn-export">📥 Exporter Excel</a>
+    <div class="sticky-header">
+        <div class="catalogue-header">
+            <h1 class="catalogue-title">📚 Catalogue des Prestations</h1>
+            <div class="header-actions">
+                <button class="btn-add" onclick="ouvrirModalNouvelleFamille()">+ Nouvelle famille</button>
+                <a href="{% url 'gestion:export_catalogue_excel' %}?institut={{ institut_actif.code }}" class="btn-export">📥 Exporter Excel</a>
+            </div>
         </div>
-    </div>
 
-    <!-- Onglets instituts -->
-    <div class="institut-tabs">
-        {% for institut in instituts %}
-        <a href="?institut={{ institut.code }}"
-           class="institut-tab {% if institut_actif.code == institut.code %}active{% endif %}">
-            {{ institut.nom }}
-        </a>
-        {% endfor %}
-    </div>
+        <!-- Onglets instituts -->
+        <div class="institut-tabs">
+            {% for institut in instituts %}
+            <a href="?institut={{ institut.code }}"
+               class="institut-tab {% if institut_actif.code == institut.code %}active{% endif %}">
+                {{ institut.nom }}
+            </a>
+            {% endfor %}
+        </div>
 
-    <!-- Barre de recherche -->
-    <div class="search-bar">
-        <span class="search-icon">🔍</span>
-        <input type="text"
-               class="search-input"
-               placeholder="Rechercher une famille ou une prestation..."
-               value="{{ recherche }}">
+        <!-- Barre de recherche -->
+        <div class="search-bar">
+            <span class="search-icon">🔍</span>
+            <input type="text"
+                   class="search-input"
+                   placeholder="Rechercher une famille ou une prestation..."
+                   value="{{ recherche }}">
+        </div>
     </div>
 
     <!-- Liste des familles -->
@@ -521,10 +524,7 @@
     {% endif %}
     </div>
 
-    <!-- Bouton nouvelle famille -->
-    <button class="btn-add" style="max-width: 300px; margin: 30px auto;" onclick="ouvrirModalNouvelleFamille()">
-        + Nouvelle famille
-    </button>
+    </div>
 </div>
 
 <!-- Inclure les modals -->

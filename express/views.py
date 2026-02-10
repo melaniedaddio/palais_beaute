@@ -106,9 +106,10 @@ def index(request):
     ).exists()
 
     # CA encaissé : paiements RDV + crédits encaissés ce jour
+    # Exclure carte_cadeau (déjà compté lors de la vente de la carte)
     ca_paiements_rdv = Paiement.objects.filter(
         rendez_vous__in=ventes
-    ).aggregate(total=Sum('montant'))['total'] or 0
+    ).exclude(mode__in=['carte_cadeau', 'forfait', 'offert']).aggregate(total=Sum('montant'))['total'] or 0
 
     credits_encaisses = PaiementCredit.objects.filter(
         credit__institut=institut,
@@ -407,7 +408,8 @@ def cloture_caisse(request):
     total_cheque_encours = total_cheque_ventes + total_cheque_credit + ventes_cartes_cheque
     total_om_encours = total_om_ventes + total_om_credit + ventes_cartes_om
     total_wave_encours = total_wave_ventes + total_wave_credit + ventes_cartes_wave
-    total_encours = total_especes_encours + total_carte_encours + total_cheque_encours + total_om_encours + total_wave_encours + total_carte_cadeau_prestations
+    # total_encours = argent réellement encaissé (sans carte_cadeau car déjà compté à la vente)
+    total_encours = total_especes_encours + total_carte_encours + total_cheque_encours + total_om_encours + total_wave_encours
 
     # Calculer le total cumulé du jour (toutes les clôtures + en cours)
     total_jour_especes = clotures_existantes.aggregate(

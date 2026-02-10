@@ -169,7 +169,7 @@
 
                 <div class="form-group">
                     <label>Prestation</label>
-                    <select id="rdv-prestation" name="prestation_id" required class="form-control" onchange="calculerTotal(true)">
+                    <select id="rdv-prestation" name="prestation_id" required class="form-control" onchange="calculerTotal(true); updateForfaitsButtons()">
                         <option value="">-- Sélectionner une prestation --</option>
                     </select>
                     <div id="prestation-info" style="margin-top: 8px; font-size: 13px; color: #666;"></div>
@@ -1995,6 +1995,8 @@ function chargerForfaitsClient(clientId) {
                 data.forfaits.forEach(forfait => {
                     const div = document.createElement('div');
                     div.style.cssText = 'margin-bottom: 10px; padding: 10px; background: white; border-radius: 6px;';
+                    div.dataset.prestationId = forfait.prestation_id;
+                    div.className = 'forfait-item';
                     div.innerHTML = `
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div>
@@ -2004,15 +2006,19 @@ function chargerForfaitsClient(clientId) {
                                 </div>
                             </div>
                             ${forfait.seances_disponibles.length > 0 ? `
-                            <button type="button" class="btn" onclick="selectionnerSeanceForfait(${forfait.id}, ${forfait.seances_disponibles[0]}, '${forfait.prestation_nom}', ${forfait.nombre_seances_total})"
+                            <button type="button" class="btn forfait-use-btn" onclick="selectionnerSeanceForfait(${forfait.id}, ${forfait.seances_disponibles[0]}, '${forfait.prestation_nom}', ${forfait.nombre_seances_total})"
                                     style="padding: 6px 12px; background: #9b59b6; color: white; font-size: 12px;">
                                 Utiliser séance ${forfait.seances_disponibles[0]}
                             </button>
+                            <span class="forfait-mismatch-msg" style="display: none; color: #999; font-size: 12px;">Prestation différente</span>
                             ` : '<span style="color: #999; font-size: 12px;">Toutes programmées</span>'}
                         </div>
                     `;
                     list.appendChild(div);
                 });
+
+                // Activer/désactiver selon la prestation sélectionnée
+                updateForfaitsButtons();
             } else {
                 container.style.display = 'none';
             }
@@ -2021,6 +2027,28 @@ function chargerForfaitsClient(clientId) {
             console.error('Erreur chargement forfaits client:', error);
             container.style.display = 'none';
         });
+}
+
+// Activer/désactiver les boutons forfait selon la prestation sélectionnée
+function updateForfaitsButtons() {
+    const prestationSelect = document.getElementById('rdv-prestation');
+    const selectedPrestationId = prestationSelect.value;
+    const items = document.querySelectorAll('.forfait-item');
+
+    items.forEach(item => {
+        const btn = item.querySelector('.forfait-use-btn');
+        const msg = item.querySelector('.forfait-mismatch-msg');
+        if (!btn) return;
+
+        if (!selectedPrestationId || item.dataset.prestationId == selectedPrestationId) {
+            btn.style.display = '';
+            btn.disabled = false;
+            if (msg) msg.style.display = 'none';
+        } else {
+            btn.style.display = 'none';
+            if (msg) msg.style.display = '';
+        }
+    });
 }
 
 // Sélectionner une séance de forfait pour le RDV

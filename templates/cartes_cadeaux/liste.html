@@ -241,6 +241,37 @@
     flex-wrap: wrap;
 }
 
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 25px;
+}
+
+.pagination a, .pagination span {
+    padding: 10px 15px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: all 0.3s;
+}
+
+.pagination a {
+    background: white;
+    color: var(--text-dark);
+    border: 1px solid var(--border);
+}
+
+.pagination a:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.pagination .current {
+    background: var(--primary);
+    color: white;
+}
+
 @media (max-width: 600px) {
     .stats-row {
         flex-direction: column;
@@ -262,38 +293,40 @@
 {% endblock %}
 
 {% block content %}
-<div class="content-header">
-    <h1 class="page-title">Cartes Cadeaux</h1>
-    <p class="page-subtitle">Gestion des cartes cadeaux du groupe</p>
-</div>
+<div class="sticky-header">
+    <div class="content-header" style="margin-bottom: 10px;">
+        <h1 class="page-title">Cartes Cadeaux</h1>
+        <p class="page-subtitle">Gestion des cartes cadeaux du groupe</p>
+    </div>
 
-<div class="actions-row">
-    <button class="btn btn-secondary" onclick="ouvrirModalVente()">
-        Vendre une carte cadeau
-    </button>
-    <button class="btn btn-outline" onclick="ouvrirModalVerification()">
-        Vérifier une carte
-    </button>
-</div>
+    <div class="actions-row">
+        <button class="btn btn-secondary" onclick="ouvrirModalVente()">
+            Vendre une carte cadeau
+        </button>
+        <button class="btn btn-outline" onclick="ouvrirModalVerification()">
+            Vérifier une carte
+        </button>
+    </div>
 
-<!-- Filtres -->
-<div class="card">
-    <form method="GET" class="filters-row">
-        <select name="statut" onchange="this.form.submit()">
-            <option value="active" {% if statut_filtre == 'active' %}selected{% endif %}>Active</option>
-            <option value="soldee" {% if statut_filtre == 'soldee' %}selected{% endif %}>Soldée</option>
-            <option value="annulee" {% if statut_filtre == 'annulee' %}selected{% endif %}>Annulée / Supprimée</option>
-            <option value="toutes" {% if statut_filtre == 'toutes' %}selected{% endif %}>Tous les statuts</option>
-        </select>
-        <input type="text" name="search" placeholder="Rechercher (code, nom...)" value="{{ search }}">
-        <button type="submit" class="btn btn-primary">Rechercher</button>
-    </form>
+    <!-- Filtres -->
+    <div class="card" style="margin-bottom: 0;">
+        <form method="GET" class="filters-row">
+            <select name="statut" onchange="this.form.submit()">
+                <option value="active" {% if statut_filtre == 'active' %}selected{% endif %}>Active</option>
+                <option value="soldee" {% if statut_filtre == 'soldee' %}selected{% endif %}>Soldée</option>
+                <option value="annulee" {% if statut_filtre == 'annulee' %}selected{% endif %}>Annulée / Supprimée</option>
+                <option value="toutes" {% if statut_filtre == 'toutes' %}selected{% endif %}>Tous les statuts</option>
+            </select>
+            <input type="text" name="search" placeholder="Rechercher (code, nom...)" value="{{ search }}">
+            <button type="submit" class="btn btn-primary">Rechercher</button>
+        </form>
+    </div>
 </div>
 
 <!-- Liste des cartes -->
 <div class="card">
     <div class="card-header">
-        <h2 class="card-title">Liste des cartes cadeaux ({{ cartes|length }})</h2>
+        <h2 class="card-title">Liste des cartes cadeaux ({{ page_obj.paginator.count }})</h2>
     </div>
     <table>
         <thead>
@@ -354,6 +387,30 @@
         </tbody>
     </table>
 </div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="pagination">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}&statut={{ statut_filtre }}{% if search %}&search={{ search }}{% endif %}">&#8249; Préc.</a>
+    {% endif %}
+
+    {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+        <span class="current">{{ num }}</span>
+        {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+        <a href="?page={{ num }}&statut={{ statut_filtre }}{% if search %}&search={{ search }}{% endif %}">{{ num }}</a>
+        {% elif num == 1 or num == page_obj.paginator.num_pages %}
+        <a href="?page={{ num }}&statut={{ statut_filtre }}{% if search %}&search={{ search }}{% endif %}">{{ num }}</a>
+        {% elif num == 2 or num == page_obj.paginator.num_pages|add:"-1" %}
+        <span style="padding: 10px 5px;">...</span>
+        {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}&statut={{ statut_filtre }}{% if search %}&search={{ search }}{% endif %}">Suiv. &#8250;</a>
+    {% endif %}
+</div>
+{% endif %}
 
 <!-- Modal Vente -->
 <div id="modalVente" class="modal-backdrop" style="display: none;">

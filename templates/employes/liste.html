@@ -36,52 +36,53 @@
         box-shadow: 0 6px 15px rgba(232, 180, 184, 0.4);
     }
 
+    .institut-tabs {
+        display: flex;
+        gap: 10px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        margin-top: 15px;
+    }
+
+    .institut-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .institut-tab {
+        padding: 10px 24px;
+        border-radius: 25px;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 14px;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: all 0.3s;
+        background: #f0f0f0;
+        color: #666;
+        border: none;
+    }
+
+    .institut-tab.active {
+        background: var(--primary);
+        color: white;
+    }
+
+    .institut-tab:hover:not(.active) {
+        background: #e0e0e0;
+    }
+
     .institut-section {
+        display: none;
         background: white;
         border-radius: 16px;
         padding: 24px;
-        margin-bottom: 30px;
         box-shadow: 0 4px 15px rgba(212, 175, 122, 0.12);
         border: 1px solid var(--border);
     }
 
-    .institut-header {
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        margin-bottom: 20px;
-        padding-bottom: 15px;
-        border-bottom: 2px solid var(--border);
-    }
-
-    .institut-icon {
-        width: 50px;
-        height: 50px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 24px;
-        font-weight: bold;
-        color: white;
-    }
-
-    .institut-icon.palais {
-        background: linear-gradient(135deg, #e8b4b8 0%, #d4a5a5 100%);
-    }
-
-    .institut-icon.klinic {
-        background: linear-gradient(135deg, #c9a86a 0%, #b89858 100%);
-    }
-
-    .institut-icon.express {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-
-    .institut-title {
-        font-size: 20px;
-        font-weight: 600;
-        color: var(--text-dark);
+    .institut-section.active {
+        display: block;
     }
 
     .employes-grid {
@@ -294,30 +295,27 @@
 
 {% block content %}
 <div class="employes-container">
-    <div class="page-header">
-        <div>
-            <h1 class="page-title">Gestion des Employés</h1>
-            <p class="page-subtitle">Gérez les employés de tous les instituts</p>
+    <div class="sticky-header">
+        <div class="page-header" style="margin-bottom: 0;">
+            <div>
+                <h1 class="page-title">Gestion des Employés</h1>
+                <p class="page-subtitle">Gérez les employés de tous les instituts</p>
+            </div>
+            <button class="btn-add" onclick="openModal()">
+                + Ajouter un employé
+            </button>
         </div>
-        <button class="btn-add" onclick="openModal()">
-            + Ajouter un employé
-        </button>
+        <div class="institut-tabs">
+            {% for institut, employes in employes_par_institut.items %}
+            <button class="institut-tab {% if forloop.first %}active{% endif %}" onclick="switchTab('{{ institut.code }}', this)">
+                {{ institut.nom }} ({{ employes|length }})
+            </button>
+            {% endfor %}
+        </div>
     </div>
 
     {% for institut, employes in employes_par_institut.items %}
-    <div class="institut-section">
-        <div class="institut-header">
-            <div class="institut-icon {{ institut.code }}">
-                {% if institut.code == 'palais' %}P{% elif institut.code == 'klinic' %}K{% else %}E{% endif %}
-            </div>
-            <div>
-                <div class="institut-title">{{ institut.nom }}</div>
-                <div style="font-size: 13px; color: var(--text-light);">
-                    {{ employes|length }} employé{{ employes|length|pluralize }}
-                </div>
-            </div>
-        </div>
-
+    <div class="institut-section {% if forloop.first %}active{% endif %}" id="tab-{{ institut.code }}">
         {% if employes %}
         <div class="employes-grid">
             {% for employe in employes %}
@@ -392,6 +390,13 @@
 </div>
 
 <script>
+function switchTab(code, btn) {
+    document.querySelectorAll('.institut-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.institut-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + code).classList.add('active');
+    btn.classList.add('active');
+}
+
 let isEditMode = false;
 
 function openModal(id = null, nom = '', institut = '') {

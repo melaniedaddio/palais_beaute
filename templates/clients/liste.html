@@ -488,41 +488,43 @@
 {% endblock %}
 
 {% block content %}
-<div class="clients-header">
-    <div>
-        <h1 class="page-title">Gestion des clients</h1>
-        <p class="page-subtitle">{{ clients|length }} client(s) trouvé(s)</p>
+<div class="sticky-header">
+    <div class="clients-header">
+        <div>
+            <h1 class="page-title">Gestion des clients</h1>
+            <p class="page-subtitle">{{ page_obj.paginator.count }} client(s) trouvé(s)</p>
+        </div>
+        <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+            <form method="get" class="search-box">
+                <input type="text" name="search" value="{{ search }}" placeholder="Rechercher un client...">
+                {% if filtre %}<input type="hidden" name="filtre" value="{{ filtre }}">{% endif %}
+                <button type="submit">Rechercher</button>
+            </form>
+            <button class="btn-nouveau" onclick="ouvrirModalClient()">
+                + Nouveau client
+            </button>
+        </div>
     </div>
-    <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
-        <form method="get" class="search-box">
-            <input type="text" name="search" value="{{ search }}" placeholder="Rechercher un client...">
-            {% if filtre %}<input type="hidden" name="filtre" value="{{ filtre }}">{% endif %}
-            <button type="submit">Rechercher</button>
-        </form>
-        <button class="btn-nouveau" onclick="ouvrirModalClient()">
-            + Nouveau client
-        </button>
-    </div>
-</div>
 
-<!-- Filtres -->
-<div style="display: flex; gap: 10px; margin-bottom: 20px; margin-top: 15px; flex-wrap: wrap;">
-    <a href="?{% if search %}search={{ search }}{% endif %}"
-       style="padding: 8px 18px; border-radius: 20px; text-decoration: none; font-size: 0.9em; font-weight: 500; {% if not filtre %}background: var(--primary); color: white;{% else %}background: #f0f0f0; color: #666;{% endif %}">
-        Tous
-    </a>
-    <a href="?filtre=dettes{% if search %}&search={{ search }}{% endif %}"
-       style="padding: 8px 18px; border-radius: 20px; text-decoration: none; font-size: 0.9em; font-weight: 500; {% if filtre == 'dettes' %}background: #dc3545; color: white;{% else %}background: #f8d7da; color: #721c24;{% endif %}">
-        Avec dettes
-    </a>
-    <a href="?filtre=forfaits{% if search %}&search={{ search }}{% endif %}"
-       style="padding: 8px 18px; border-radius: 20px; text-decoration: none; font-size: 0.9em; font-weight: 500; {% if filtre == 'forfaits' %}background: #9b59b6; color: white;{% else %}background: #f3e8ff; color: #6b4d8a;{% endif %}">
-        Avec forfaits
-    </a>
-    <a href="?filtre=cartes{% if search %}&search={{ search }}{% endif %}"
-       style="padding: 8px 18px; border-radius: 20px; text-decoration: none; font-size: 0.9em; font-weight: 500; {% if filtre == 'cartes' %}background: #c9a86a; color: white;{% else %}background: #fef3e2; color: #8b6914;{% endif %}">
-        Avec carte cadeau
-    </a>
+    <!-- Filtres -->
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <a href="?{% if search %}search={{ search }}{% endif %}"
+           style="padding: 8px 18px; border-radius: 20px; text-decoration: none; font-size: 0.9em; font-weight: 500; {% if not filtre %}background: var(--primary); color: white;{% else %}background: #f0f0f0; color: #666;{% endif %}">
+            Tous
+        </a>
+        <a href="?filtre=dettes{% if search %}&search={{ search }}{% endif %}"
+           style="padding: 8px 18px; border-radius: 20px; text-decoration: none; font-size: 0.9em; font-weight: 500; {% if filtre == 'dettes' %}background: #dc3545; color: white;{% else %}background: #f8d7da; color: #721c24;{% endif %}">
+            Avec dettes
+        </a>
+        <a href="?filtre=forfaits{% if search %}&search={{ search }}{% endif %}"
+           style="padding: 8px 18px; border-radius: 20px; text-decoration: none; font-size: 0.9em; font-weight: 500; {% if filtre == 'forfaits' %}background: #9b59b6; color: white;{% else %}background: #f3e8ff; color: #6b4d8a;{% endif %}">
+            Avec forfaits
+        </a>
+        <a href="?filtre=cartes{% if search %}&search={{ search }}{% endif %}"
+           style="padding: 8px 18px; border-radius: 20px; text-decoration: none; font-size: 0.9em; font-weight: 500; {% if filtre == 'cartes' %}background: #c9a86a; color: white;{% else %}background: #fef3e2; color: #8b6914;{% endif %}">
+            Avec carte cadeau
+        </a>
+    </div>
 </div>
 
 <div class="clients-table-container">
@@ -579,6 +581,30 @@
     </div>
     {% endif %}
 </div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="pagination">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if filtre %}&filtre={{ filtre }}{% endif %}">&#8249; Préc.</a>
+    {% endif %}
+
+    {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+        <span class="current">{{ num }}</span>
+        {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+        <a href="?page={{ num }}{% if search %}&search={{ search }}{% endif %}{% if filtre %}&filtre={{ filtre }}{% endif %}">{{ num }}</a>
+        {% elif num == 1 or num == page_obj.paginator.num_pages %}
+        <a href="?page={{ num }}{% if search %}&search={{ search }}{% endif %}{% if filtre %}&filtre={{ filtre }}{% endif %}">{{ num }}</a>
+        {% elif num == 2 or num == page_obj.paginator.num_pages|add:"-1" %}
+        <span style="padding: 10px 5px;">...</span>
+        {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if filtre %}&filtre={{ filtre }}{% endif %}">Suiv. &#8250;</a>
+    {% endif %}
+</div>
+{% endif %}
 
 <!-- Modal Nouveau/Modifier client -->
 <div class="modal" id="modalClient">

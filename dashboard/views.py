@@ -54,12 +54,13 @@ def index(request):
             ).values_list('date', flat=True)
         )
 
-    # Stats globales - CA total (tous paiements RDV validés)
-    # Pour Express : n'inclure que les jours clôturés
+    # Stats globales - CA encaissé (paiements RDV validés)
+    # Exclure carte_cadeau car déjà compté lors de la vente de la carte
+    # Exclure forfait/offert (montant=0, pas d'argent encaissé)
     base_paiements = Paiement.objects.filter(
         rendez_vous__date__range=[date_debut, date_fin],
         rendez_vous__statut='valide'
-    )
+    ).exclude(mode__in=['carte_cadeau', 'forfait', 'offert'])
 
     if express:
         # Non-Express
@@ -197,7 +198,7 @@ def index(request):
                     rendez_vous__institut=institut,
                     rendez_vous__date__in=dates_cloturees_express,
                     rendez_vous__statut='valide'
-                ).aggregate(total=Sum('montant'))['total'] or 0
+                ).exclude(mode__in=['carte_cadeau', 'forfait', 'offert']).aggregate(total=Sum('montant'))['total'] or 0
 
                 # Cartes cadeaux vendues (dates clôturées)
                 ca_cartes_vendues = CarteCadeau.objects.filter(
@@ -235,7 +236,7 @@ def index(request):
                 rendez_vous__institut=institut,
                 rendez_vous__date__range=[date_debut, date_fin],
                 rendez_vous__statut='valide'
-            ).aggregate(total=Sum('montant'))['total'] or 0
+            ).exclude(mode__in=['carte_cadeau', 'forfait', 'offert']).aggregate(total=Sum('montant'))['total'] or 0
 
             # Cartes cadeaux vendues dans cet institut
             ca_cartes_vendues = CarteCadeau.objects.filter(
@@ -520,7 +521,7 @@ def api_stats_chart(request):
         paiements_qs = Paiement.objects.filter(
             rendez_vous__date__range=[d_debut, d_fin],
             rendez_vous__statut='valide'
-        )
+        ).exclude(mode__in=['carte_cadeau', 'forfait', 'offert'])
         if institut_filter:
             paiements_qs = paiements_qs.filter(rendez_vous__institut=institut_filter)
             # Express : seulement dates clôturées

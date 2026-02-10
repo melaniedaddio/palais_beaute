@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
+from django.core.paginator import Paginator
 from django.db.models import Q
 from django.utils import timezone
 from .models import Utilisateur, Client, Employe, Institut, CarteCadeau, UtilisationCarteCadeau, ForfaitClient, RendezVous, Credit
@@ -189,8 +190,13 @@ def clients_list(request):
 
     clients = clients.order_by('-actif', 'nom', 'prenom')
 
+    paginator = Paginator(clients, 30)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     return render(request, 'clients/liste.html', {
-        'clients': clients,
+        'clients': page_obj,
+        'page_obj': page_obj,
         'search': search,
         'filtre': filtre,
     })
@@ -695,8 +701,13 @@ def cartes_cadeaux_list(request):
 
     instituts = Institut.objects.all()
 
+    paginator = Paginator(cartes, 30)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     return render(request, 'cartes_cadeaux/liste.html', {
-        'cartes': cartes,
+        'cartes': page_obj,
+        'page_obj': page_obj,
         'search': search,
         'statut_filtre': statut,
         'instituts': instituts,

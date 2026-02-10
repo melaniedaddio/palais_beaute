@@ -102,11 +102,12 @@ def index(request, institut_code):
     ).count()
 
     # CA encaissé : paiements RDV du jour
+    # Exclure carte_cadeau (déjà compté lors de la vente de la carte)
     ca_paiements_rdv = Paiement.objects.filter(
         rendez_vous__institut=institut,
         rendez_vous__date=date_selectionnee,
         rendez_vous__statut='valide'
-    ).aggregate(total=Sum('montant'))['total'] or 0
+    ).exclude(mode__in=['carte_cadeau', 'forfait', 'offert']).aggregate(total=Sum('montant'))['total'] or 0
 
     # Crédits encaissés ce jour pour cet institut
     credits_encaisses = PaiementCredit.objects.filter(
