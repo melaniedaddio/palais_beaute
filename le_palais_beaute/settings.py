@@ -163,6 +163,10 @@ LOGIN_URL = 'core:login'
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Créer le répertoire logs s'il n'existe pas
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
+
 # Logging
 LOGGING = {
     'version': 1,
