@@ -48,7 +48,7 @@ class Utilisateur(models.Model):
         blank=True,
         help_text="NULL pour le patron (accès à tous)"
     )
-    pin = models.CharField(max_length=6)  # Code PIN à 6 chiffres
+    pin = models.CharField(max_length=256)  # Code PIN hashé
     actif = models.BooleanField(default=True)
 
     class Meta:
