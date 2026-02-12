@@ -136,11 +136,14 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # Durée de session : 1 heure
 SESSION_COOKIE_AGE = 3600
 
-# Sécurité des cookies
-SESSION_COOKIE_SECURE = not DEBUG  # HTTPS uniquement en production
+# HTTPS (configurable via .env, désactivé par défaut tant qu'il n'y a pas de certificat SSL)
+_USE_SSL = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
+
+# Sécurité des cookies (HTTPS uniquement si SSL activé)
+SESSION_COOKIE_SECURE = _USE_SSL
 SESSION_COOKIE_HTTPONLY = True  # Pas accessible via JavaScript
 SESSION_COOKIE_SAMESITE = 'Lax'  # Protection CSRF
-CSRF_COOKIE_SECURE = not DEBUG  # HTTPS uniquement en production
+CSRF_COOKIE_SECURE = _USE_SSL
 CSRF_COOKIE_HTTPONLY = True  # Pas accessible via JavaScript
 CSRF_COOKIE_SAMESITE = 'Lax'  # Protection CSRF
 
@@ -149,14 +152,13 @@ SECURE_BROWSER_XSS_FILTER = True  # Protection XSS
 SECURE_CONTENT_TYPE_NOSNIFF = True  # Pas de sniffing MIME
 X_FRAME_OPTIONS = 'DENY'  # Pas d'embedding dans iframe
 
-# HTTPS (configurable via .env, désactivé par défaut tant qu'il n'y a pas de certificat SSL)
-if not DEBUG:
-    SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
+# HTTPS
+if not DEBUG and _USE_SSL:
+    SECURE_SSL_REDIRECT = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    if SECURE_SSL_REDIRECT:
-        SECURE_HSTS_SECONDS = 31536000  # 1 an
-        SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-        SECURE_HSTS_PRELOAD = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 an
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 # Login URL
 LOGIN_URL = 'core:login'
