@@ -61,18 +61,18 @@
     </div>
     <div class="stat-card">
         <div class="stat-label">CA encaissé</div>
-        <div class="stat-value" id="stat-ca-encaisse" style="color: #28a745;"><script>document.write(Number({{ ca_encaisse|default:0 }}).toLocaleString('fr-FR'))</script> <span class="stat-unit">CFA</span></div>
+        <div class="stat-value" id="stat-ca-encaisse" style="color: #28a745;">{{ ca_encaisse|floatformat:0 }} <span class="stat-unit">CFA</span></div>
     </div>
     {% if credits_encaisses > 0 %}
     <div class="stat-card">
         <div class="stat-label">Crédits encaissés</div>
-        <div class="stat-value" style="color: #17a2b8;"><script>document.write(Number({{ credits_encaisses }}).toLocaleString('fr-FR'))</script> <span class="stat-unit">CFA</span></div>
+        <div class="stat-value" style="color: #17a2b8;">{{ credits_encaisses|floatformat:0 }} <span class="stat-unit">CFA</span></div>
     </div>
     {% endif %}
     {% if ca_forfaits_reel > 0 %}
     <div class="stat-card">
         <div class="stat-label">Forfaits vendus</div>
-        <div class="stat-value" style="color: #9b59b6;"><script>document.write(Number({{ ca_forfaits_encaisse }}).toLocaleString('fr-FR'))</script> <span class="stat-unit">CFA</span></div>
+        <div class="stat-value" style="color: #9b59b6;">{{ ca_forfaits_encaisse|floatformat:0 }} <span class="stat-unit">CFA</span></div>
     </div>
     {% endif %}
     {% endif %}
@@ -459,6 +459,52 @@
 </div>
 
 <style>
+/* Stats cards */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    border-left: 4px solid var(--primary);
+}
+
+.stat-card.success {
+    border-left-color: var(--success);
+}
+
+.stat-card.warning {
+    border-left-color: var(--warning);
+}
+
+.stat-card.danger {
+    border-left-color: var(--danger);
+}
+
+.stat-label {
+    font-size: 0.9em;
+    color: var(--text-light);
+    margin-bottom: 10px;
+}
+
+.stat-value {
+    font-size: 2em;
+    font-weight: bold;
+    color: var(--text-dark);
+}
+
+.stat-unit {
+    font-size: 0.5em;
+    color: var(--text-light);
+}
+
+/* Agenda table */
 .agenda-table {
     width: 100%;
     border-collapse: collapse;
