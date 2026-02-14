@@ -9,7 +9,7 @@ from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.utils import timezone
-from .models import Utilisateur, Client, Employe, Institut, CarteCadeau, UtilisationCarteCadeau, ForfaitClient, RendezVous, Credit
+from .models import Utilisateur, Client, Employe, Institut, CarteCadeau, UtilisationCarteCadeau, ForfaitClient, RendezVous, Credit, Prestation, Paiement
 from .decorators import role_required
 import re
 
@@ -719,11 +719,31 @@ def cartes_cadeaux_list(request):
 def api_vendre_carte_cadeau(request):
     """API pour créer une nouvelle carte cadeau."""
     try:
+        from decimal import Decimal, InvalidOperation
+        from datetime import date, datetime
+
         acheteur_id = request.POST.get('acheteur_id')
         beneficiaire_id = request.POST.get('beneficiaire_id')
         meme_personne = request.POST.get('meme_personne') == 'true'
         montant = int(request.POST.get('montant', 0))
         mode_paiement = request.POST.get('mode_paiement', 'especes')
+
+        # Double paiement
+        utilise_double_paiement = request.POST.get('utilise_double_paiement') == 'true'
+        moyen_paiement_1 = request.POST.get('moyen_paiement_1', mode_paiement)
+        moyen_paiement_2 = request.POST.get('moyen_paiement_2', '')
+
+        try:
+            montant_paiement_1_str = request.POST.get('montant_paiement_1', '0')
+            montant_paiement_1 = Decimal(montant_paiement_1_str) if montant_paiement_1_str else Decimal('0')
+        except (ValueError, InvalidOperation):
+            montant_paiement_1 = Decimal('0')
+
+        try:
+            montant_paiement_2_str = request.POST.get('montant_paiement_2', '0')
+            montant_paiement_2 = Decimal(montant_paiement_2_str) if montant_paiement_2_str else Decimal('0')
+        except (ValueError, InvalidOperation):
+            montant_paiement_2 = Decimal('0')
 
         if not acheteur_id:
             return JsonResponse({'success': False, 'message': 'Acheteur requis'})
@@ -749,15 +769,59 @@ def api_vendre_carte_cadeau(request):
         else:
             institut = utilisateur.institut
 
+        # Stocker le premier moyen de paiement dans la carte cadeau
         carte = CarteCadeau.objects.create(
             acheteur=acheteur,
             beneficiaire=beneficiaire,
             montant_initial=montant,
             solde=montant,
             institut_achat=institut,
-            mode_paiement_achat=mode_paiement,
+            mode_paiement_achat=moyen_paiement_1,
             vendue_par=utilisateur,
         )
+
+        # Créer un RDV fictif pour enregistrer les paiements
+        prestation_fictive = Prestation.objects.filter(institut=institut).first()
+        if prestation_fictive:
+            rdv_fictif = RendezVous.objects.create(
+                institut=institut,
+                client=acheteur,
+                employe=institut.employes.first(),
+                prestation=prestation_fictive,
+                famille=prestation_fictive.famille if prestation_fictive.famille else None,
+                date=date.today(),
+                heure_debut=datetime.now().time(),
+                heure_fin=datetime.now().time(),
+                prix_base=montant,
+                prix_options=0,
+                prix_total=montant,
+                statut='valide',
+                cree_par=utilisateur,
+                valide_par=utilisateur,
+            )
+
+            # Créer les paiements
+            if utilise_double_paiement and montant_paiement_2 > 0:
+                # Double paiement
+                if montant_paiement_1 > 0:
+                    Paiement.objects.create(
+                        rendez_vous=rdv_fictif,
+                        mode=moyen_paiement_1,
+                        montant=int(montant_paiement_1),
+                    )
+                if montant_paiement_2 > 0:
+                    Paiement.objects.create(
+                        rendez_vous=rdv_fictif,
+                        mode=moyen_paiement_2,
+                        montant=int(montant_paiement_2),
+                    )
+            else:
+                # Paiement simple
+                Paiement.objects.create(
+                    rendez_vous=rdv_fictif,
+                    mode=moyen_paiement_1,
+                    montant=montant,
+                )
 
         return JsonResponse({
             'success': True,

@@ -177,29 +177,75 @@
                 <input type="number" id="montant-paye" name="montant_paye" class="form-control" step="1" min="0">
             </div>
 
+            <!-- Section double paiement -->
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="utilise-double-paiement-express" onchange="toggleDoublePaiementExpress()" style="width: auto;">
+                    <span>Payer avec 2 moyens de paiement</span>
+                </label>
+            </div>
+
             <div id="section-moyen-paiement" class="form-group">
-                <label>Moyen de paiement</label>
+                <label id="label-moyen-paiement-1-express">Moyen de paiement</label>
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
                     <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                        <input type="radio" name="moyen_paiement" value="especes" checked>
+                        <input type="radio" name="moyen_paiement_1" value="especes" checked>
                         <span>Espèces</span>
                     </label>
                     <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                        <input type="radio" name="moyen_paiement" value="carte">
+                        <input type="radio" name="moyen_paiement_1" value="carte">
                         <span>Carte bancaire</span>
                     </label>
                     <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                        <input type="radio" name="moyen_paiement" value="cheque">
+                        <input type="radio" name="moyen_paiement_1" value="cheque">
                         <span>Chèque</span>
                     </label>
                     <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                        <input type="radio" name="moyen_paiement" value="om">
+                        <input type="radio" name="moyen_paiement_1" value="om">
                         <span>Orange Money</span>
                     </label>
                     <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                        <input type="radio" name="moyen_paiement" value="wave">
+                        <input type="radio" name="moyen_paiement_1" value="wave">
                         <span>Wave</span>
                     </label>
+                </div>
+            </div>
+
+            <!-- Montant moyen 1 (si double paiement) -->
+            <div id="montant-moyen-1-group-express" class="form-group" style="display: none;">
+                <label>Montant payé avec le 1er moyen</label>
+                <input type="number" id="montant-paiement-1-express" name="montant_paiement_1_express" class="form-control" step="1" min="0"
+                       onchange="calculerMontant2Express()">
+            </div>
+
+            <!-- Moyen de paiement 2 (si double paiement) -->
+            <div id="section-moyen-paiement-2-express" class="form-group" style="display: none;">
+                <label>2ème moyen de paiement</label>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                        <input type="radio" name="moyen_paiement_2" value="especes">
+                        <span>Espèces</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                        <input type="radio" name="moyen_paiement_2" value="carte" checked>
+                        <span>Carte bancaire</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                        <input type="radio" name="moyen_paiement_2" value="cheque">
+                        <span>Chèque</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                        <input type="radio" name="moyen_paiement_2" value="om">
+                        <span>Orange Money</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                        <input type="radio" name="moyen_paiement_2" value="wave">
+                        <span>Wave</span>
+                    </label>
+                </div>
+                <div id="montant-moyen-2-display-express" style="margin-top: 10px; padding: 10px; background: #e8f5e9; border-radius: 6px; font-size: 14px;">
+                    <strong>Montant à payer avec le 2ème moyen :</strong>
+                    <span id="montant-paiement-2-text-express" style="float: right; font-weight: 700; color: #2e7d32;">0 CFA</span>
                 </div>
             </div>
 
@@ -456,6 +502,53 @@ function updatePaiement() {
     }
 }
 
+// Fonction pour activer/désactiver le double paiement dans Express
+function toggleDoublePaiementExpress() {
+    const checkbox = document.getElementById('utilise-double-paiement-express');
+    const montant1Group = document.getElementById('montant-moyen-1-group-express');
+    const moyen2Section = document.getElementById('section-moyen-paiement-2-express');
+    const label1 = document.getElementById('label-moyen-paiement-1-express');
+
+    if (checkbox.checked) {
+        // Activer le double paiement
+        montant1Group.style.display = 'block';
+        moyen2Section.style.display = 'block';
+        label1.textContent = '1er moyen de paiement';
+
+        // Initialiser
+        document.getElementById('montant-paiement-1-express').value = '';
+        calculerMontant2Express();
+    } else {
+        // Désactiver le double paiement
+        montant1Group.style.display = 'none';
+        moyen2Section.style.display = 'none';
+        label1.textContent = 'Moyen de paiement';
+    }
+}
+
+// Fonction pour calculer automatiquement le montant du 2ème moyen dans Express
+function calculerMontant2Express() {
+    const montant1 = parseFloat(document.getElementById('montant-paiement-1-express').value) || 0;
+
+    // Récupérer le total des cartes cadeaux s'il y en a
+    const checks = document.querySelectorAll('.carte-cadeau-check-express:checked');
+    let totalCartes = 0;
+    checks.forEach(check => {
+        const carteId = check.dataset.carteId;
+        const montantInput = document.querySelector(`.carte-cadeau-montant-express[data-carte-id="${carteId}"]`);
+        totalCartes += parseInt(montantInput.value) || 0;
+    });
+
+    // Calculer le prix total de la vente
+    let total = 0;
+    prestationsSelectionnees.forEach(p => {
+        total += p.prix * p.quantite;
+    });
+
+    const montant2 = Math.max(0, total - totalCartes - montant1);
+    document.getElementById('montant-paiement-2-text-express').textContent = montant2.toLocaleString('fr-FR') + ' CFA';
+}
+
 function setupClientAutocomplete() {
     const input = document.getElementById('vente-client-search');
     const resultsDiv = document.getElementById('client-autocomplete');
@@ -671,6 +764,38 @@ document.getElementById('form-vente').addEventListener('submit', function(e) {
         });
         if (cartesData.length > 0) {
             formData.append('cartes_cadeaux', JSON.stringify(cartesData));
+        }
+    }
+
+    // Ajouter le double paiement si activé
+    const checkbox = document.getElementById('utilise-double-paiement-express');
+    if (checkbox && checkbox.checked) {
+        formData.append('utilise_double_paiement', 'true');
+        const montant1 = document.getElementById('montant-paiement-1-express').value || 0;
+        formData.set('montant_paiement_1', montant1);
+
+        // Calculer le montant2
+        let totalCartes = 0;
+        checks.forEach(check => {
+            const carteId = check.dataset.carteId;
+            const montantInput = document.querySelector(`.carte-cadeau-montant[data-carte-id="${carteId}"]`);
+            totalCartes += parseInt(montantInput.value) || 0;
+        });
+
+        let total = 0;
+        window.prestationsSelectionnees.forEach(p => {
+            total += p.prix * p.quantite;
+        });
+
+        const montant2 = Math.max(0, total - totalCartes - parseFloat(montant1));
+        formData.append('montant_paiement_2', montant2);
+
+        // Les moyens de paiement sont déjà dans le form (moyen_paiement_1 et moyen_paiement_2)
+    } else {
+        // Renommer moyen_paiement_1 en moyen_paiement pour compatibilité
+        const moyen = document.querySelector('input[name="moyen_paiement_1"]:checked');
+        if (moyen) {
+            formData.set('moyen_paiement', moyen.value);
         }
     }
 

@@ -1,0 +1,99 @@
+<!-- Modal Liste des Options -->
+<div id="modalOptions" class="modal">
+    <div class="modal-content" style="max-width: 900px;">
+        <div class="modal-header">
+            <h2>⚙️ Gestion des Options</h2>
+            <button class="modal-close" onclick="fermerModal('modalOptions')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="margin-bottom: 20px;">
+                <button class="btn btn-primary" onclick="ouvrirModalNouvelleOption()">+ Nouvelle option</button>
+            </div>
+
+            <div id="listeOptions" style="display: grid; gap: 12px;">
+                <!-- Les options seront chargées ici -->
+            </div>
+
+            <div id="emptyOptions" style="display: none; text-align: center; padding: 40px; color: #999;">
+                <p style="font-size: 18px;">📭</p>
+                <p>Aucune option disponible</p>
+                <p style="font-size: 13px;">Cliquez sur "+ Nouvelle option" pour en créer une</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Créer/Modifier Option -->
+<div id="modalOption" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+            <h2 id="modalOptionTitle">Nouvelle option</h2>
+            <button class="modal-close" onclick="fermerModal('modalOption')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="formOption" onsubmit="event.preventDefault(); sauvegarderOption();">
+                <input type="hidden" id="optionId" value="">
+
+                <div class="form-group">
+                    <label>Nom de l'option *</label>
+                    <input type="text" id="optionNom" class="form-control" placeholder="Ex: Strass, Dessin, Gel" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Prix (CFA) *</label>
+                    <input type="number" id="optionPrix" class="form-control" placeholder="Ex: 500" min="0" step="100" required>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="optionAQuantite" style="width: auto;">
+                        <span>Cette option peut avoir une quantité variable</span>
+                    </label>
+                    <small style="color: #666; display: block; margin-top: 5px;">
+                        Si coché, on pourra spécifier une quantité lors de l'ajout (ex: 5 strass)
+                    </small>
+                </div>
+
+                <div class="form-group" id="groupeUnite" style="display: none;">
+                    <label>Unité</label>
+                    <input type="text" id="optionUnite" class="form-control" placeholder="Ex: strass, ongle, cm">
+                    <small style="color: #666; display: block; margin-top: 5px;">
+                        Nom de l'unité au singulier (ex: "strass" donnera "5 strass")
+                    </small>
+                </div>
+
+                <div class="form-group" id="groupeActif" style="display: none;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="optionActif" style="width: auto;" checked>
+                        <span>Option active</span>
+                    </label>
+                </div>
+
+                <div class="modal-footer" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                    <button type="button" class="btn btn-secondary" onclick="fermerModal('modalOption')">Annuler</button>
+                    <button type="submit" class="btn btn-primary" id="btnSaveOption">Créer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Confirmation Suppression Option -->
+<div id="modalSupprimerOption" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h2>⚠️ Supprimer l'option</h2>
+            <button class="modal-close" onclick="fermerModal('modalSupprimerOption')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="optionIdSupprimer" value="">
+            <p style="margin-bottom: 20px;">Êtes-vous sûr de vouloir supprimer l'option <strong id="optionNomSupprimer"></strong> ?</p>
+            <p style="color: #f44336; font-size: 14px;">⚠️ Cette action est irréversible.</p>
+
+            <div class="modal-footer" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                <button type="button" class="btn btn-secondary" onclick="fermerModal('modalSupprimerOption')">Annuler</button>
+                <button type="button" class="btn btn-danger" onclick="confirmerSuppressionOption()">Supprimer</button>
+            </div>
+        </div>
+    </div>
+</div>

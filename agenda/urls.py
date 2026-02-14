@@ -22,6 +22,8 @@ urlpatterns = [
     path('<str:institut_code>/api/rdv/<int:rdv_id>/absent/', views.api_rdv_absent, name='api_rdv_absent'),
     path('<str:institut_code>/api/rdv/<int:rdv_id>/annule-client/', views.api_rdv_annule_client, name='api_rdv_annule_client'),
     path('<str:institut_code>/api/rdv/<int:rdv_id>/valider/', views.api_rdv_valider, name='api_rdv_valider'),
+    path('<str:institut_code>/api/rdv/<int:rdv_id>/client-jour/', views.api_rdv_client_jour, name='api_rdv_client_jour'),
+    path('<str:institut_code>/api/rdv/valider-groupe/', views.api_rdv_valider_groupe, name='api_rdv_valider_groupe'),
 
     # Forfaits multi-séances
     path('<str:institut_code>/api/forfaits/', views.api_forfaits_disponibles, name='api_forfaits_disponibles'),

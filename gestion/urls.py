@@ -29,4 +29,11 @@ urlpatterns = [
 
     # Export Excel
     path('catalogue/export-excel/', views.export_catalogue_excel, name='export_catalogue_excel'),
+
+    # Options
+    path('catalogue/<str:institut_code>/options/', views.api_options_liste, name='api_options_liste'),
+    path('catalogue/<str:institut_code>/option/creer/', views.api_option_creer, name='api_option_creer'),
+    path('catalogue/<str:institut_code>/option/<int:option_id>/modifier/', views.api_option_modifier, name='api_option_modifier'),
+    path('catalogue/<str:institut_code>/option/<int:option_id>/supprimer/', views.api_option_supprimer, name='api_option_supprimer'),
+    path('catalogue/<str:institut_code>/option/<int:option_id>/details/', views.api_option_details, name='api_option_details'),
 ]

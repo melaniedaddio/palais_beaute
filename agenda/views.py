@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.db.models import Q, Sum
 from django.utils import timezone
 from datetime import datetime, date, time, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import json
 
 from core.decorators import institut_required, role_required
@@ -179,7 +179,11 @@ def api_rdv_creer(request, institut_code):
         date_str = request.POST.get('date')
         heure_str = request.POST.get('heure')
         prix_base = Decimal(request.POST.get('prix_base', 0))
-        options_ids = request.POST.getlist('options')
+
+        # Récupérer les options avec leurs quantités
+        import json
+        options_data_str = request.POST.get('options_data', '[]')
+        options_data = json.loads(options_data_str) if options_data_str else []
 
         # Paramètre pour utiliser une séance de forfait
         seance_forfait_id = request.POST.get('seance_forfait_id')
@@ -225,9 +229,15 @@ def api_rdv_creer(request, institut_code):
 
         # Calculer le prix des options
         prix_options = Decimal('0')
-        if options_ids:
-            options = Option.objects.filter(id__in=options_ids)
-            prix_options = sum(opt.prix for opt in options)
+        if options_data:
+            # options_data est une liste de dict: [{'id': '1', 'quantite': 2}, ...]
+            option_ids = [opt['id'] for opt in options_data]
+            options = Option.objects.filter(id__in=option_ids)
+            # Créer un dict pour accès rapide aux quantités
+            quantites = {str(opt['id']): int(opt['quantite']) for opt in options_data}
+            for opt in options:
+                qte = quantites.get(str(opt.id), 1)
+                prix_options += opt.prix * qte
 
         # Créer le RDV
         rdv = RendezVous.objects.create(
@@ -253,13 +263,15 @@ def api_rdv_creer(request, institut_code):
             seance_forfait.programmer(rdv)
 
         # Ajouter les options
-        if options_ids:
+        if options_data:
             for option in options:
+                qte = quantites.get(str(option.id), 1)
                 RendezVousOption.objects.create(
                     rendez_vous=rdv,
                     option=option,
                     prix_unitaire=option.prix,
-                    quantite=1
+                    quantite=qte,
+                    prix_total=option.prix * qte
                 )
 
         message = 'Rendez-vous créé avec succès'
@@ -306,7 +318,7 @@ def api_rdv_details(request, institut_code, rdv_id):
         'prix_total': float(rdv.prix_total),
         'statut': rdv.statut,
         'est_seance_forfait': rdv.est_seance_forfait,
-        'options': [{'id': opt.option.id, 'nom': opt.option.nom, 'prix': float(opt.prix)} for opt in options]
+        'options': [{'id': opt.option.id, 'nom': opt.option.nom, 'prix': float(opt.prix_unitaire), 'quantite': opt.quantite} for opt in options]
     }
 
     return JsonResponse(data)
@@ -333,8 +345,12 @@ def api_rdv_modifier(request, institut_code, rdv_id):
         date_str = request.POST.get('date')
         heure_str = request.POST.get('heure')
         prix_base = Decimal(request.POST.get('prix_base', 0))
-        options_ids = request.POST.getlist('options')
         raison_modification = request.POST.get('raison_modification', '')
+
+        # Récupérer les options avec leurs quantités
+        import json
+        options_data_str = request.POST.get('options_data', '[]')
+        options_data = json.loads(options_data_str) if options_data_str else []
 
         # Sauvegarder l'ancien prix pour la traçabilité
         ancien_prix_base = rdv.prix_base
@@ -356,16 +372,22 @@ def api_rdv_modifier(request, institut_code, rdv_id):
         # Recalculer le prix des options
         rdv.options_selectionnees.all().delete()
         prix_options = Decimal('0')
-        if options_ids:
-            options = Option.objects.filter(id__in=options_ids)
+        if options_data:
+            # options_data est une liste de dict: [{'id': '1', 'quantite': 2}, ...]
+            option_ids = [opt['id'] for opt in options_data]
+            options = Option.objects.filter(id__in=option_ids)
+            # Créer un dict pour accès rapide aux quantités
+            quantites = {str(opt['id']): int(opt['quantite']) for opt in options_data}
             for option in options:
+                qte = quantites.get(str(option.id), 1)
                 RendezVousOption.objects.create(
                     rendez_vous=rdv,
                     option=option,
                     prix_unitaire=option.prix,
-                    quantite=1
+                    quantite=qte,
+                    prix_total=option.prix * qte
                 )
-                prix_options += option.prix
+                prix_options += option.prix * qte
 
         rdv.prix_options = prix_options
 
@@ -600,6 +622,53 @@ def api_rdv_annule_client(request, institut_code, rdv_id):
             'success': False,
             'message': str(e)
         }, status=400)
+
+
+@login_required
+@institut_required
+def api_rdv_client_jour(request, institut_code, rdv_id):
+    """API : Récupérer tous les RDV d'un client pour une journée donnée"""
+    institut = get_object_or_404(Institut, code=institut_code, a_agenda=True)
+    rdv_actuel = get_object_or_404(RendezVous, id=rdv_id, institut=institut)
+
+    # Récupérer tous les RDV du même client pour la même journée (sauf annulés)
+    rdvs_client = RendezVous.objects.filter(
+        client=rdv_actuel.client,
+        date=rdv_actuel.date,
+        institut=institut
+    ).exclude(
+        statut__in=['annule', 'annule_client', 'valide']  # Exclure les annulés et déjà validés
+    ).select_related('prestation', 'employe').prefetch_related('options_selectionnees__option')
+
+    rdvs_data = []
+    prix_total_global = 0
+
+    for rdv in rdvs_client:
+        options = rdv.options_selectionnees.select_related('option')
+        rdv_data = {
+            'id': rdv.id,
+            'client': rdv.client.get_full_name(),
+            'employe': rdv.employe.nom,
+            'prestation': rdv.prestation.nom,
+            'heure_debut': rdv.heure_debut.strftime('%H:%M'),
+            'heure_fin': rdv.heure_fin.strftime('%H:%M'),
+            'prix_base': float(rdv.prix_base),
+            'prix_options': float(rdv.prix_options),
+            'prix_total': float(rdv.prix_total),
+            'est_seance_forfait': rdv.est_seance_forfait,
+            'options': [{'nom': opt.option.nom, 'prix': float(opt.prix)} for opt in options]
+        }
+        rdvs_data.append(rdv_data)
+        prix_total_global += rdv.prix_total
+
+    return JsonResponse({
+        'success': True,
+        'rdvs': rdvs_data,
+        'prix_total_global': float(prix_total_global),
+        'client': rdv_actuel.client.get_full_name(),
+        'date': rdv_actuel.date.strftime('%d/%m/%Y'),
+        'nb_rdvs': len(rdvs_data)
+    })
 
 
 @login_required
@@ -1150,6 +1219,23 @@ def api_forfait_acheter(request, institut_code):
         mode_paiement = request.POST.get('mode_paiement', 'especes')
         montant_paye = Decimal(request.POST.get('montant', 0))
 
+        # Double paiement
+        utilise_double_paiement = request.POST.get('utilise_double_paiement') == 'true'
+        moyen_paiement_1 = request.POST.get('moyen_paiement_1', mode_paiement)
+        moyen_paiement_2 = request.POST.get('moyen_paiement_2', '')
+
+        try:
+            montant_paiement_1_str = request.POST.get('montant_paiement_1', '0')
+            montant_paiement_1 = Decimal(montant_paiement_1_str) if montant_paiement_1_str else Decimal('0')
+        except (ValueError, InvalidOperation):
+            montant_paiement_1 = Decimal('0')
+
+        try:
+            montant_paiement_2_str = request.POST.get('montant_paiement_2', '0')
+            montant_paiement_2 = Decimal(montant_paiement_2_str) if montant_paiement_2_str else Decimal('0')
+        except (ValueError, InvalidOperation):
+            montant_paiement_2 = Decimal('0')
+
         # Validation
         client = get_object_or_404(Client, id=client_id)
         prestation = get_object_or_404(Prestation, id=prestation_id, est_forfait=True)
@@ -1165,7 +1251,27 @@ def api_forfait_acheter(request, institut_code):
 
         utilisateur = request.user.utilisateur
 
-        # Créer le forfait client
+        # Créer le forfait client (utiliser comme RDV fictif pour les paiements)
+        # On crée d'abord un RDV fictif pour pouvoir lier les paiements
+        from datetime import date, datetime
+        rdv_forfait = RendezVous.objects.create(
+            institut=institut,
+            client=client,
+            employe=institut.employes.first(),  # Utiliser un employé par défaut
+            prestation=prestation,
+            famille=prestation.famille,
+            date=date.today(),
+            heure_debut=datetime.now().time(),
+            heure_fin=datetime.now().time(),
+            prix_base=prix_forfait,
+            prix_options=0,
+            prix_total=prix_forfait,
+            statut='valide',
+            cree_par=utilisateur,
+            valide_par=utilisateur,
+            est_seance_forfait=False,
+        )
+
         forfait = ForfaitClient.objects.create(
             client=client,
             prestation=prestation,
@@ -1183,6 +1289,30 @@ def api_forfait_acheter(request, institut_code):
                 numero=i,
                 statut='disponible'
             )
+
+        # Créer les paiements
+        if montant_effectif > 0:
+            if utilise_double_paiement and montant_paiement_2 > 0:
+                # Double paiement
+                if montant_paiement_1 > 0:
+                    Paiement.objects.create(
+                        rendez_vous=rdv_forfait,
+                        mode=moyen_paiement_1,
+                        montant=int(montant_paiement_1),
+                    )
+                if montant_paiement_2 > 0:
+                    Paiement.objects.create(
+                        rendez_vous=rdv_forfait,
+                        mode=moyen_paiement_2,
+                        montant=int(montant_paiement_2),
+                    )
+            else:
+                # Paiement simple
+                Paiement.objects.create(
+                    rendez_vous=rdv_forfait,
+                    mode=moyen_paiement_1,
+                    montant=montant_effectif,
+                )
 
         # Si paiement partiel ou différé, créer un crédit
         if montant_effectif < prix_forfait:
@@ -1206,6 +1336,194 @@ def api_forfait_acheter(request, institut_code):
             }
         })
 
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=400)
+
+
+@login_required
+@institut_required
+@require_POST
+def api_rdv_valider_groupe(request, institut_code):
+    """API : Valider plusieurs rendez-vous d'un même client en une seule fois"""
+    institut = get_object_or_404(Institut, code=institut_code, a_agenda=True)
+
+    try:
+        # Récupérer la liste des IDs de RDV à valider
+        rdv_ids = request.POST.getlist('rdv_ids[]')
+        if not rdv_ids:
+            return JsonResponse({
+                'success': False,
+                'message': 'Aucun rendez-vous à valider'
+            }, status=400)
+
+        # Récupérer les données de paiement
+        type_paiement = request.POST.get('type_paiement', 'complet')
+        moyen_paiement_1 = request.POST.get('moyen_paiement_1', 'especes')
+
+        # Convertir les montants en Decimal de manière sécurisée
+        try:
+            montant_paiement_1_str = request.POST.get('montant_paiement_1', '0')
+            montant_paiement_1 = Decimal(montant_paiement_1_str) if montant_paiement_1_str else Decimal('0')
+        except (ValueError, InvalidOperation):
+            montant_paiement_1 = Decimal('0')
+
+        # Paiement avec 2 moyens
+        utilise_double_paiement = request.POST.get('utilise_double_paiement') == 'true'
+        moyen_paiement_2 = request.POST.get('moyen_paiement_2', '')
+
+        try:
+            montant_paiement_2_str = request.POST.get('montant_paiement_2', '0')
+            montant_paiement_2 = Decimal(montant_paiement_2_str) if montant_paiement_2_str else Decimal('0')
+        except (ValueError, InvalidOperation):
+            montant_paiement_2 = Decimal('0')
+
+        # Cartes cadeaux
+        cartes_json = request.POST.get('cartes_cadeaux', '')
+
+        # Récupérer tous les RDV à valider
+        rdvs = RendezVous.objects.filter(
+            id__in=rdv_ids,
+            institut=institut
+        ).exclude(statut='valide')
+
+        if not rdvs.exists():
+            return JsonResponse({
+                'success': False,
+                'message': 'Aucun rendez-vous trouvé'
+            }, status=400)
+
+        # Vérifier que tous les RDV sont du même client
+        clients = set(rdv.client_id for rdv in rdvs)
+        if len(clients) > 1:
+            return JsonResponse({
+                'success': False,
+                'message': 'Tous les rendez-vous doivent être du même client'
+            }, status=400)
+
+        client = rdvs.first().client
+        utilisateur = request.user.utilisateur
+
+        # Calculer le prix total de tous les RDV
+        prix_total_global = sum(rdv.prix_total for rdv in rdvs)
+
+        # Déterminer le montant payé total
+        if type_paiement == 'complet':
+            montant_paye_total = prix_total_global
+        elif type_paiement == 'differe':
+            montant_paye_total = Decimal('0')
+        else:  # partiel
+            montant_paye_total = montant_paiement_1 + montant_paiement_2
+
+        montant_restant = int(montant_paye_total)
+
+        # 1. Traiter les cartes cadeaux si présentes
+        montant_total_cartes = 0
+        if cartes_json:
+            cartes_data = json.loads(cartes_json)
+            for carte_item in cartes_data:
+                carte = CarteCadeau.objects.get(
+                    id=carte_item['carte_id'],
+                    beneficiaire=client,
+                    statut='active',
+                )
+                montant_a_utiliser = min(
+                    int(carte_item['montant']),
+                    carte.solde,
+                    montant_restant,
+                )
+                if montant_a_utiliser > 0:
+                    # Créer une utilisation pour chaque RDV proportionnellement
+                    for rdv in rdvs:
+                        proportion = Decimal(str(rdv.prix_total)) / Decimal(str(prix_total_global))
+                        montant_rdv = int(montant_a_utiliser * proportion)
+                        if montant_rdv > 0:
+                            utilisation = UtilisationCarteCadeau.objects.create(
+                                carte=carte,
+                                rendez_vous=rdv,
+                                montant=montant_rdv,
+                                institut=institut,
+                                enregistre_par=utilisateur,
+                            )
+                            Paiement.objects.create(
+                                rendez_vous=rdv,
+                                mode='carte_cadeau',
+                                montant=montant_rdv,
+                                utilisation_carte_cadeau=utilisation,
+                            )
+                    carte.utiliser(montant_a_utiliser)
+                    montant_total_cartes += montant_a_utiliser
+                    montant_restant -= montant_a_utiliser
+
+        # 2. Valider chaque RDV et créer les paiements
+        for rdv in rdvs:
+            rdv.statut = 'valide'
+            rdv.save()
+
+            # Si c'est une séance de forfait, la marquer comme effectuée
+            if rdv.est_seance_forfait:
+                try:
+                    seance = SeanceForfait.objects.get(rendez_vous=rdv)
+                    seance.effectuer()
+                except SeanceForfait.DoesNotExist:
+                    pass
+
+                # Créer le paiement forfait (0 CFA)
+                Paiement.objects.create(
+                    rendez_vous=rdv,
+                    mode='forfait',
+                    montant=0,
+                )
+                continue
+
+            # Calculer la proportion de ce RDV dans le total
+            proportion = Decimal(str(rdv.prix_total)) / Decimal(str(prix_total_global))
+
+            # Créer les paiements proportionnels
+            if montant_paiement_1 > 0:
+                montant_rdv_1 = int(montant_paiement_1 * proportion)
+                if montant_rdv_1 > 0:
+                    Paiement.objects.create(
+                        rendez_vous=rdv,
+                        mode=moyen_paiement_1,
+                        montant=montant_rdv_1,
+                    )
+
+            if utilise_double_paiement and montant_paiement_2 > 0:
+                montant_rdv_2 = int(montant_paiement_2 * proportion)
+                if montant_rdv_2 > 0:
+                    Paiement.objects.create(
+                        rendez_vous=rdv,
+                        mode=moyen_paiement_2,
+                        montant=montant_rdv_2,
+                    )
+
+        # 3. Si paiement partiel ou différé, créer un crédit global
+        montant_effectif = montant_total_cartes + montant_paiement_1 + montant_paiement_2
+        if montant_effectif < prix_total_global:
+            # Créer la description avec la liste des prestations
+            prestations_liste = ", ".join([rdv.prestation.nom for rdv in rdvs])
+            Credit.objects.create(
+                client=client,
+                institut=institut,
+                montant_total=int(prix_total_global),
+                montant_paye=int(montant_effectif),
+                description=f"Groupe de {len(rdvs)} prestations - {prestations_liste}",
+            )
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{len(rdvs)} rendez-vous validés avec succès',
+            'nb_rdvs': len(rdvs)
+        })
+
+    except CarteCadeau.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Carte cadeau non trouvée ou non valide'
+        }, status=400)
     except Exception as e:
         return JsonResponse({
             'success': False,

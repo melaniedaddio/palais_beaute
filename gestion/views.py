@@ -3,8 +3,8 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Q, Max
 from django.views.decorators.http import require_POST
-from core.decorators import role_required
-from core.models import Institut, FamillePrestation, Prestation
+from core.decorators import role_required, institut_required
+from core.models import Institut, FamillePrestation, Prestation, Option
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from django.utils import timezone
@@ -703,3 +703,175 @@ def export_catalogue_excel(request):
 
     except Exception as e:
         return HttpResponse(f"Erreur lors de l'export: {str(e)}", status=500)
+
+# === Gestion des Options ===
+
+@login_required
+@institut_required
+def api_options_liste(request, institut_code):
+    """API : Liste des options d'un institut"""
+    institut = get_object_or_404(Institut, code=institut_code)
+    
+    options = Option.objects.filter(institut=institut).order_by('nom')
+    
+    options_data = []
+    for option in options:
+        options_data.append({
+            'id': option.id,
+            'nom': option.nom,
+            'prix': option.prix,
+            'a_quantite': option.a_quantite,
+            'unite': option.unite or '',
+            'actif': option.actif,
+        })
+    
+    return JsonResponse({
+        'success': True,
+        'options': options_data
+    })
+
+
+@login_required
+@institut_required
+@require_POST
+def api_option_creer(request, institut_code):
+    """API : Créer une nouvelle option"""
+    institut = get_object_or_404(Institut, code=institut_code)
+    
+    try:
+        nom = request.POST.get('nom', '').strip()
+        prix = int(request.POST.get('prix', 0))
+        a_quantite = request.POST.get('a_quantite') == 'true'
+        unite = request.POST.get('unite', '').strip()
+        
+        if not nom:
+            return JsonResponse({
+                'success': False,
+                'message': 'Le nom est requis'
+            }, status=400)
+        
+        if prix < 0:
+            return JsonResponse({
+                'success': False,
+                'message': 'Le prix ne peut pas être négatif'
+            }, status=400)
+        
+        option = Option.objects.create(
+            nom=nom,
+            institut=institut,
+            prix=prix,
+            a_quantite=a_quantite,
+            unite=unite if unite else None,
+            actif=True
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Option "{nom}" créée avec succès',
+            'option': {
+                'id': option.id,
+                'nom': option.nom,
+                'prix': option.prix,
+                'a_quantite': option.a_quantite,
+                'unite': option.unite or '',
+                'actif': option.actif,
+            }
+        })
+        
+    except ValueError:
+        return JsonResponse({
+            'success': False,
+            'message': 'Prix invalide'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=500)
+
+
+@login_required
+@institut_required
+@require_POST
+def api_option_modifier(request, institut_code, option_id):
+    """API : Modifier une option"""
+    institut = get_object_or_404(Institut, code=institut_code)
+    option = get_object_or_404(Option, id=option_id, institut=institut)
+    
+    try:
+        option.nom = request.POST.get('nom', option.nom).strip()
+        option.prix = int(request.POST.get('prix', option.prix))
+        option.a_quantite = request.POST.get('a_quantite') == 'true'
+        unite = request.POST.get('unite', '').strip()
+        option.unite = unite if unite else None
+        option.actif = request.POST.get('actif', 'true') == 'true'
+        
+        option.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Option "{option.nom}" modifiée avec succès',
+            'option': {
+                'id': option.id,
+                'nom': option.nom,
+                'prix': option.prix,
+                'a_quantite': option.a_quantite,
+                'unite': option.unite or '',
+                'actif': option.actif,
+            }
+        })
+        
+    except ValueError:
+        return JsonResponse({
+            'success': False,
+            'message': 'Prix invalide'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=500)
+
+
+@login_required
+@institut_required
+@require_POST
+def api_option_supprimer(request, institut_code, option_id):
+    """API : Supprimer une option"""
+    institut = get_object_or_404(Institut, code=institut_code)
+    option = get_object_or_404(Option, id=option_id, institut=institut)
+    
+    try:
+        nom = option.nom
+        option.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Option "{nom}" supprimée avec succès'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=500)
+
+
+@login_required
+@institut_required
+def api_option_details(request, institut_code, option_id):
+    """API : Détails d'une option"""
+    institut = get_object_or_404(Institut, code=institut_code)
+    option = get_object_or_404(Option, id=option_id, institut=institut)
+    
+    return JsonResponse({
+        'success': True,
+        'option': {
+            'id': option.id,
+            'nom': option.nom,
+            'prix': option.prix,
+            'a_quantite': option.a_quantite,
+            'unite': option.unite or '',
+            'actif': option.actif,
+        }
+    })

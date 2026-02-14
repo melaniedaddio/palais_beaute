@@ -419,6 +419,7 @@
             <h1 class="catalogue-title">📚 Catalogue des Prestations</h1>
             <div class="header-actions">
                 <button class="btn-add" onclick="ouvrirModalNouvelleFamille()">+ Nouvelle famille</button>
+                <button class="btn-add" onclick="ouvrirModalOptions()" style="background: #9b59b6;">⚙️ Gérer les options</button>
                 <a href="{% url 'gestion:export_catalogue_excel' %}?institut={{ institut_actif.code }}" class="btn-export">📥 Exporter Excel</a>
             </div>
         </div>
@@ -530,6 +531,7 @@
 <!-- Inclure les modals -->
 {% include 'gestion/includes/modals_famille.html' %}
 {% include 'gestion/includes/modals_prestation.html' %}
+{% include 'gestion/includes/modals_option.html' %}
 
 <script>
 // Récupérer le CSRF token
@@ -1496,6 +1498,222 @@ document.addEventListener('DOMContentLoaded', function() {
             };
         }
     });
+
+    // Gestion du champ quantité dans le formulaire option
+    const checkboxQuantite = document.getElementById('optionAQuantite');
+    if (checkboxQuantite) {
+        checkboxQuantite.addEventListener('change', function() {
+            const groupeUnite = document.getElementById('groupeUnite');
+            if (groupeUnite) {
+                groupeUnite.style.display = this.checked ? 'block' : 'none';
+            }
+        });
+    }
 });
+
+// === Gestion des Options ===
+
+async function ouvrirModalOptions() {
+    showPageLoader('Chargement des options...');
+
+    try {
+        const institutCode = getInstitutActif();
+        const response = await fetch(`/gestion/catalogue/${institutCode}/options/`);
+        const data = await response.json();
+
+        hidePageLoader();
+
+        if (data.success) {
+            afficherListeOptions(data.options);
+            ouvrirModal('modalOptions');
+        } else {
+            showError('Erreur lors du chargement des options');
+        }
+    } catch (error) {
+        hidePageLoader();
+        showError('Erreur réseau : ' + error.message);
+    }
+}
+
+function afficherListeOptions(options) {
+    const liste = document.getElementById('listeOptions');
+    const empty = document.getElementById('emptyOptions');
+
+    if (options.length === 0) {
+        liste.style.display = 'none';
+        empty.style.display = 'block';
+        return;
+    }
+
+    liste.style.display = 'grid';
+    empty.style.display = 'none';
+
+    liste.innerHTML = options.map(option => `
+        <div class="card" style="padding: 15px; border-left: 4px solid ${option.actif ? '#4caf50' : '#9e9e9e'};">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div style="flex: 1;">
+                    <div style="font-weight: 600; font-size: 16px; margin-bottom: 5px;">
+                        ${option.nom}
+                        ${!option.actif ? '<span style="color: #f44336; font-size: 12px; margin-left: 8px;">● Inactive</span>' : ''}
+                    </div>
+                    <div style="color: #666; font-size: 14px;">
+                        Prix : <strong>${option.prix.toLocaleString('fr-FR')} CFA</strong>
+                        ${option.a_quantite ? ` • <span style="color: #2196f3;">Quantité variable</span> ${option.unite ? '(' + option.unite + ')' : ''}` : ''}
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-icon" onclick="ouvrirModalModifierOption(${option.id})" title="Modifier">✏️</button>
+                    <button class="btn-icon" onclick="ouvrirModalSupprimerOption(${option.id}, '${option.nom}')" title="Supprimer" style="color: #f44336;">🗑️</button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function ouvrirModalNouvelleOption() {
+    document.getElementById('modalOptionTitle').textContent = 'Nouvelle option';
+    document.getElementById('optionId').value = '';
+    document.getElementById('optionNom').value = '';
+    document.getElementById('optionPrix').value = '';
+    document.getElementById('optionAQuantite').checked = false;
+    document.getElementById('optionUnite').value = '';
+    document.getElementById('optionActif').checked = true;
+    document.getElementById('btnSaveOption').textContent = 'Créer';
+    document.getElementById('groupeUnite').style.display = 'none';
+    document.getElementById('groupeActif').style.display = 'none';
+
+    ouvrirModal('modalOption');
+}
+
+async function ouvrirModalModifierOption(optionId) {
+    showPageLoader('Chargement...');
+
+    try {
+        const institutCode = getInstitutActif();
+        const response = await fetch(`/gestion/catalogue/${institutCode}/option/${optionId}/details/`);
+        const data = await response.json();
+
+        hidePageLoader();
+
+        if (data.success) {
+            const option = data.option;
+            document.getElementById('modalOptionTitle').textContent = 'Modifier l\'option';
+            document.getElementById('optionId').value = option.id;
+            document.getElementById('optionNom').value = option.nom;
+            document.getElementById('optionPrix').value = option.prix;
+            document.getElementById('optionAQuantite').checked = option.a_quantite;
+            document.getElementById('optionUnite').value = option.unite || '';
+            document.getElementById('optionActif').checked = option.actif;
+            document.getElementById('btnSaveOption').textContent = 'Enregistrer';
+            document.getElementById('groupeUnite').style.display = option.a_quantite ? 'block' : 'none';
+            document.getElementById('groupeActif').style.display = 'block';
+
+            ouvrirModal('modalOption');
+        } else {
+            showError('Erreur lors du chargement de l\'option');
+        }
+    } catch (error) {
+        hidePageLoader();
+        showError('Erreur réseau : ' + error.message);
+    }
+}
+
+async function sauvegarderOption() {
+    const optionId = document.getElementById('optionId').value;
+    const nom = document.getElementById('optionNom').value.trim();
+    const prix = document.getElementById('optionPrix').value;
+    const aQuantite = document.getElementById('optionAQuantite').checked;
+    const unite = document.getElementById('optionUnite').value.trim();
+    const actif = document.getElementById('optionActif').checked;
+
+    if (!nom) {
+        showError('Le nom est requis');
+        return;
+    }
+
+    if (!prix || parseInt(prix) < 0) {
+        showError('Le prix doit être supérieur ou égal à 0');
+        return;
+    }
+
+    showPageLoader(optionId ? 'Modification...' : 'Création...');
+
+    const formData = new FormData();
+    formData.append('nom', nom);
+    formData.append('prix', prix);
+    formData.append('a_quantite', aQuantite);
+    formData.append('unite', unite);
+    formData.append('actif', actif);
+
+    try {
+        const institutCode = getInstitutActif();
+        const url = optionId
+            ? `/gestion/catalogue/${institutCode}/option/${optionId}/modifier/`
+            : `/gestion/catalogue/${institutCode}/option/creer/`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': getCsrfToken()
+            }
+        });
+
+        const data = await response.json();
+        hidePageLoader();
+
+        if (data.success) {
+            showSuccess(data.message);
+            fermerModal('modalOption');
+            ouvrirModalOptions(); // Recharger la liste
+        } else {
+            showError(data.message);
+        }
+    } catch (error) {
+        hidePageLoader();
+        showError('Erreur réseau : ' + error.message);
+    }
+}
+
+function ouvrirModalSupprimerOption(optionId, nom) {
+    document.getElementById('optionIdSupprimer').value = optionId;
+    document.getElementById('optionNomSupprimer').textContent = nom;
+    ouvrirModal('modalSupprimerOption');
+}
+
+async function confirmerSuppressionOption() {
+    const optionId = document.getElementById('optionIdSupprimer').value;
+
+    showPageLoader('Suppression...');
+
+    try {
+        const institutCode = getInstitutActif();
+        const response = await fetch(`/gestion/catalogue/${institutCode}/option/${optionId}/supprimer/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken()
+            }
+        });
+
+        const data = await response.json();
+        hidePageLoader();
+
+        if (data.success) {
+            showSuccess(data.message);
+            fermerModal('modalSupprimerOption');
+            ouvrirModalOptions(); // Recharger la liste
+        } else {
+            showError(data.message);
+        }
+    } catch (error) {
+        hidePageLoader();
+        showError('Erreur réseau : ' + error.message);
+    }
+}
+
+function getInstitutActif() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('institut') || '{{ institut_actif.code }}';
+}
 </script>
 {% endblock %}

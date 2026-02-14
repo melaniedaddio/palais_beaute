@@ -177,13 +177,19 @@
 
                 <div class="form-group">
                     <label>Options</label>
-                    <div id="options-list" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                    <div id="options-list" style="display: grid; grid-template-columns: 1fr; gap: 8px;">
                         {% for option in options %}
-                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                            <input type="checkbox" name="options" value="{{ option.id }}"
-                                   data-prix="{{ option.prix }}" onchange="calculerTotal()">
-                            <span>{{ option.nom }} (+{{ option.prix }} CFA)</span>
-                        </label>
+                        <div class="option-counter" data-option-id="{{ option.id }}" data-prix="{{ option.prix }}" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #f9f9f9; border-radius: 4px; border: 1px solid #e0e0e0;">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500; font-size: 14px;">{{ option.nom }}</div>
+                                <div style="color: #666; font-size: 12px;">+{{ option.prix }} CFA</div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <button type="button" class="btn-option-minus" onclick="ajusterQuantiteOption({{ option.id }}, -1)" style="width: 32px; height: 32px; border-radius: 50%; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; color: #666;">−</button>
+                                <span class="option-quantite" id="option-qte-{{ option.id }}" style="font-weight: 600; font-size: 16px; min-width: 30px; text-align: center;">0</span>
+                                <button type="button" class="btn-option-plus" onclick="ajusterQuantiteOption({{ option.id }}, 1)" style="width: 32px; height: 32px; border-radius: 50%; border: 1px solid #c9a86a; background: #c9a86a; color: white; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center;">+</button>
+                            </div>
+                        </div>
                         {% endfor %}
                     </div>
                 </div>
@@ -219,8 +225,10 @@
         <div class="modal-body">
             <form id="form-validation">
                 <input type="hidden" id="validation-rdv-id">
+                <input type="hidden" id="validation-mode-groupe" value="false">
 
-                <div class="card" style="background: #f9f9f9; margin-bottom: 20px;">
+                <!-- Affichage RDV unique -->
+                <div id="rdv-unique-info" class="card" style="background: #f9f9f9; margin-bottom: 20px;">
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; font-size: 14px;">
                         <div><strong>Client :</strong> <span id="validation-client"></span></div>
                         <div><strong>Prestation :</strong> <span id="validation-prestation"></span></div>
@@ -230,6 +238,26 @@
                     <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
                         <strong style="font-size: 16px;">Prix total : </strong>
                         <span id="validation-prix-total" style="font-size: 20px; font-weight: 700; color: #c9a86a;"></span>
+                    </div>
+                </div>
+
+                <!-- Affichage RDV groupés -->
+                <div id="rdv-groupe-info" style="display: none; margin-bottom: 20px;">
+                    <div style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border: 2px solid #4caf50; border-radius: 8px; padding: 15px; margin-bottom: 15px; text-align: center;">
+                        <div style="font-size: 24px; margin-bottom: 5px;">📋</div>
+                        <strong style="color: #2e7d32; font-size: 16px;">Validation groupée</strong>
+                        <div style="font-size: 13px; color: #388e3c; margin-top: 5px;">
+                            <span id="rdv-groupe-count">0</span> rendez-vous de <strong id="rdv-groupe-client"></strong>
+                        </div>
+                    </div>
+
+                    <div id="rdv-groupe-liste" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px;">
+                        <!-- La liste des RDV sera insérée ici -->
+                    </div>
+
+                    <div style="background: #fff; border: 2px solid #c9a86a; border-radius: 8px; padding: 15px; text-align: center;">
+                        <strong style="font-size: 16px;">Prix total global : </strong>
+                        <span id="validation-prix-total-groupe" style="font-size: 24px; font-weight: 700; color: #c9a86a;">0 CFA</span>
                     </div>
                 </div>
 
@@ -273,35 +301,81 @@
                     </div>
                 </div>
 
+                <!-- Section double paiement -->
+                <div id="section-double-paiement" class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="utilise-double-paiement" onchange="toggleDoublePaiement()" style="width: auto;">
+                        <span>Payer avec 2 moyens de paiement</span>
+                    </label>
+                </div>
+
                 <div id="section-moyen-paiement" class="form-group">
-                    <label>Moyen de paiement</label>
+                    <label id="label-moyen-paiement-1">Moyen de paiement</label>
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
                         <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                            <input type="radio" name="moyen_paiement" value="especes" checked>
+                            <input type="radio" name="moyen_paiement_1" value="especes" checked>
                             <span>Espèces</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                            <input type="radio" name="moyen_paiement" value="carte">
+                            <input type="radio" name="moyen_paiement_1" value="carte">
                             <span>Carte bancaire</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                            <input type="radio" name="moyen_paiement" value="cheque">
+                            <input type="radio" name="moyen_paiement_1" value="cheque">
                             <span>Chèque</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                            <input type="radio" name="moyen_paiement" value="om">
+                            <input type="radio" name="moyen_paiement_1" value="om">
                             <span>Orange Money</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                            <input type="radio" name="moyen_paiement" value="wave">
+                            <input type="radio" name="moyen_paiement_1" value="wave">
                             <span>Wave</span>
                         </label>
                         {% if user.utilisateur.role == 'patron' %}
-                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #fff5e6; border: 2px solid #ff9800; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                            <input type="radio" name="moyen_paiement" value="offert" onchange="handleOffertChange()">
+                        <label id="option-offert-label" style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #fff5e6; border: 2px solid #ff9800; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="moyen_paiement_1" value="offert" onchange="handleOffertChange()">
                             <span style="font-weight: 600; color: #ff6f00;">🎁 Offert</span>
                         </label>
                         {% endif %}
+                    </div>
+                </div>
+
+                <!-- Montant moyen 1 (si double paiement) -->
+                <div id="montant-moyen-1-group" class="form-group" style="display: none;">
+                    <label>Montant payé avec le 1er moyen</label>
+                    <input type="number" id="montant-paiement-1" name="montant_paiement_1" class="form-control" step="1" min="0"
+                           onchange="calculerMontant2()">
+                </div>
+
+                <!-- Moyen de paiement 2 (si double paiement) -->
+                <div id="section-moyen-paiement-2" class="form-group" style="display: none;">
+                    <label>2ème moyen de paiement</label>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="moyen_paiement_2" value="especes">
+                            <span>Espèces</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="moyen_paiement_2" value="carte" checked>
+                            <span>Carte bancaire</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="moyen_paiement_2" value="cheque">
+                            <span>Chèque</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="moyen_paiement_2" value="om">
+                            <span>Orange Money</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="moyen_paiement_2" value="wave">
+                            <span>Wave</span>
+                        </label>
+                    </div>
+                    <div id="montant-moyen-2-display" style="margin-top: 10px; padding: 10px; background: #e8f5e9; border-radius: 6px; font-size: 14px;">
+                        <strong>Montant à payer avec le 2ème moyen :</strong>
+                        <span id="montant-paiement-2-text" style="float: right; font-weight: 700; color: #2e7d32;">0 CFA</span>
                     </div>
                 </div>
             </form>
@@ -381,36 +455,82 @@
                            placeholder="0" min="0">
                 </div>
 
+                <!-- Section double paiement -->
+                <div id="forfait-section-double-paiement" class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="forfait-utilise-double-paiement" onchange="toggleDoublePaiementForfait()" style="width: auto;">
+                        <span>Payer avec 2 moyens de paiement</span>
+                    </label>
+                </div>
+
                 <!-- Moyen de paiement -->
                 <div id="forfait-section-moyen-paiement" class="form-group">
-                    <label>Moyen de paiement</label>
+                    <label id="forfait-label-moyen-paiement-1">Moyen de paiement</label>
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
                         <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                            <input type="radio" name="forfait_mode_paiement" value="especes" checked>
+                            <input type="radio" name="forfait_moyen_paiement_1" value="especes" checked>
                             <span>Espèces</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                            <input type="radio" name="forfait_mode_paiement" value="carte">
+                            <input type="radio" name="forfait_moyen_paiement_1" value="carte">
                             <span>Carte bancaire</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                            <input type="radio" name="forfait_mode_paiement" value="cheque">
+                            <input type="radio" name="forfait_moyen_paiement_1" value="cheque">
                             <span>Chèque</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                            <input type="radio" name="forfait_mode_paiement" value="om">
+                            <input type="radio" name="forfait_moyen_paiement_1" value="om">
                             <span>Orange Money</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                            <input type="radio" name="forfait_mode_paiement" value="wave">
+                            <input type="radio" name="forfait_moyen_paiement_1" value="wave">
                             <span>Wave</span>
                         </label>
                         {% if user.utilisateur.role == 'patron' %}
-                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #fff5e6; border: 2px solid #ff9800; border-radius: 4px; cursor: pointer; font-size: 13px;">
-                            <input type="radio" name="forfait_mode_paiement" value="offert">
+                        <label id="forfait-option-offert-label" style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #fff5e6; border: 2px solid #ff9800; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="forfait_moyen_paiement_1" value="offert">
                             <span style="font-weight: 600; color: #ff6f00;">🎁 Offert</span>
                         </label>
                         {% endif %}
+                    </div>
+                </div>
+
+                <!-- Montant moyen 1 (si double paiement) -->
+                <div id="forfait-montant-moyen-1-group" class="form-group" style="display: none;">
+                    <label>Montant payé avec le 1er moyen</label>
+                    <input type="number" id="forfait-montant-paiement-1" name="forfait_montant_paiement_1" class="form-control" step="1" min="0"
+                           onchange="calculerMontant2Forfait()">
+                </div>
+
+                <!-- Moyen de paiement 2 (si double paiement) -->
+                <div id="forfait-section-moyen-paiement-2" class="form-group" style="display: none;">
+                    <label>2ème moyen de paiement</label>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="forfait_moyen_paiement_2" value="especes">
+                            <span>Espèces</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="forfait_moyen_paiement_2" value="carte" checked>
+                            <span>Carte bancaire</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="forfait_moyen_paiement_2" value="cheque">
+                            <span>Chèque</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="forfait_moyen_paiement_2" value="om">
+                            <span>Orange Money</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            <input type="radio" name="forfait_moyen_paiement_2" value="wave">
+                            <span>Wave</span>
+                        </label>
+                    </div>
+                    <div id="forfait-montant-moyen-2-display" style="margin-top: 10px; padding: 10px; background: #e8f5e9; border-radius: 6px; font-size: 14px;">
+                        <strong>Montant à payer avec le 2ème moyen :</strong>
+                        <span id="forfait-montant-paiement-2-text" style="float: right; font-weight: 700; color: #2e7d32;">0 CFA</span>
                     </div>
                 </div>
             </form>
@@ -1019,6 +1139,26 @@ function chargerPrestations(retryCount = 0) {
     });
 }
 
+// Ajuster la quantité d'une option
+function ajusterQuantiteOption(optionId, delta) {
+    const qteElement = document.getElementById('option-qte-' + optionId);
+    let qte = parseInt(qteElement.textContent) || 0;
+    qte = Math.max(0, qte + delta); // Ne pas descendre en dessous de 0
+    qteElement.textContent = qte;
+
+    // Mettre à jour le style du bouton - si qte > 0
+    const optionDiv = document.querySelector(`.option-counter[data-option-id="${optionId}"]`);
+    if (qte > 0) {
+        optionDiv.style.background = 'linear-gradient(135deg, #fff9f0 0%, #fff5e6 100%)';
+        optionDiv.style.borderColor = '#c9a86a';
+    } else {
+        optionDiv.style.background = '#f9f9f9';
+        optionDiv.style.borderColor = '#e0e0e0';
+    }
+
+    calculerTotal();
+}
+
 // Calculer le prix total
 function calculerTotal(fromPrestation = false) {
     const prestationSelect = document.getElementById('rdv-prestation');
@@ -1042,10 +1182,13 @@ function calculerTotal(fromPrestation = false) {
         prixBase = parseFloat(prixBaseInput.value) || 0;
     }
 
-    // Ajouter le prix des options
+    // Ajouter le prix des options (quantité * prix)
     let prixOptions = 0;
-    document.querySelectorAll('input[name="options"]:checked').forEach(checkbox => {
-        prixOptions += parseFloat(checkbox.dataset.prix) || 0;
+    document.querySelectorAll('.option-counter').forEach(optionDiv => {
+        const optionId = optionDiv.dataset.optionId;
+        const qte = parseInt(document.getElementById('option-qte-' + optionId).textContent) || 0;
+        const prix = parseFloat(optionDiv.dataset.prix) || 0;
+        prixOptions += qte * prix;
     });
 
     const prixTotal = prixBase + prixOptions;
@@ -1141,6 +1284,14 @@ function nouvelRdv(employeId, heure) {
     document.getElementById('rdv-prix-base').disabled = false;
     {% endif %}
 
+    // Réinitialiser les quantités des options
+    document.querySelectorAll('.option-counter').forEach(optionDiv => {
+        const optionId = optionDiv.dataset.optionId;
+        document.getElementById('option-qte-' + optionId).textContent = '0';
+        optionDiv.style.background = '#f9f9f9';
+        optionDiv.style.borderColor = '#e0e0e0';
+    });
+
     window.currentRdvId = null;
 
     const modal = document.getElementById('modal-rdv');
@@ -1218,7 +1369,24 @@ function enregistrerRdv() {
         }
     }
 
+    // Collecter les options avec leurs quantités
+    const optionsAvecQuantites = [];
+    document.querySelectorAll('.option-counter').forEach(optionDiv => {
+        const optionId = optionDiv.dataset.optionId;
+        const qte = parseInt(document.getElementById('option-qte-' + optionId).textContent) || 0;
+        if (qte > 0) {
+            optionsAvecQuantites.push({
+                id: optionId,
+                quantite: qte
+            });
+        }
+    });
+
+    // Ajouter les options au formData
+    formData.set('options_data', JSON.stringify(optionsAvecQuantites));
+
     console.log('Envoi du formulaire:', Object.fromEntries(formData));
+    console.log('Options avec quantités:', optionsAvecQuantites);
 
     const url = window.currentRdvId ?
         '/agenda/{{ institut.code }}/api/rdv/' + window.currentRdvId + '/modifier/' :
@@ -1444,10 +1612,28 @@ function modifierRdv(rdv) {
         document.getElementById('rdv-prix-base').value = rdv.prix_base;
         calculerTotal(false);
 
-        // Cocher les options
-        document.querySelectorAll('input[name="options"]').forEach(checkbox => {
-            checkbox.checked = rdv.options.some(opt => opt.id == checkbox.value);
+        // Restaurer les quantités des options
+        // D'abord, remettre toutes les quantités à 0
+        document.querySelectorAll('.option-counter').forEach(optionDiv => {
+            const optionId = optionDiv.dataset.optionId;
+            document.getElementById('option-qte-' + optionId).textContent = '0';
+            optionDiv.style.background = '#f9f9f9';
+            optionDiv.style.borderColor = '#e0e0e0';
         });
+        // Puis restaurer les quantités du RDV
+        if (rdv.options && rdv.options.length > 0) {
+            rdv.options.forEach(opt => {
+                const qteElement = document.getElementById('option-qte-' + opt.id);
+                if (qteElement) {
+                    qteElement.textContent = opt.quantite || 1;
+                    const optionDiv = document.querySelector(`.option-counter[data-option-id="${opt.id}"]`);
+                    if (optionDiv) {
+                        optionDiv.style.background = 'linear-gradient(135deg, #fff9f0 0%, #fff5e6 100%)';
+                        optionDiv.style.borderColor = '#c9a86a';
+                    }
+                }
+            });
+        }
         calculerTotal(false);
     }, 500);
 
@@ -1529,14 +1715,94 @@ function supprimerRdv(rdvId) {
 // Variable globale pour stocker le prix du RDV en cours de validation
 let validationPrixTotal = 0;
 let validationClientId = null;
+let rdvsAValider = []; // Pour la validation groupée
 
 function ouvrirModalValidation(rdvId) {
     showPageLoader('Chargement...');
 
+    // D'abord, vérifier s'il y a plusieurs RDV pour ce client ce jour
+    fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/client-jour/')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.nb_rdvs > 1) {
+                // Validation groupée
+                afficherValidationGroupee(data);
+            } else {
+                // Validation unique (normale)
+                chargerRdvUnique(rdvId);
+            }
+        })
+        .catch(error => {
+            // En cas d'erreur, utiliser la validation unique
+            console.warn('Impossible de charger les RDV du client, validation unique', error);
+            chargerRdvUnique(rdvId);
+        });
+}
+
+function afficherValidationGroupee(data) {
+    rdvsAValider = data.rdvs;
+
+    // Masquer RDV unique, afficher RDV groupé
+    document.getElementById('rdv-unique-info').style.display = 'none';
+    document.getElementById('rdv-groupe-info').style.display = 'block';
+    document.getElementById('validation-mode-groupe').value = 'true';
+
+    // Remplir les infos
+    document.getElementById('rdv-groupe-count').textContent = data.nb_rdvs;
+    document.getElementById('rdv-groupe-client').textContent = data.client;
+    document.getElementById('validation-prix-total-groupe').textContent = data.prix_total_global.toLocaleString('fr-FR') + ' CFA';
+
+    // Construire la liste des RDV
+    let listeHtml = '';
+    data.rdvs.forEach((rdv, index) => {
+        listeHtml += `<div style="background: #fff; border-left: 4px solid #c9a86a; padding: 12px; margin-bottom: 8px; border-radius: 4px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <strong>${rdv.prestation}</strong>
+                <span style="color: #c9a86a; font-weight: 600;">${rdv.prix_total.toLocaleString('fr-FR')} CFA</span>
+            </div>
+            <div style="font-size: 13px; color: #666;">
+                ${rdv.heure_debut} - ${rdv.heure_fin} • ${rdv.employe}
+                ${rdv.options.length > 0 ? '<br>Options : ' + rdv.options.map(o => o.nom).join(', ') : ''}
+            </div>
+        </div>`;
+    });
+    document.getElementById('rdv-groupe-liste').innerHTML = listeHtml;
+
+    validationPrixTotal = data.prix_total_global;
+    validationClientId = null;
+
+    // Réinitialiser le formulaire
+    document.getElementById('validation-type-paiement').value = 'complet';
+    document.getElementById('utilise-double-paiement').checked = false;
+    toggleDoublePaiement();
+
+    hidePageLoader();
+    document.getElementById('modal-validation').style.display = 'flex';
+
+    // Charger les cartes cadeaux - utiliser le client_id du premier RDV
+    if (data.rdvs.length > 0) {
+        // Fetch pour obtenir le client_id
+        fetch('/agenda/{{ institut.code }}/api/rdv/' + data.rdvs[0].id + '/')
+            .then(r => r.json())
+            .then(rdv => {
+                validationClientId = rdv.client_id;
+                chargerCartesCadeaux(rdv.client_id);
+            });
+    }
+}
+
+function chargerRdvUnique(rdvId) {
     // Récupérer les données du RDV
     fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/')
         .then(response => response.json())
         .then(rdv => {
+            rdvsAValider = []; // Pas de mode groupe
+
+            // Afficher RDV unique, masquer RDV groupé
+            document.getElementById('rdv-unique-info').style.display = 'block';
+            document.getElementById('rdv-groupe-info').style.display = 'none';
+            document.getElementById('validation-mode-groupe').value = 'false';
+
             document.getElementById('validation-rdv-id').value = rdv.id;
             document.getElementById('validation-client').textContent = rdv.client;
             document.getElementById('validation-prestation').textContent = rdv.prestation;
@@ -1551,38 +1817,16 @@ function ouvrirModalValidation(rdvId) {
             // Effacer les validations précédentes
             clearValidation('validation-montant');
 
-            // Gérer l'affichage selon forfait ou non
-            const isForfait = rdv.est_seance_forfait;
-            const paiementSection = document.getElementById('section-moyen-paiement');
-            const typePaiementGroup = document.getElementById('validation-type-paiement').closest('.form-group');
-            const montantGroup = document.getElementById('montant-paiement-group');
-            const cartesSection = document.getElementById('section-cartes-cadeaux');
-            const forfaitNotice = document.getElementById('forfait-validation-notice');
-
-            if (isForfait) {
-                // Masquer tout le formulaire de paiement
-                typePaiementGroup.style.display = 'none';
-                montantGroup.style.display = 'none';
-                paiementSection.style.display = 'none';
-                if (cartesSection) cartesSection.style.display = 'none';
-                forfaitNotice.style.display = 'block';
-            } else {
-                // Afficher normalement
-                typePaiementGroup.style.display = '';
-                montantGroup.style.display = 'none';
-                paiementSection.style.display = '';
-                forfaitNotice.style.display = 'none';
-                // Réinitialiser le type de paiement
-                document.getElementById('validation-type-paiement').value = 'complet';
-            }
+            // Réinitialiser
+            document.getElementById('validation-type-paiement').value = 'complet';
+            document.getElementById('utilise-double-paiement').checked = false;
+            toggleDoublePaiement();
 
             hidePageLoader();
             document.getElementById('modal-validation').style.display = 'flex';
 
-            // Charger les cartes cadeaux du client (sauf forfait)
-            if (!isForfait) {
-                chargerCartesCadeaux(rdv.client_id);
-            }
+            // Charger les cartes cadeaux du client
+            chargerCartesCadeaux(rdv.client_id);
         })
         .catch(error => {
             hidePageLoader();
@@ -1653,14 +1897,84 @@ function recalculerCartesCadeaux() {
 
         // Masquer le moyen de paiement si tout est payé par carte cadeau
         document.getElementById('section-moyen-paiement').style.display = resteApresCartes > 0 ? 'block' : 'none';
+
+        // Masquer le double paiement si tout est payé par carte cadeau
+        document.getElementById('section-double-paiement').style.display = resteApresCartes > 0 ? 'block' : 'none';
+
+        // Si on masque le double paiement, le désactiver aussi
+        if (resteApresCartes === 0) {
+            const checkbox = document.getElementById('utilise-double-paiement');
+            if (checkbox.checked) {
+                checkbox.checked = false;
+                toggleDoublePaiement();
+            }
+        }
     } else {
         recap.style.display = 'none';
         document.getElementById('section-moyen-paiement').style.display = 'block';
+        document.getElementById('section-double-paiement').style.display = 'block';
     }
 }
 
 function fermerModalValidation() {
     document.getElementById('modal-validation').style.display = 'none';
+}
+
+// Fonction pour activer/désactiver le double paiement
+function toggleDoublePaiement() {
+    const checkbox = document.getElementById('utilise-double-paiement');
+    const montant1Group = document.getElementById('montant-moyen-1-group');
+    const moyen2Section = document.getElementById('section-moyen-paiement-2');
+    const label1 = document.getElementById('label-moyen-paiement-1');
+    const optionOffert = document.getElementById('option-offert-label');
+
+    if (checkbox.checked) {
+        // Activer le double paiement
+        montant1Group.style.display = 'block';
+        moyen2Section.style.display = 'block';
+        label1.textContent = '1er moyen de paiement';
+
+        // Masquer l'option "Offert" en mode double paiement
+        if (optionOffert) {
+            optionOffert.style.display = 'none';
+            // Si "Offert" était sélectionné, sélectionner "Espèces" par défaut
+            const offertInput = optionOffert.querySelector('input[value="offert"]');
+            if (offertInput && offertInput.checked) {
+                document.querySelector('input[name="moyen_paiement_1"][value="especes"]').checked = true;
+            }
+        }
+
+        // Initialiser le montant du premier moyen à 0
+        document.getElementById('montant-paiement-1').value = '';
+        calculerMontant2();
+    } else {
+        // Désactiver le double paiement
+        montant1Group.style.display = 'none';
+        moyen2Section.style.display = 'none';
+        label1.textContent = 'Moyen de paiement';
+
+        // Réafficher l'option "Offert"
+        if (optionOffert) {
+            optionOffert.style.display = 'flex';
+        }
+    }
+}
+
+// Fonction pour calculer automatiquement le montant du 2ème moyen
+function calculerMontant2() {
+    const montant1 = parseFloat(document.getElementById('montant-paiement-1').value) || 0;
+
+    // Récupérer le total des cartes cadeaux s'il y en a
+    const checks = document.querySelectorAll('.carte-cadeau-check:checked');
+    let totalCartes = 0;
+    checks.forEach(check => {
+        const carteId = check.dataset.carteId;
+        const montantInput = document.querySelector(`.carte-cadeau-montant[data-carte-id="${carteId}"]`);
+        totalCartes += parseInt(montantInput.value) || 0;
+    });
+
+    const montant2 = Math.max(0, validationPrixTotal - totalCartes - montant1);
+    document.getElementById('montant-paiement-2-text').textContent = montant2.toLocaleString('fr-FR') + ' CFA';
 }
 
 function updateMontantPaiement() {
@@ -1733,32 +2047,66 @@ document.addEventListener('change', function(e) {
 
 // Valider RDV
 function validerRdv() {
+    const modeGroupe = document.getElementById('validation-mode-groupe').value === 'true';
+
+    if (modeGroupe) {
+        validerRdvGroupe();
+    } else {
+        validerRdvUnique();
+    }
+}
+
+// Validation unique (code original adapté)
+function validerRdvUnique() {
     const rdvId = document.getElementById('validation-rdv-id').value;
     const formData = new FormData(document.getElementById('form-validation'));
 
-    // Validation conditionnelle du montant si paiement partiel
-    const typePaiement = document.getElementById('validation-type-paiement').value;
-    if (typePaiement === 'partiel') {
-        const validationRules = {
-            'validation-montant': {
-                required: true,
-                numeric: true,
-                min: 0,
-                requiredMessage: 'Le montant payé est requis pour un paiement partiel',
-                numericMessage: 'Veuillez entrer un nombre valide',
-                minMessage: 'Le montant ne peut pas être négatif'
-            }
-        };
+    // Calculer le total des cartes cadeaux
+    const checks = document.querySelectorAll('.carte-cadeau-check:checked');
+    let totalCartes = 0;
+    checks.forEach(check => {
+        const carteId = check.dataset.carteId;
+        const montantInput = document.querySelector(`.carte-cadeau-montant[data-carte-id="${carteId}"]`);
+        totalCartes += parseInt(montantInput.value) || 0;
+    });
 
-        const isValid = validateForm('form-validation', validationRules);
-        if (!isValid) {
-            showError('Veuillez corriger les erreurs dans le formulaire');
+    // Ajouter le double paiement si activé
+    const checkbox = document.getElementById('utilise-double-paiement');
+    if (checkbox.checked) {
+        const montant1Input = document.getElementById('montant-paiement-1').value;
+        const montant1 = parseFloat(montant1Input) || 0;
+
+        // Validation : le montant 1 doit être > 0 pour le double paiement
+        if (montant1 <= 0) {
+            hidePageLoader();
+            showError('Veuillez saisir un montant valide pour le 1er moyen de paiement');
             return;
+        }
+
+        // Le montant 1 ne doit pas dépasser le total restant
+        const montantRestant = validationPrixTotal - totalCartes;
+        if (montant1 >= montantRestant) {
+            hidePageLoader();
+            showError('Le 1er montant doit être inférieur au total. Utilisez le paiement simple si vous payez tout avec un seul moyen.');
+            return;
+        }
+
+        formData.append('utilise_double_paiement', 'true');
+        formData.append('montant_paiement_1', montant1);
+
+        const montant2 = Math.max(0, montantRestant - montant1);
+        formData.append('montant_paiement_2', montant2);
+
+        // Les moyens de paiement sont déjà dans le form (moyen_paiement_1 et moyen_paiement_2)
+    } else {
+        // Paiement simple : renommer moyen_paiement_1 en moyen_paiement pour compatibilité
+        const moyen = document.querySelector('input[name="moyen_paiement_1"]:checked');
+        if (moyen) {
+            formData.append('moyen_paiement', moyen.value);
         }
     }
 
     // Ajouter les cartes cadeaux sélectionnées
-    const checks = document.querySelectorAll('.carte-cadeau-check:checked');
     const cartesData = [];
     checks.forEach(check => {
         const carteId = check.dataset.carteId;
@@ -1794,6 +2142,108 @@ function validerRdv() {
     .catch(error => {
         hidePageLoader();
         showError('Erreur réseau : ' + error);
+    });
+}
+
+// Validation groupée
+function validerRdvGroupe() {
+    const formData = new FormData(document.getElementById('form-validation'));
+
+    // Ajouter tous les IDs de RDV
+    rdvsAValider.forEach(rdv => {
+        formData.append('rdv_ids[]', rdv.id);
+    });
+
+    // Calculer le total des cartes cadeaux
+    const checks = document.querySelectorAll('.carte-cadeau-check:checked');
+    let totalCartes = 0;
+    checks.forEach(check => {
+        const carteId = check.dataset.carteId;
+        const montantInput = document.querySelector(`.carte-cadeau-montant[data-carte-id="${carteId}"]`);
+        totalCartes += parseInt(montantInput.value) || 0;
+    });
+
+    // Ajouter le double paiement si activé
+    const checkbox = document.getElementById('utilise-double-paiement');
+    if (checkbox.checked) {
+        const montant1Input = document.getElementById('montant-paiement-1').value;
+        const montant1 = parseFloat(montant1Input) || 0;
+
+        // Validation : le montant 1 doit être > 0 pour le double paiement
+        if (montant1 <= 0) {
+            hidePageLoader();
+            showError('Veuillez saisir un montant valide pour le 1er moyen de paiement');
+            return;
+        }
+
+        // Le montant 1 ne doit pas dépasser le total restant
+        const montantRestant = validationPrixTotal - totalCartes;
+        if (montant1 >= montantRestant) {
+            hidePageLoader();
+            showError('Le 1er montant doit être inférieur au total. Utilisez le paiement simple si vous payez tout avec un seul moyen.');
+            return;
+        }
+
+        formData.append('utilise_double_paiement', 'true');
+        formData.append('montant_paiement_1', montant1);
+
+        const montant2 = Math.max(0, montantRestant - montant1);
+        formData.append('montant_paiement_2', montant2);
+
+        // Les moyens de paiement sont déjà dans le form
+    } else {
+        // Paiement simple : calculer le montant total à payer
+        const typePaiement = document.getElementById('validation-type-paiement').value;
+        let montant1 = 0;
+
+        if (typePaiement === 'complet') {
+            // Paiement complet = total - cartes cadeaux
+            montant1 = validationPrixTotal - totalCartes;
+        } else if (typePaiement === 'partiel') {
+            // Paiement partiel = montant saisi
+            montant1 = parseInt(document.getElementById('validation-montant').value) || 0;
+        }
+        // Si différé, montant1 reste à 0
+
+        formData.append('montant_paiement_1', montant1);
+    }
+
+    // Ajouter les cartes cadeaux
+    const cartesData = [];
+    checks.forEach(check => {
+        const carteId = check.dataset.carteId;
+        const montantInput = document.querySelector(`.carte-cadeau-montant[data-carte-id="${carteId}"]`);
+        const montant = parseInt(montantInput.value) || 0;
+        if (montant > 0) {
+            cartesData.push({carte_id: parseInt(carteId), montant: montant});
+        }
+    });
+    if (cartesData.length > 0) {
+        formData.append('cartes_cadeaux', JSON.stringify(cartesData));
+    }
+
+    showPageLoader('Validation groupée en cours...');
+
+    fetch('/agenda/{{ institut.code }}/api/rdv/valider-groupe/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 500);
+        } else {
+            hidePageLoader();
+            showError(data.message);
+        }
+    })
+    .catch(error => {
+        hidePageLoader();
+        showError('Erreur lors de la validation: ' + error);
     });
 }
 
@@ -2230,34 +2680,89 @@ function updateForfaitPrix() {
     if (option && option.value) {
         document.getElementById('forfait-details').style.display = 'block';
         document.getElementById('forfait-nb-seances').textContent = option.dataset.seances + ' séances';
-        document.getElementById('forfait-prix').textContent = parseInt(option.dataset.prix).toLocaleString('fr-FR') + ' CFA';
-        document.getElementById('forfait-montant').max = option.dataset.prix;
+        const prix = parseInt(option.dataset.prix);
+        document.getElementById('forfait-prix').textContent = prix.toLocaleString('fr-FR') + ' CFA';
+        document.getElementById('forfait-montant').max = prix;
+
+        // Stocker le prix pour le double paiement
+        forfaitPrixActuel = prix;
+        calculerMontant2Forfait();
     } else {
         document.getElementById('forfait-details').style.display = 'none';
+        forfaitPrixActuel = 0;
     }
 }
 
 function toggleForfaitMontant() {
     const typePaiement = document.querySelector('input[name="forfait_type_paiement"]:checked').value;
     const sectionMoyen = document.getElementById('forfait-section-moyen-paiement');
+    const sectionDoublePaiement = document.getElementById('forfait-section-double-paiement');
 
     if (typePaiement === 'differe') {
         document.getElementById('forfait-montant-container').style.display = 'none';
         sectionMoyen.style.display = 'none';
+        sectionDoublePaiement.style.display = 'none';
     } else if (typePaiement === 'partiel') {
         document.getElementById('forfait-montant-container').style.display = 'block';
         sectionMoyen.style.display = '';
+        sectionDoublePaiement.style.display = 'none';
     } else {
         document.getElementById('forfait-montant-container').style.display = 'none';
         sectionMoyen.style.display = '';
+        sectionDoublePaiement.style.display = '';
     }
+}
+
+// Variable globale pour stocker le prix du forfait actuel
+let forfaitPrixActuel = 0;
+
+function toggleDoublePaiementForfait() {
+    const checkbox = document.getElementById('forfait-utilise-double-paiement');
+    const montant1Group = document.getElementById('forfait-montant-moyen-1-group');
+    const moyen2Section = document.getElementById('forfait-section-moyen-paiement-2');
+    const label1 = document.getElementById('forfait-label-moyen-paiement-1');
+    const optionOffert = document.getElementById('forfait-option-offert-label');
+
+    if (checkbox.checked) {
+        // Activer le double paiement
+        montant1Group.style.display = 'block';
+        moyen2Section.style.display = 'block';
+        label1.textContent = '1er moyen de paiement';
+
+        // Masquer l'option "Offert"
+        if (optionOffert) {
+            optionOffert.style.display = 'none';
+            const offertInput = optionOffert.querySelector('input[value="offert"]');
+            if (offertInput && offertInput.checked) {
+                document.querySelector('input[name="forfait_moyen_paiement_1"][value="especes"]').checked = true;
+            }
+        }
+
+        document.getElementById('forfait-montant-paiement-1').value = '';
+        calculerMontant2Forfait();
+    } else {
+        // Désactiver le double paiement
+        montant1Group.style.display = 'none';
+        moyen2Section.style.display = 'none';
+        label1.textContent = 'Moyen de paiement';
+
+        // Réafficher l'option "Offert"
+        if (optionOffert) {
+            optionOffert.style.display = 'flex';
+        }
+    }
+}
+
+function calculerMontant2Forfait() {
+    const montant1 = parseFloat(document.getElementById('forfait-montant-paiement-1').value) || 0;
+    const montant2 = Math.max(0, forfaitPrixActuel - montant1);
+    document.getElementById('forfait-montant-paiement-2-text').textContent = montant2.toLocaleString('fr-FR') + ' CFA';
 }
 
 function acheterForfait() {
     const clientId = document.getElementById('forfait-client-id').value;
     const prestationId = document.getElementById('forfait-prestation').value;
     const typePaiement = document.querySelector('input[name="forfait_type_paiement"]:checked').value;
-    const modePaiement = document.querySelector('input[name="forfait_mode_paiement"]:checked').value;
     const montant = document.getElementById('forfait-montant').value || 0;
 
     // Valider le client
@@ -2298,8 +2803,41 @@ function acheterForfait() {
     formData.append('client_id', clientId);
     formData.append('prestation_id', prestationId);
     formData.append('type_paiement', typePaiement);
-    formData.append('mode_paiement', modePaiement);
     formData.append('montant', montant);
+
+    // Gérer le double paiement
+    const checkbox = document.getElementById('forfait-utilise-double-paiement');
+    if (checkbox && checkbox.checked) {
+        const montant1Input = document.getElementById('forfait-montant-paiement-1').value;
+        const montant1 = parseFloat(montant1Input) || 0;
+
+        // Validation : le montant 1 doit être > 0
+        if (montant1 <= 0) {
+            showError('Veuillez saisir un montant valide pour le 1er moyen de paiement');
+            return;
+        }
+
+        // Récupérer le prix du forfait
+        const prixForfait = forfaitPrixActuel || 0;
+        if (montant1 >= prixForfait) {
+            showError('Le 1er montant doit être inférieur au total. Utilisez le paiement simple si vous payez tout avec un seul moyen.');
+            return;
+        }
+
+        formData.append('utilise_double_paiement', 'true');
+        formData.append('montant_paiement_1', montant1);
+
+        const montant2 = prixForfait - montant1;
+        formData.append('montant_paiement_2', montant2);
+
+        const moyen1 = document.querySelector('input[name="forfait_moyen_paiement_1"]:checked').value;
+        const moyen2 = document.querySelector('input[name="forfait_moyen_paiement_2"]:checked').value;
+        formData.append('moyen_paiement_1', moyen1);
+        formData.append('moyen_paiement_2', moyen2);
+    } else {
+        const modePaiement = document.querySelector('input[name="forfait_moyen_paiement_1"]:checked').value;
+        formData.append('mode_paiement', modePaiement);
+    }
 
     showPageLoader('Vente en cours...');
 

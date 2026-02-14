@@ -147,8 +147,13 @@ def creer_vente(request):
         employe_id = request.POST.get('employe_id')
         prestations_data = json.loads(request.POST.get('prestations', '[]'))
         type_paiement = request.POST.get('type_paiement', 'complet')
-        moyen_paiement = request.POST.get('moyen_paiement', 'especes')
+        moyen_paiement_1 = request.POST.get('moyen_paiement_1', request.POST.get('moyen_paiement', 'especes'))
         montant_paye = request.POST.get('montant_paye', 0)
+
+        # Double paiement
+        utilise_double_paiement = request.POST.get('utilise_double_paiement') == 'true'
+        moyen_paiement_2 = request.POST.get('moyen_paiement_2', '')
+        montant_paiement_2 = Decimal(request.POST.get('montant_paiement_2', 0))
 
         # Validation
         if not client_id or not employe_id or not prestations_data:
@@ -244,16 +249,38 @@ def creer_vente(request):
                     montant_total_cartes += montant_a_utiliser
                     montant_restant -= montant_a_utiliser
 
-        # 2. Créer le paiement pour le reste (espèces/carte bancaire/etc.)
-        if montant_restant > 0:
-            Paiement.objects.create(
-                rendez_vous=rdv,
-                mode=moyen_paiement,
-                montant=montant_restant,
-            )
+        # 2. Créer le(s) paiement(s) pour le reste
+        montant_paiement_1 = montant_restant  # Par défaut, tout sur le premier moyen
+
+        # Si double paiement est activé, répartir le montant
+        if utilise_double_paiement and montant_paiement_2 > 0:
+            # Le montant_paiement_2 est déjà défini par l'utilisateur
+            montant_paiement_1 = montant_restant - int(montant_paiement_2)
+
+            # Créer les deux paiements
+            if montant_paiement_1 > 0:
+                Paiement.objects.create(
+                    rendez_vous=rdv,
+                    mode=moyen_paiement_1,
+                    montant=montant_paiement_1,
+                )
+            if montant_paiement_2 > 0:
+                Paiement.objects.create(
+                    rendez_vous=rdv,
+                    mode=moyen_paiement_2,
+                    montant=int(montant_paiement_2),
+                )
+        else:
+            # Paiement simple
+            if montant_restant > 0:
+                Paiement.objects.create(
+                    rendez_vous=rdv,
+                    mode=moyen_paiement_1,
+                    montant=montant_restant,
+                )
 
         # 3. Si paiement partiel ou différé, créer un crédit
-        montant_effectif = montant_total_cartes + montant_restant
+        montant_effectif = montant_total_cartes + montant_paiement_1 + (int(montant_paiement_2) if utilise_double_paiement else 0)
         if montant_effectif < prix_total:
             description = ", ".join([p['nom'] for p in prestations_data])
             if len(description) > 200:
