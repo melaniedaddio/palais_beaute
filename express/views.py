@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib.auth.decorators import login_required
+from core.decorators import login_required_json as login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.db.models import Sum
@@ -386,21 +386,28 @@ def cloture_caisse(request):
         date_achat__gte=heure_debut,
     )
     nb_cartes_vendues = ventes_cartes.count()
-    ventes_cartes_especes = ventes_cartes.filter(
-        mode_paiement_achat='especes'
-    ).aggregate(total=models.Sum('montant_initial'))['total'] or 0
-    ventes_cartes_cb = ventes_cartes.filter(
-        mode_paiement_achat='carte'
-    ).aggregate(total=models.Sum('montant_initial'))['total'] or 0
-    ventes_cartes_cheque = ventes_cartes.filter(
-        mode_paiement_achat='cheque'
-    ).aggregate(total=models.Sum('montant_initial'))['total'] or 0
-    ventes_cartes_om = ventes_cartes.filter(
-        mode_paiement_achat='om'
-    ).aggregate(total=models.Sum('montant_initial'))['total'] or 0
-    ventes_cartes_wave = ventes_cartes.filter(
-        mode_paiement_achat='wave'
-    ).aggregate(total=models.Sum('montant_initial'))['total'] or 0
+    ventes_cartes_especes = 0
+    ventes_cartes_cb = 0
+    ventes_cartes_cheque = 0
+    ventes_cartes_om = 0
+    ventes_cartes_wave = 0
+    _mode_map = {'especes': 'especes', 'carte': 'cb', 'cheque': 'cheque', 'om': 'om', 'wave': 'wave'}
+    for _carte in ventes_cartes:
+        _m1 = _carte.mode_paiement_achat
+        _mt1 = _carte.montant_paiement_1 if _carte.montant_paiement_1 else _carte.montant_initial
+        if _m1 == 'especes': ventes_cartes_especes += _mt1
+        elif _m1 == 'carte': ventes_cartes_cb += _mt1
+        elif _m1 == 'cheque': ventes_cartes_cheque += _mt1
+        elif _m1 == 'om': ventes_cartes_om += _mt1
+        elif _m1 == 'wave': ventes_cartes_wave += _mt1
+        if _carte.moyen_paiement_2 and _carte.montant_paiement_2:
+            _m2 = _carte.moyen_paiement_2
+            _mt2 = _carte.montant_paiement_2
+            if _m2 == 'especes': ventes_cartes_especes += _mt2
+            elif _m2 == 'carte': ventes_cartes_cb += _mt2
+            elif _m2 == 'cheque': ventes_cartes_cheque += _mt2
+            elif _m2 == 'om': ventes_cartes_om += _mt2
+            elif _m2 == 'wave': ventes_cartes_wave += _mt2
 
     # Paiements de crédits depuis la dernière clôture
     paiements_credit = PaiementCredit.objects.filter(
@@ -435,8 +442,7 @@ def cloture_caisse(request):
     total_cheque_encours = total_cheque_ventes + total_cheque_credit + ventes_cartes_cheque
     total_om_encours = total_om_ventes + total_om_credit + ventes_cartes_om
     total_wave_encours = total_wave_ventes + total_wave_credit + ventes_cartes_wave
-    # total_encours = argent réellement encaissé (sans carte_cadeau car déjà compté à la vente)
-    total_encours = total_especes_encours + total_carte_encours + total_cheque_encours + total_om_encours + total_wave_encours
+    total_encours = total_especes_encours + total_carte_encours + total_cheque_encours + total_om_encours + total_wave_encours + total_carte_cadeau_prestations
 
     # Calculer le total cumulé du jour (toutes les clôtures + en cours)
     total_jour_especes = clotures_existantes.aggregate(
@@ -573,6 +579,18 @@ def api_cloturer_caisse(request):
             total=models.Sum('montant')
         )['total'] or 0
 
+        total_cheque_ventes = paiements_ventes.filter(mode='cheque').aggregate(
+            total=models.Sum('montant')
+        )['total'] or 0
+
+        total_om_ventes = paiements_ventes.filter(mode='om').aggregate(
+            total=models.Sum('montant')
+        )['total'] or 0
+
+        total_wave_ventes = paiements_ventes.filter(mode='wave').aggregate(
+            total=models.Sum('montant')
+        )['total'] or 0
+
         paiements_credit = PaiementCredit.objects.filter(
             credit__institut=institut,
             date__date=date_cloture,
@@ -587,8 +605,37 @@ def api_cloturer_caisse(request):
             total=models.Sum('montant')
         )['total'] or 0
 
-        total_especes = total_especes_ventes + total_especes_credit
-        total_carte = total_carte_ventes + total_carte_credit
+        total_cheque_credit = paiements_credit.filter(mode='cheque').aggregate(
+            total=models.Sum('montant')
+        )['total'] or 0
+
+        total_om_credit = paiements_credit.filter(mode='om').aggregate(
+            total=models.Sum('montant')
+        )['total'] or 0
+
+        total_wave_credit = paiements_credit.filter(mode='wave').aggregate(
+            total=models.Sum('montant')
+        )['total'] or 0
+
+        # Ventes de cartes cadeaux depuis la dernière clôture
+        ventes_cartes = CarteCadeau.objects.filter(
+            institut_achat=institut,
+            date_achat__date=date_cloture,
+            date_achat__gte=heure_debut,
+        )
+        ventes_cartes_par_mode = {'especes': 0, 'carte': 0, 'cheque': 0, 'om': 0, 'wave': 0}
+        for carte in ventes_cartes:
+            mode1 = carte.mode_paiement_achat
+            montant1 = carte.montant_paiement_1 if carte.montant_paiement_1 else carte.montant_initial
+            ventes_cartes_par_mode[mode1] += montant1
+            if carte.moyen_paiement_2 and carte.montant_paiement_2:
+                ventes_cartes_par_mode[carte.moyen_paiement_2] += carte.montant_paiement_2
+
+        total_especes = total_especes_ventes + total_especes_credit + ventes_cartes_par_mode['especes']
+        total_carte = total_carte_ventes + total_carte_credit + ventes_cartes_par_mode['carte']
+        total_cheque = total_cheque_ventes + total_cheque_credit + ventes_cartes_par_mode['cheque']
+        total_om = total_om_ventes + total_om_credit + ventes_cartes_par_mode['om']
+        total_wave = total_wave_ventes + total_wave_credit + ventes_cartes_par_mode['wave']
 
         # Créer une NOUVELLE clôture (plus de get_or_create)
         cloture = ClotureCaisse.objects.create(
@@ -598,7 +645,10 @@ def api_cloturer_caisse(request):
             montant_reel_especes=int(montant_reel),
             total_especes_calcule=total_especes,
             total_carte_calcule=total_carte,
-            total_calcule=total_especes + total_carte,
+            total_cheque_calcule=total_cheque,
+            total_om_calcule=total_om,
+            total_wave_calcule=total_wave,
+            total_calcule=total_especes + total_carte + total_cheque + total_om + total_wave,
             cloture=True,
             cloture_par=utilisateur,
             date_cloture=timezone.now()

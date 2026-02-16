@@ -769,8 +769,8 @@ def api_vendre_carte_cadeau(request):
         else:
             institut = utilisateur.institut
 
-        # Stocker le premier moyen de paiement dans la carte cadeau
-        carte = CarteCadeau.objects.create(
+        # Créer la carte cadeau avec les infos de paiement complètes
+        carte_kwargs = dict(
             acheteur=acheteur,
             beneficiaire=beneficiaire,
             montant_initial=montant,
@@ -780,48 +780,14 @@ def api_vendre_carte_cadeau(request):
             vendue_par=utilisateur,
         )
 
-        # Créer un RDV fictif pour enregistrer les paiements
-        prestation_fictive = Prestation.objects.filter(institut=institut).first()
-        if prestation_fictive:
-            rdv_fictif = RendezVous.objects.create(
-                institut=institut,
-                client=acheteur,
-                employe=institut.employes.first(),
-                prestation=prestation_fictive,
-                famille=prestation_fictive.famille if prestation_fictive.famille else None,
-                date=date.today(),
-                heure_debut=datetime.now().time(),
-                heure_fin=datetime.now().time(),
-                prix_base=montant,
-                prix_options=0,
-                prix_total=montant,
-                statut='valide',
-                cree_par=utilisateur,
-                valide_par=utilisateur,
-            )
+        if utilise_double_paiement and montant_paiement_2 > 0:
+            carte_kwargs['montant_paiement_1'] = int(montant_paiement_1)
+            carte_kwargs['moyen_paiement_2'] = moyen_paiement_2
+            carte_kwargs['montant_paiement_2'] = int(montant_paiement_2)
+        else:
+            carte_kwargs['montant_paiement_1'] = montant
 
-            # Créer les paiements
-            if utilise_double_paiement and montant_paiement_2 > 0:
-                # Double paiement
-                if montant_paiement_1 > 0:
-                    Paiement.objects.create(
-                        rendez_vous=rdv_fictif,
-                        mode=moyen_paiement_1,
-                        montant=int(montant_paiement_1),
-                    )
-                if montant_paiement_2 > 0:
-                    Paiement.objects.create(
-                        rendez_vous=rdv_fictif,
-                        mode=moyen_paiement_2,
-                        montant=int(montant_paiement_2),
-                    )
-            else:
-                # Paiement simple
-                Paiement.objects.create(
-                    rendez_vous=rdv_fictif,
-                    mode=moyen_paiement_1,
-                    montant=montant,
-                )
+        carte = CarteCadeau.objects.create(**carte_kwargs)
 
         return JsonResponse({
             'success': True,

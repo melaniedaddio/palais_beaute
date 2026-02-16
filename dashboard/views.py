@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.contrib.auth.decorators import login_required
+from core.decorators import login_required_json as login_required
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
@@ -407,14 +407,61 @@ def index(request):
         'offert': 'Offert',
     }
 
-    ca_par_paiement = [
-        {
-            'mode': mode_display_map.get(p['mode'], p['mode']),
-            'ca': float(p['ca_total']) if p['ca_total'] else 0
-        }
-        for p in ca_par_paiement_query
-        if p['ca_total'] and p['ca_total'] > 0
-    ]
+    # Combiner paiements RDV + paiements crédits par mode
+    ca_par_mode = {}
+    for p in ca_par_paiement_query:
+        if p['ca_total'] and p['ca_total'] > 0:
+            mode = p['mode']
+            ca_par_mode[mode] = ca_par_mode.get(mode, 0) + float(p['ca_total'])
+
+    # Ajouter les paiements de crédits
+    base_credits_paiements = PaiementCredit.objects.filter(
+        date__date__gte=date_debut,
+        date__date__lte=date_fin
+    ).exclude(mode='carte_cadeau')
+    if express:
+        if dates_cloturees_express:
+            credits_paiements_query = base_credits_paiements.filter(
+                Q(~Q(credit__institut=express)) |
+                Q(credit__institut=express, date__date__in=dates_cloturees_express)
+            )
+        else:
+            credits_paiements_query = base_credits_paiements.exclude(credit__institut=express)
+    else:
+        credits_paiements_query = base_credits_paiements
+
+    credits_par_mode = credits_paiements_query.values('mode').annotate(
+        ca_total=Sum('montant')
+    )
+    for p in credits_par_mode:
+        if p['ca_total'] and p['ca_total'] > 0:
+            mode = p['mode']
+            ca_par_mode[mode] = ca_par_mode.get(mode, 0) + float(p['ca_total'])
+
+    # Ajouter les paiements des cartes cadeaux vendues
+    cartes_paiement_query = base_cartes
+    if express:
+        if dates_cloturees_express:
+            cartes_paiement_query = base_cartes.filter(
+                Q(~Q(institut_achat=express)) |
+                Q(institut_achat=express, date_achat__date__in=dates_cloturees_express)
+            )
+        else:
+            cartes_paiement_query = base_cartes.exclude(institut_achat=express)
+    for carte in cartes_paiement_query:
+        mode1 = carte.mode_paiement_achat
+        montant1 = carte.montant_paiement_1 if carte.montant_paiement_1 else carte.montant_initial
+        ca_par_mode[mode1] = ca_par_mode.get(mode1, 0) + float(montant1)
+        if carte.moyen_paiement_2 and carte.montant_paiement_2:
+            ca_par_mode[carte.moyen_paiement_2] = ca_par_mode.get(carte.moyen_paiement_2, 0) + float(carte.montant_paiement_2)
+
+    ca_par_paiement = sorted(
+        [
+            {'mode': mode_display_map.get(mode, mode), 'ca': ca}
+            for mode, ca in ca_par_mode.items()
+        ],
+        key=lambda x: -x['ca']
+    )
 
     # Clôtures de la période avec écarts
     clotures_periode = ClotureCaisse.objects.filter(
@@ -776,13 +823,58 @@ def api_stats_institut(request):
         'offert': 'Offert',
     }
 
-    paiements_data = [
-        {
-            'mode': mode_display_map.get(p['mode'], p['mode']),
-            'ca': float(p['ca_total']) if p['ca_total'] else 0
-        }
-        for p in paiements_stats
-    ]
+    # Combiner paiements RDV + paiements crédits par mode
+    ca_par_mode = {}
+    for p in paiements_stats:
+        if p['ca_total'] and p['ca_total'] > 0:
+            mode = p['mode']
+            ca_par_mode[mode] = ca_par_mode.get(mode, 0) + float(p['ca_total'])
+
+    # Ajouter les paiements de crédits pour cet institut
+    credits_paiements_qs = PaiementCredit.objects.filter(
+        credit__institut=institut
+    ).exclude(mode='carte_cadeau')
+    if institut.code == 'express':
+        credits_paiements_qs = credits_paiements_qs.filter(date__date__in=dates_cloturees)
+    else:
+        credits_paiements_qs = credits_paiements_qs.filter(
+            date__date__gte=date_debut,
+            date__date__lte=date_fin
+        )
+    credits_par_mode = credits_paiements_qs.values('mode').annotate(
+        ca_total=Sum('montant')
+    )
+    for p in credits_par_mode:
+        if p['ca_total'] and p['ca_total'] > 0:
+            mode = p['mode']
+            ca_par_mode[mode] = ca_par_mode.get(mode, 0) + float(p['ca_total'])
+
+    # Ajouter les paiements des cartes cadeaux vendues
+    cartes_query = CarteCadeau.objects.filter(
+        institut_achat=institut,
+        statut__in=['active', 'soldee']
+    )
+    if institut.code == 'express':
+        cartes_query = cartes_query.filter(date_achat__date__in=dates_cloturees)
+    else:
+        cartes_query = cartes_query.filter(
+            date_achat__date__gte=date_debut,
+            date_achat__date__lte=date_fin
+        )
+    for carte in cartes_query:
+        mode1 = carte.mode_paiement_achat
+        montant1 = carte.montant_paiement_1 if carte.montant_paiement_1 else carte.montant_initial
+        ca_par_mode[mode1] = ca_par_mode.get(mode1, 0) + float(montant1)
+        if carte.moyen_paiement_2 and carte.montant_paiement_2:
+            ca_par_mode[carte.moyen_paiement_2] = ca_par_mode.get(carte.moyen_paiement_2, 0) + float(carte.montant_paiement_2)
+
+    paiements_data = sorted(
+        [
+            {'mode': mode_display_map.get(mode, mode), 'ca': ca}
+            for mode, ca in ca_par_mode.items()
+        ],
+        key=lambda x: -x['ca']
+    )
 
     return JsonResponse({
         'institut': institut.nom,

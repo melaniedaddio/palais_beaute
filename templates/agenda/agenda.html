@@ -1642,7 +1642,7 @@ function modifierRdv(rdv) {
     // Afficher le modal
     document.getElementById('modal-rdv').style.display = 'flex';
 
-    // Ajouter un bouton Supprimer et Valider
+    // Ajouter un bouton Supprimer (en mode édition uniquement)
     const footer = document.querySelector('#modal-rdv .modal-footer');
     if (!document.getElementById('btn-supprimer-rdv')) {
         const btnSupprimer = document.createElement('button');
@@ -1657,32 +1657,8 @@ function modifierRdv(rdv) {
             }
         };
 
-        const btnValider = document.createElement('button');
-        btnValider.id = 'btn-valider-rdv';
-        btnValider.className = 'btn btn-success';
-        btnValider.style.padding = '8px 16px';
-        btnValider.textContent = 'Valider';
-        btnValider.onclick = function() {
-            fermerModalRdv();
-            ouvrirModalValidation(rdv.id);
-        };
-
         footer.insertBefore(btnSupprimer, footer.firstChild);
-        footer.insertBefore(btnValider, footer.querySelector('.btn-primary'));
     }
-
-    // Masquer Valider dès qu'un champ est modifié
-    function masquerBtnValider() {
-        const btn = document.getElementById('btn-valider-rdv');
-        if (btn) btn.style.display = 'none';
-    }
-    const champsRdv = '#rdv-employe, #rdv-date, #rdv-heure, #rdv-client, #rdv-famille, #rdv-prestation, #rdv-prix-base';
-    document.querySelectorAll(champsRdv).forEach(el => {
-        el.addEventListener('change', masquerBtnValider, { once: true });
-    });
-    document.querySelectorAll('#form-rdv input[name="options"]').forEach(el => {
-        el.addEventListener('change', masquerBtnValider, { once: true });
-    });
 }
 
 // Supprimer un RDV
@@ -1721,8 +1697,13 @@ function ouvrirModalValidation(rdvId) {
     showPageLoader('Chargement...');
 
     // D'abord, vérifier s'il y a plusieurs RDV pour ce client ce jour
-    fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/client-jour/')
-        .then(response => response.json())
+    fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/client-jour/?_=' + Date.now())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success && data.nb_rdvs > 1) {
                 // Validation groupée
@@ -1733,8 +1714,8 @@ function ouvrirModalValidation(rdvId) {
             }
         })
         .catch(error => {
-            // En cas d'erreur, utiliser la validation unique
-            console.warn('Impossible de charger les RDV du client, validation unique', error);
+            // En cas d'erreur (401, 404, réseau...), basculer sur la validation unique
+            console.warn('Chargement RDV groupés échoué, validation unique:', error);
             chargerRdvUnique(rdvId);
         });
 }
@@ -2102,7 +2083,13 @@ function validerRdvUnique() {
         }
 
         // Le montant 1 ne doit pas dépasser le total restant
-        const montantRestant = validationPrixTotal - totalCartes;
+        const typePaiement = document.getElementById('validation-type-paiement').value;
+        let montantRestant;
+        if (typePaiement === 'partiel') {
+            montantRestant = (parseFloat(document.getElementById('validation-montant').value) || 0) - totalCartes;
+        } else {
+            montantRestant = validationPrixTotal - totalCartes;
+        }
         if (montant1 >= montantRestant) {
             hidePageLoader();
             showError('Le 1er montant doit être inférieur au total. Utilisez le paiement simple si vous payez tout avec un seul moyen.');
@@ -2165,104 +2152,130 @@ function validerRdvUnique() {
 
 // Validation groupée
 function validerRdvGroupe() {
-    const formData = new FormData(document.getElementById('form-validation'));
+    try {
+        const formData = new FormData();
 
-    // Ajouter tous les IDs de RDV
-    rdvsAValider.forEach(rdv => {
-        formData.append('rdv_ids[]', rdv.id);
-    });
-
-    // Calculer le total des cartes cadeaux
-    const checks = document.querySelectorAll('.carte-cadeau-check:checked');
-    let totalCartes = 0;
-    checks.forEach(check => {
-        const carteId = check.dataset.carteId;
-        const montantInput = document.querySelector(`.carte-cadeau-montant[data-carte-id="${carteId}"]`);
-        totalCartes += parseInt(montantInput.value) || 0;
-    });
-
-    // Ajouter le double paiement si activé
-    const checkbox = document.getElementById('utilise-double-paiement');
-    if (checkbox.checked) {
-        const montant1Input = document.getElementById('montant-paiement-1').value;
-        const montant1 = parseFloat(montant1Input) || 0;
-
-        // Validation : le montant 1 doit être > 0 pour le double paiement
-        if (montant1 <= 0) {
-            hidePageLoader();
-            showError('Veuillez saisir un montant valide pour le 1er moyen de paiement');
-            return;
-        }
-
-        // Le montant 1 ne doit pas dépasser le total restant
-        const montantRestant = validationPrixTotal - totalCartes;
-        if (montant1 >= montantRestant) {
-            hidePageLoader();
-            showError('Le 1er montant doit être inférieur au total. Utilisez le paiement simple si vous payez tout avec un seul moyen.');
-            return;
-        }
-
-        formData.append('utilise_double_paiement', 'true');
-        formData.append('montant_paiement_1', montant1);
-
-        const montant2 = Math.max(0, montantRestant - montant1);
-        formData.append('montant_paiement_2', montant2);
-
-        // Les moyens de paiement sont déjà dans le form
-    } else {
-        // Paiement simple : calculer le montant total à payer
+        // Ajouter les champs du formulaire manuellement (éviter les doublons du form)
         const typePaiement = document.getElementById('validation-type-paiement').value;
-        let montant1 = 0;
+        formData.append('type_paiement', typePaiement);
 
-        if (typePaiement === 'complet') {
-            // Paiement complet = total - cartes cadeaux
-            montant1 = validationPrixTotal - totalCartes;
-        } else if (typePaiement === 'partiel') {
-            // Paiement partiel = montant saisi
-            montant1 = parseInt(document.getElementById('validation-montant').value) || 0;
+        // Moyen de paiement 1
+        const moyen1 = document.querySelector('input[name="moyen_paiement_1"]:checked');
+        if (moyen1) formData.append('moyen_paiement_1', moyen1.value);
+
+        // Ajouter tous les IDs de RDV
+        if (!rdvsAValider || rdvsAValider.length === 0) {
+            showError('Aucun rendez-vous à valider');
+            return;
         }
-        // Si différé, montant1 reste à 0
+        rdvsAValider.forEach(rdv => {
+            formData.append('rdv_ids[]', rdv.id);
+        });
 
-        formData.append('montant_paiement_1', montant1);
-    }
+        // Calculer le total des cartes cadeaux
+        const checks = document.querySelectorAll('.carte-cadeau-check:checked');
+        let totalCartes = 0;
+        checks.forEach(check => {
+            const carteId = check.dataset.carteId;
+            const montantInput = document.querySelector(`.carte-cadeau-montant[data-carte-id="${carteId}"]`);
+            if (montantInput) totalCartes += parseInt(montantInput.value) || 0;
+        });
 
-    // Ajouter les cartes cadeaux
-    const cartesData = [];
-    checks.forEach(check => {
-        const carteId = check.dataset.carteId;
-        const montantInput = document.querySelector(`.carte-cadeau-montant[data-carte-id="${carteId}"]`);
-        const montant = parseInt(montantInput.value) || 0;
-        if (montant > 0) {
-            cartesData.push({carte_id: parseInt(carteId), montant: montant});
-        }
-    });
-    if (cartesData.length > 0) {
-        formData.append('cartes_cadeaux', JSON.stringify(cartesData));
-    }
+        // Ajouter le double paiement si activé
+        const checkbox = document.getElementById('utilise-double-paiement');
+        if (checkbox && checkbox.checked) {
+            const montant1Input = document.getElementById('montant-paiement-1').value;
+            const montant1 = parseFloat(montant1Input) || 0;
 
-    showPageLoader('Validation groupée en cours...');
+            if (montant1 <= 0) {
+                showError('Veuillez saisir un montant valide pour le 1er moyen de paiement');
+                return;
+            }
 
-    fetch('/agenda/{{ institut.code }}/api/rdv/valider-groupe/', {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'X-CSRFToken': '{{ csrf_token }}'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showSuccess(data.message);
-            setTimeout(() => location.reload(), 500);
+            // En mode partiel, la base est le montant partiel
+            let montantRestant;
+            if (typePaiement === 'partiel') {
+                montantRestant = (parseFloat(document.getElementById('validation-montant').value) || 0) - totalCartes;
+            } else {
+                montantRestant = validationPrixTotal - totalCartes;
+            }
+
+            if (montant1 >= montantRestant) {
+                showError('Le 1er montant doit être inférieur au total. Utilisez le paiement simple si vous payez tout avec un seul moyen.');
+                return;
+            }
+
+            formData.append('utilise_double_paiement', 'true');
+            formData.append('montant_paiement_1', montant1);
+
+            const montant2 = Math.max(0, montantRestant - montant1);
+            formData.append('montant_paiement_2', montant2);
+
+            const moyen2 = document.querySelector('input[name="moyen_paiement_2"]:checked');
+            if (moyen2) formData.append('moyen_paiement_2', moyen2.value);
         } else {
-            hidePageLoader();
-            showError(data.message);
+            // Paiement simple : calculer le montant total à payer
+            let montant1 = 0;
+
+            if (typePaiement === 'complet') {
+                montant1 = validationPrixTotal - totalCartes;
+            } else if (typePaiement === 'partiel') {
+                montant1 = parseInt(document.getElementById('validation-montant').value) || 0;
+            }
+            // Si différé, montant1 reste à 0
+
+            formData.append('montant_paiement_1', montant1);
         }
-    })
-    .catch(error => {
+
+        // Ajouter les cartes cadeaux
+        const cartesData = [];
+        checks.forEach(check => {
+            const carteId = check.dataset.carteId;
+            const montantInput = document.querySelector(`.carte-cadeau-montant[data-carte-id="${carteId}"]`);
+            const montant = montantInput ? (parseInt(montantInput.value) || 0) : 0;
+            if (montant > 0) {
+                cartesData.push({carte_id: parseInt(carteId), montant: montant});
+            }
+        });
+        if (cartesData.length > 0) {
+            formData.append('cartes_cadeaux', JSON.stringify(cartesData));
+        }
+
+        showPageLoader('Validation groupée en cours...');
+
+        fetch('/agenda/{{ institut.code }}/api/rdv/valider-groupe/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    throw new Error('Erreur serveur (' + response.status + ')');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                showSuccess(data.message);
+                setTimeout(() => location.reload(), 500);
+            } else {
+                hidePageLoader();
+                showError(data.message);
+            }
+        })
+        .catch(error => {
+            hidePageLoader();
+            showError('Erreur lors de la validation: ' + error.message);
+        });
+    } catch (e) {
         hidePageLoader();
-        showError('Erreur lors de la validation: ' + error);
-    });
+        showError('Erreur inattendue: ' + e.message);
+        console.error('validerRdvGroupe error:', e);
+    }
 }
 
 // Calculer les stats
@@ -2591,6 +2604,13 @@ function selectionnerSeanceForfait(forfaitId, numeroSeance, prestationNom, total
     document.getElementById('rdv-prix-total').innerHTML = `
         <span style="color: #9b59b6;">Séance ${numeroSeance}/${totalSeances}</span><br>
         <span style="font-size: 16px; color: #28a745;">0 CFA (forfait)</span>
+    `;
+
+    // Mettre à jour prestation-info pour retirer le bouton "Vendre ce forfait"
+    document.getElementById('prestation-info').innerHTML = `
+        <div style="margin-top: 8px; padding: 10px; background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border: 2px solid #28a745; border-radius: 8px;">
+            <strong style="color: #155724;">📦 Forfait actif</strong> <span style="color: #155724;">— ${prestationNom} (Séance ${numeroSeance}/${totalSeances})</span>
+        </div>
     `;
 
     // Masquer les forfaits et afficher une indication

@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404
-from django.contrib.auth.decorators import login_required
+from core.decorators import login_required_json as login_required
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Q, Max
 from django.views.decorators.http import require_POST

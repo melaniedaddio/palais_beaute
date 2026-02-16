@@ -133,8 +133,9 @@ STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Durée de session : 1 heure
+# Durée de session : 1 heure d'inactivité
 SESSION_COOKIE_AGE = 3600
+SESSION_SAVE_EVERY_REQUEST = True  # Renouveler la session à chaque requête (expire après 1h d'INACTIVITÉ, pas 1h après login)
 
 # HTTPS (configurable via .env, désactivé par défaut tant qu'il n'y a pas de certificat SSL)
 _USE_SSL = config('SECURE_SSL_REDIRECT', default=False, cast=bool)

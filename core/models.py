@@ -1119,6 +1119,21 @@ class CarteCadeau(models.Model):
         default='especes',
     )
 
+    # Double paiement
+    montant_paiement_1 = models.IntegerField(null=True, blank=True,
+        help_text="Montant payé avec le 1er moyen (= montant_initial si paiement simple)")
+    moyen_paiement_2 = models.CharField(max_length=20, blank=True, null=True,
+        choices=[
+            ('especes', 'Espèces'),
+            ('carte', 'Carte bancaire'),
+            ('cheque', 'Chèque'),
+            ('om', 'Orange Money'),
+            ('wave', 'Wave'),
+        ],
+    )
+    montant_paiement_2 = models.IntegerField(null=True, blank=True,
+        help_text="Montant payé avec le 2ème moyen")
+
     vendue_par = models.ForeignKey(
         'Utilisateur',
         on_delete=models.SET_NULL,

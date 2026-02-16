@@ -852,24 +852,46 @@ async function validerVente() {
         formData.append('institut_id', institutSelect.value);
     }
 
-    const resp = await fetch('{% url "core:api_vendre_carte_cadeau" %}', {
-        method: 'POST',
-        headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-        body: formData
-    });
+    // Désactiver le bouton pour éviter les double-clics
+    const btnValider = document.querySelector('#venteFormulaire .btn-secondary');
+    const btnTexteOriginal = btnValider.textContent;
+    btnValider.disabled = true;
+    btnValider.textContent = 'Création en cours...';
+    btnValider.style.opacity = '0.6';
 
-    const data = await resp.json();
+    try {
+        const resp = await fetch('{% url "core:api_vendre_carte_cadeau" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            body: formData
+        });
 
-    if (data.success) {
-        document.getElementById('venteFormulaire').style.display = 'none';
-        document.getElementById('venteConfirmation').style.display = 'block';
-        document.getElementById('confirmCode').textContent = data.carte.code;
-        document.getElementById('confirmMontant').textContent = new Intl.NumberFormat('fr-FR').format(data.carte.montant) + ' CFA';
-        document.getElementById('confirmBeneficiaire').textContent = data.carte.beneficiaire;
-        document.getElementById('confirmAcheteur').textContent = data.carte.acheteur;
-        document.getElementById('btnImprimer').href = `/cartes-cadeaux/${data.carte.id}/imprimer/`;
-    } else {
-        showError(data.message || 'Erreur lors de la création');
+        if (!resp.ok) {
+            throw new Error(`Erreur serveur (${resp.status})`);
+        }
+
+        const data = await resp.json();
+
+        if (data.success) {
+            document.getElementById('venteFormulaire').style.display = 'none';
+            document.getElementById('venteConfirmation').style.display = 'block';
+            document.getElementById('confirmCode').textContent = data.carte.code;
+            document.getElementById('confirmMontant').textContent = new Intl.NumberFormat('fr-FR').format(data.carte.montant) + ' CFA';
+            document.getElementById('confirmBeneficiaire').textContent = data.carte.beneficiaire;
+            document.getElementById('confirmAcheteur').textContent = data.carte.acheteur;
+            document.getElementById('btnImprimer').href = `/cartes-cadeaux/${data.carte.id}/imprimer/`;
+        } else {
+            showError(data.message || 'Erreur lors de la création');
+            btnValider.disabled = false;
+            btnValider.textContent = btnTexteOriginal;
+            btnValider.style.opacity = '1';
+        }
+    } catch (err) {
+        console.error('Erreur validerVente:', err);
+        showError('Erreur de connexion au serveur. Veuillez réessayer.');
+        btnValider.disabled = false;
+        btnValider.textContent = btnTexteOriginal;
+        btnValider.style.opacity = '1';
     }
 }
 
