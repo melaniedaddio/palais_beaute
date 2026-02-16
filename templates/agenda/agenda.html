@@ -1982,18 +1982,28 @@ function updateMontantPaiement() {
     const group = document.getElementById('montant-paiement-group');
     const sectionMoyen = document.getElementById('section-moyen-paiement');
     const cartesSection = document.getElementById('section-cartes-cadeaux');
+    const doublePaiementSection = document.getElementById('section-double-paiement');
+    const doublePaiementCheckbox = document.getElementById('utilise-double-paiement');
 
     if (type === 'differe') {
         group.style.display = 'none';
         sectionMoyen.style.display = 'none';
         if (cartesSection) cartesSection.style.display = 'none';
+        // Masquer et décocher le double paiement en mode différé
+        if (doublePaiementSection) doublePaiementSection.style.display = 'none';
+        if (doublePaiementCheckbox && doublePaiementCheckbox.checked) {
+            doublePaiementCheckbox.checked = false;
+            toggleDoublePaiement();
+        }
     } else if (type === 'partiel') {
         group.style.display = 'block';
         sectionMoyen.style.display = '';
+        if (doublePaiementSection) doublePaiementSection.style.display = '';
         calculerReste();
     } else {
         group.style.display = 'none';
         sectionMoyen.style.display = '';
+        if (doublePaiementSection) doublePaiementSection.style.display = '';
     }
 }
 

@@ -489,16 +489,26 @@ function updatePaiement() {
     const type = document.querySelector('input[name="type_paiement"]:checked').value;
     const montantGroup = document.getElementById('montant-partiel-group');
     const sectionMoyen = document.getElementById('section-moyen-paiement');
+    const doublePaiementCheckbox = document.getElementById('utilise-double-paiement-express');
+    const doublePaiementSection = doublePaiementCheckbox ? doublePaiementCheckbox.closest('.form-group') : null;
 
     if (type === 'differe') {
         montantGroup.style.display = 'none';
         sectionMoyen.style.display = 'none';
+        // Masquer et décocher le double paiement en mode différé
+        if (doublePaiementSection) doublePaiementSection.style.display = 'none';
+        if (doublePaiementCheckbox && doublePaiementCheckbox.checked) {
+            doublePaiementCheckbox.checked = false;
+            toggleDoublePaiementExpress();
+        }
     } else if (type === 'partiel') {
         montantGroup.style.display = 'block';
         sectionMoyen.style.display = '';
+        if (doublePaiementSection) doublePaiementSection.style.display = '';
     } else {
         montantGroup.style.display = 'none';
         sectionMoyen.style.display = '';
+        if (doublePaiementSection) doublePaiementSection.style.display = '';
     }
 }
 
