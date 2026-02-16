@@ -1772,6 +1772,7 @@ function afficherValidationGroupee(data) {
     validationClientId = null;
 
     // Réinitialiser le formulaire
+    document.getElementById('validation-montant').value = data.prix_total_global;
     document.getElementById('validation-type-paiement').value = 'complet';
     document.getElementById('utilise-double-paiement').checked = false;
     toggleDoublePaiement();
@@ -1973,7 +1974,14 @@ function calculerMontant2() {
         totalCartes += parseInt(montantInput.value) || 0;
     });
 
-    const montant2 = Math.max(0, validationPrixTotal - totalCartes - montant1);
+    // En mode partiel, utiliser le montant partiel comme base au lieu du total
+    const typePaiement = document.getElementById('validation-type-paiement').value;
+    let baseTotal = validationPrixTotal;
+    if (typePaiement === 'partiel') {
+        baseTotal = parseFloat(document.getElementById('validation-montant').value) || 0;
+    }
+
+    const montant2 = Math.max(0, baseTotal - totalCartes - montant1);
     document.getElementById('montant-paiement-2-text').textContent = montant2.toLocaleString('fr-FR') + ' CFA';
 }
 
@@ -2008,7 +2016,7 @@ function updateMontantPaiement() {
 }
 
 function calculerReste() {
-    const prixTotal = parseFloat(document.getElementById('validation-prix-total').textContent.replace(/[^0-9.]/g, ''));
+    const prixTotal = validationPrixTotal;
     const montant = parseFloat(document.getElementById('validation-montant').value) || 0;
     const reste = prixTotal - montant;
 
@@ -2707,15 +2715,21 @@ function toggleForfaitMontant() {
     const typePaiement = document.querySelector('input[name="forfait_type_paiement"]:checked').value;
     const sectionMoyen = document.getElementById('forfait-section-moyen-paiement');
     const sectionDoublePaiement = document.getElementById('forfait-section-double-paiement');
+    const doublePaiementCheckbox = document.getElementById('forfait-utilise-double-paiement');
 
     if (typePaiement === 'differe') {
         document.getElementById('forfait-montant-container').style.display = 'none';
         sectionMoyen.style.display = 'none';
+        // Masquer et décocher le double paiement en mode différé
         sectionDoublePaiement.style.display = 'none';
+        if (doublePaiementCheckbox && doublePaiementCheckbox.checked) {
+            doublePaiementCheckbox.checked = false;
+            toggleDoublePaiementForfait();
+        }
     } else if (typePaiement === 'partiel') {
         document.getElementById('forfait-montant-container').style.display = 'block';
         sectionMoyen.style.display = '';
-        sectionDoublePaiement.style.display = 'none';
+        sectionDoublePaiement.style.display = '';
     } else {
         document.getElementById('forfait-montant-container').style.display = 'none';
         sectionMoyen.style.display = '';
@@ -2765,7 +2779,15 @@ function toggleDoublePaiementForfait() {
 
 function calculerMontant2Forfait() {
     const montant1 = parseFloat(document.getElementById('forfait-montant-paiement-1').value) || 0;
-    const montant2 = Math.max(0, forfaitPrixActuel - montant1);
+
+    // En mode partiel, utiliser le montant partiel comme base au lieu du prix total
+    const typePaiement = document.querySelector('input[name="forfait_type_paiement"]:checked').value;
+    let baseTotal = forfaitPrixActuel;
+    if (typePaiement === 'partiel') {
+        baseTotal = parseFloat(document.getElementById('forfait-montant').value) || 0;
+    }
+
+    const montant2 = Math.max(0, baseTotal - montant1);
     document.getElementById('forfait-montant-paiement-2-text').textContent = montant2.toLocaleString('fr-FR') + ' CFA';
 }
 
@@ -2827,9 +2849,12 @@ function acheterForfait() {
             return;
         }
 
-        // Récupérer le prix du forfait
-        const prixForfait = forfaitPrixActuel || 0;
-        if (montant1 >= prixForfait) {
+        // En mode partiel, la base est le montant partiel, sinon le prix total
+        const baseTotal = (typePaiement === 'partiel')
+            ? (parseFloat(document.getElementById('forfait-montant').value) || 0)
+            : (forfaitPrixActuel || 0);
+
+        if (montant1 >= baseTotal) {
             showError('Le 1er montant doit être inférieur au total. Utilisez le paiement simple si vous payez tout avec un seul moyen.');
             return;
         }
@@ -2837,7 +2862,7 @@ function acheterForfait() {
         formData.append('utilise_double_paiement', 'true');
         formData.append('montant_paiement_1', montant1);
 
-        const montant2 = prixForfait - montant1;
+        const montant2 = baseTotal - montant1;
         formData.append('montant_paiement_2', montant2);
 
         const moyen1 = document.querySelector('input[name="forfait_moyen_paiement_1"]:checked').value;

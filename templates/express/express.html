@@ -555,7 +555,14 @@ function calculerMontant2Express() {
         total += p.prix * p.quantite;
     });
 
-    const montant2 = Math.max(0, total - totalCartes - montant1);
+    // En mode partiel, utiliser le montant partiel comme base au lieu du total
+    const typePaiement = document.querySelector('input[name="type_paiement"]:checked').value;
+    let baseTotal = total;
+    if (typePaiement === 'partiel') {
+        baseTotal = parseFloat(document.getElementById('montant-paye').value) || 0;
+    }
+
+    const montant2 = Math.max(0, baseTotal - totalCartes - montant1);
     document.getElementById('montant-paiement-2-text-express').textContent = montant2.toLocaleString('fr-FR') + ' CFA';
 }
 

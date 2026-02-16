@@ -725,7 +725,15 @@ def api_rdv_valider(request, institut_code, rdv_id):
         # === CAS NORMAL : RDV standard ===
         # Récupérer les données de paiement
         type_paiement = request.POST.get('type_paiement', 'complet')
-        moyen_paiement = request.POST.get('moyen_paiement', 'especes')
+        moyen_paiement_1 = request.POST.get('moyen_paiement_1', request.POST.get('moyen_paiement', 'especes'))
+
+        # Double paiement
+        utilise_double_paiement = request.POST.get('utilise_double_paiement') == 'true'
+        moyen_paiement_2 = request.POST.get('moyen_paiement_2', '')
+        try:
+            montant_paiement_2 = Decimal(request.POST.get('montant_paiement_2', '0') or '0')
+        except (ValueError, InvalidOperation):
+            montant_paiement_2 = Decimal('0')
 
         # Déterminer le montant payé
         if type_paiement == 'complet':
@@ -771,13 +779,28 @@ def api_rdv_valider(request, institut_code, rdv_id):
                     montant_total_cartes += montant_a_utiliser
                     montant_restant -= montant_a_utiliser
 
-        # 2. Créer le paiement pour le reste (espèces/carte bancaire)
-        if montant_restant > 0:
-            Paiement.objects.create(
-                rendez_vous=rdv,
-                mode=moyen_paiement,
-                montant=montant_restant,
-            )
+        # 2. Créer le(s) paiement(s) pour le reste
+        if utilise_double_paiement and montant_paiement_2 > 0:
+            montant_paiement_1 = montant_restant - int(montant_paiement_2)
+            if montant_paiement_1 > 0:
+                Paiement.objects.create(
+                    rendez_vous=rdv,
+                    mode=moyen_paiement_1,
+                    montant=montant_paiement_1,
+                )
+            if montant_paiement_2 > 0:
+                Paiement.objects.create(
+                    rendez_vous=rdv,
+                    mode=moyen_paiement_2,
+                    montant=int(montant_paiement_2),
+                )
+        else:
+            if montant_restant > 0:
+                Paiement.objects.create(
+                    rendez_vous=rdv,
+                    mode=moyen_paiement_1,
+                    montant=montant_restant,
+                )
 
         # 3. Si paiement partiel ou différé, créer un crédit
         montant_effectif = montant_total_cartes + montant_restant
