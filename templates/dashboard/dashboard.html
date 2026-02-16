@@ -636,7 +636,7 @@
                             {% if cloture.ecart > 0 %}+{% endif %}{{ cloture.ecart|floatformat:0 }} CFA
                         </span>
                     </td>
-                    <td style="padding: 12px; text-align: center;">{{ cloture.cloture_par.username|default:"-" }}</td>
+                    <td style="padding: 12px; text-align: center;">{% if cloture.cloture_par %}{{ cloture.cloture_par.user.first_name|default:cloture.cloture_par.user.username }}{% else %}-{% endif %}</td>
                 </tr>
                 {% endfor %}
             </tbody>

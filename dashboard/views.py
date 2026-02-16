@@ -467,7 +467,7 @@ def index(request):
     clotures_periode = ClotureCaisse.objects.filter(
         date__range=[date_debut, date_fin],
         cloture=True
-    ).select_related('institut', 'cloture_par').order_by('-date', '-date_cloture')
+    ).select_related('institut', 'cloture_par__user').order_by('-date', '-date_cloture')
 
     # Total des écarts de la période
     total_ecart_periode = clotures_periode.aggregate(total=Sum('ecart'))['total'] or 0
@@ -796,7 +796,7 @@ def api_stats_institut(request):
     paiements_query = Paiement.objects.filter(
         rendez_vous__institut=institut,
         rendez_vous__statut='valide'
-    )
+    ).exclude(mode__in=['carte_cadeau', 'forfait', 'offert'])
 
     # Pour Express : filtrer par dates clôturées
     if institut.code == 'express':
