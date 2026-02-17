@@ -205,19 +205,10 @@ def creer_vente(request):
                 prix_unitaire=prestation.prix
             )
 
-        # Gestion du paiement
-        if type_paiement == 'complet':
-            montant_paye = prix_total
-        elif type_paiement == 'differe':
-            montant_paye = Decimal('0')
-        else:  # partiel
-            montant_paye = Decimal(montant_paye)
-
-        montant_restant = int(montant_paye)
-
-        # 1. Traiter les cartes cadeaux si présentes (comme dans l'agenda)
+        # 1. Traiter les cartes cadeaux sur le prix total (indépendamment du type de paiement)
         cartes_json = request.POST.get('cartes_cadeaux', '')
         montant_total_cartes = 0
+        montant_restant_prix = int(prix_total)
         if cartes_json:
             cartes_data = json.loads(cartes_json)
             for carte_item in cartes_data:
@@ -229,7 +220,7 @@ def creer_vente(request):
                 montant_a_utiliser = min(
                     int(carte_item['montant']),
                     carte.solde,
-                    montant_restant,
+                    montant_restant_prix,
                 )
                 if montant_a_utiliser > 0:
                     utilisation = UtilisationCarteCadeau.objects.create(
@@ -247,9 +238,17 @@ def creer_vente(request):
                         utilisation_carte_cadeau=utilisation,
                     )
                     montant_total_cartes += montant_a_utiliser
-                    montant_restant -= montant_a_utiliser
+                    montant_restant_prix -= montant_a_utiliser
 
-        # 2. Créer le(s) paiement(s) pour le reste
+        # 2. Déterminer le montant cash (après déduction des cartes cadeaux)
+        if type_paiement == 'complet':
+            montant_restant = montant_restant_prix
+        elif type_paiement == 'differe':
+            montant_restant = 0
+        else:  # partiel
+            montant_restant = min(int(Decimal(montant_paye)), montant_restant_prix)
+
+        # 3. Créer le(s) paiement(s) pour le cash
         montant_paiement_1 = montant_restant  # Par défaut, tout sur le premier moyen
 
         # Si double paiement est activé, répartir le montant
@@ -279,8 +278,8 @@ def creer_vente(request):
                     montant=montant_restant,
                 )
 
-        # 3. Si paiement partiel ou différé, créer un crédit
-        montant_effectif = montant_total_cartes + montant_paiement_1 + (int(montant_paiement_2) if utilise_double_paiement else 0)
+        # 4. Si paiement partiel ou différé, créer un crédit
+        montant_effectif = montant_total_cartes + montant_restant
         if montant_effectif < prix_total:
             description = ", ".join([p['nom'] for p in prestations_data])
             if len(description) > 200:

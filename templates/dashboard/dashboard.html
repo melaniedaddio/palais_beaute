@@ -910,9 +910,7 @@
                 <div class="rdv-detail">{{ rdv.employe.nom }} - {{ rdv.prestation.nom }}</div>
             </div>
             <div class="rdv-amount">
-                {% with paiement=rdv.paiements.first %}
-                    {% if paiement %}{{ paiement.montant|floatformat:0 }}{% else %}0{% endif %} CFA
-                {% endwith %}
+                {{ rdv.prix_total|floatformat:0 }} CFA
             </div>
         </div>
         {% endfor %}

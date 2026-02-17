@@ -735,19 +735,10 @@ def api_rdv_valider(request, institut_code, rdv_id):
         except (ValueError, InvalidOperation):
             montant_paiement_2 = Decimal('0')
 
-        # Déterminer le montant payé
-        if type_paiement == 'complet':
-            montant_paye = rdv.prix_total
-        elif type_paiement == 'differe':
-            montant_paye = Decimal('0')
-        else:  # partiel
-            montant_paye = Decimal(request.POST.get('montant', 0))
-
-        montant_restant = int(montant_paye)
-
-        # 1. Traiter les cartes cadeaux si présentes
+        # 1. Traiter les cartes cadeaux sur le prix total (indépendamment du type de paiement)
         cartes_json = request.POST.get('cartes_cadeaux', '')
         montant_total_cartes = 0
+        montant_restant_prix = int(rdv.prix_total)
         if cartes_json:
             cartes_data = json.loads(cartes_json)
             for carte_item in cartes_data:
@@ -759,7 +750,7 @@ def api_rdv_valider(request, institut_code, rdv_id):
                 montant_a_utiliser = min(
                     int(carte_item['montant']),
                     carte.solde,
-                    montant_restant,
+                    montant_restant_prix,
                 )
                 if montant_a_utiliser > 0:
                     utilisation = UtilisationCarteCadeau.objects.create(
@@ -777,9 +768,18 @@ def api_rdv_valider(request, institut_code, rdv_id):
                         utilisation_carte_cadeau=utilisation,
                     )
                     montant_total_cartes += montant_a_utiliser
-                    montant_restant -= montant_a_utiliser
+                    montant_restant_prix -= montant_a_utiliser
 
-        # 2. Créer le(s) paiement(s) pour le reste
+        # 2. Déterminer le montant cash (après déduction des cartes cadeaux)
+        if type_paiement == 'complet':
+            montant_restant = montant_restant_prix
+        elif type_paiement == 'differe':
+            montant_restant = 0
+        else:  # partiel
+            montant_paye = int(Decimal(request.POST.get('montant', 0)))
+            montant_restant = min(montant_paye, montant_restant_prix)
+
+        # 3. Créer le(s) paiement(s) pour le cash
         if utilise_double_paiement and montant_paiement_2 > 0:
             montant_paiement_1 = montant_restant - int(montant_paiement_2)
             if montant_paiement_1 > 0:
@@ -802,7 +802,7 @@ def api_rdv_valider(request, institut_code, rdv_id):
                     montant=montant_restant,
                 )
 
-        # 3. Si paiement partiel ou différé, créer un crédit
+        # 4. Si paiement partiel ou différé, créer un crédit
         montant_effectif = montant_total_cartes + montant_restant
         if montant_effectif < rdv.prix_total:
             Credit.objects.create(
@@ -1313,24 +1313,15 @@ def api_forfait_acheter(request, institut_code):
         client = get_object_or_404(Client, id=client_id)
         prestation = get_object_or_404(Prestation, id=prestation_id, est_forfait=True)
 
-        # Déterminer le montant payé
         prix_forfait = prestation.prix
-        if type_paiement == 'complet':
-            montant_effectif = prix_forfait
-        elif type_paiement == 'differe':
-            montant_effectif = 0
-        else:  # partiel
-            montant_effectif = int(montant_paye)
-
         utilisateur = request.user.utilisateur
 
         # Créer le forfait client (utiliser comme RDV fictif pour les paiements)
-        # On crée d'abord un RDV fictif pour pouvoir lier les paiements
         from datetime import date, datetime
         rdv_forfait = RendezVous.objects.create(
             institut=institut,
             client=client,
-            employe=institut.employes.first(),  # Utiliser un employé par défaut
+            employe=institut.employes.first(),
             prestation=prestation,
             famille=prestation.famille,
             date=date.today(),
@@ -1344,6 +1335,51 @@ def api_forfait_acheter(request, institut_code):
             valide_par=utilisateur,
             est_seance_forfait=False,
         )
+
+        # 1. Traiter les cartes cadeaux sur le prix total
+        cartes_json = request.POST.get('cartes_cadeaux', '')
+        montant_total_cartes = 0
+        montant_restant_prix = int(prix_forfait)
+        if cartes_json:
+            cartes_data = json.loads(cartes_json)
+            for carte_item in cartes_data:
+                carte = CarteCadeau.objects.get(
+                    id=carte_item['carte_id'],
+                    beneficiaire=client,
+                    statut='active',
+                )
+                montant_a_utiliser = min(
+                    int(carte_item['montant']),
+                    carte.solde,
+                    montant_restant_prix,
+                )
+                if montant_a_utiliser > 0:
+                    utilisation = UtilisationCarteCadeau.objects.create(
+                        carte=carte,
+                        rendez_vous=rdv_forfait,
+                        montant=montant_a_utiliser,
+                        institut=institut,
+                        enregistre_par=utilisateur,
+                    )
+                    carte.utiliser(montant_a_utiliser)
+                    Paiement.objects.create(
+                        rendez_vous=rdv_forfait,
+                        mode='carte_cadeau',
+                        montant=montant_a_utiliser,
+                        utilisation_carte_cadeau=utilisation,
+                    )
+                    montant_total_cartes += montant_a_utiliser
+                    montant_restant_prix -= montant_a_utiliser
+
+        # 2. Déterminer le montant cash
+        if type_paiement == 'complet':
+            montant_restant = montant_restant_prix
+        elif type_paiement == 'differe':
+            montant_restant = 0
+        else:  # partiel
+            montant_restant = min(int(montant_paye), montant_restant_prix)
+
+        montant_effectif = montant_total_cartes + montant_restant
 
         forfait = ForfaitClient.objects.create(
             client=client,
@@ -1363,15 +1399,15 @@ def api_forfait_acheter(request, institut_code):
                 statut='disponible'
             )
 
-        # Créer les paiements
-        if montant_effectif > 0:
+        # 3. Créer les paiements cash
+        if montant_restant > 0:
             if utilise_double_paiement and montant_paiement_2 > 0:
-                # Double paiement
-                if montant_paiement_1 > 0:
+                montant_cash_1 = montant_restant - int(montant_paiement_2)
+                if montant_cash_1 > 0:
                     Paiement.objects.create(
                         rendez_vous=rdv_forfait,
                         mode=moyen_paiement_1,
-                        montant=int(montant_paiement_1),
+                        montant=montant_cash_1,
                     )
                 if montant_paiement_2 > 0:
                     Paiement.objects.create(
@@ -1380,14 +1416,13 @@ def api_forfait_acheter(request, institut_code):
                         montant=int(montant_paiement_2),
                     )
             else:
-                # Paiement simple
                 Paiement.objects.create(
                     rendez_vous=rdv_forfait,
                     mode=moyen_paiement_1,
-                    montant=montant_effectif,
+                    montant=montant_restant,
                 )
 
-        # Si paiement partiel ou différé, créer un crédit
+        # 4. Si paiement partiel ou différé, créer un crédit
         if montant_effectif < prix_forfait:
             Credit.objects.create(
                 client=client,
@@ -1482,18 +1517,9 @@ def api_rdv_valider_groupe(request, institut_code):
         # Calculer le prix total de tous les RDV
         prix_total_global = sum(rdv.prix_total for rdv in rdvs)
 
-        # Déterminer le montant payé total
-        if type_paiement == 'complet':
-            montant_paye_total = prix_total_global
-        elif type_paiement == 'differe':
-            montant_paye_total = Decimal('0')
-        else:  # partiel
-            montant_paye_total = montant_paiement_1 + montant_paiement_2
-
-        montant_restant = int(montant_paye_total)
-
-        # 1. Traiter les cartes cadeaux si présentes
+        # 1. Traiter les cartes cadeaux sur le prix total (indépendamment du type de paiement)
         montant_total_cartes = 0
+        montant_restant_prix = int(prix_total_global)
         if cartes_json:
             cartes_data = json.loads(cartes_json)
             for carte_item in cartes_data:
@@ -1505,7 +1531,7 @@ def api_rdv_valider_groupe(request, institut_code):
                 montant_a_utiliser = min(
                     int(carte_item['montant']),
                     carte.solde,
-                    montant_restant,
+                    montant_restant_prix,
                 )
                 if montant_a_utiliser > 0:
                     # Créer une utilisation pour chaque RDV proportionnellement
@@ -1535,7 +1561,15 @@ def api_rdv_valider_groupe(request, institut_code):
                             total_carte_distribue += montant_rdv
                     carte.utiliser(montant_a_utiliser)
                     montant_total_cartes += montant_a_utiliser
-                    montant_restant -= montant_a_utiliser
+                    montant_restant_prix -= montant_a_utiliser
+
+        # Déterminer le montant cash (après déduction des cartes cadeaux)
+        if type_paiement == 'complet':
+            montant_cash_total = montant_restant_prix
+        elif type_paiement == 'differe':
+            montant_cash_total = 0
+        else:  # partiel
+            montant_cash_total = min(int(montant_paiement_1 + montant_paiement_2), montant_restant_prix)
 
         # 2. Valider chaque RDV et créer les paiements
         # Filtrer les RDV non-forfait pour la répartition proportionnelle
@@ -1596,7 +1630,7 @@ def api_rdv_valider_groupe(request, institut_code):
                     total_distribue_2 += montant_rdv_2
 
         # 3. Si paiement partiel ou différé, créer un crédit global
-        montant_effectif = montant_total_cartes + montant_paiement_1 + montant_paiement_2
+        montant_effectif = montant_total_cartes + montant_cash_total
         if montant_effectif < prix_total_global:
             # Créer la description avec la liste des prestations
             prestations_liste = ", ".join([rdv.prestation.nom for rdv in rdvs])

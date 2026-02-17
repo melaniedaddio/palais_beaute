@@ -268,23 +268,7 @@
                     <div style="font-size: 13px; color: #6b4d8a; margin-top: 5px;">Aucun paiement requis — le forfait a déjà été réglé.</div>
                 </div>
 
-                <div class="form-group">
-                    <label>Type de paiement</label>
-                    <select id="validation-type-paiement" name="type_paiement" class="form-control" onchange="updateMontantPaiement()">
-                        <option value="complet">Paiement complet</option>
-                        <option value="partiel">Paiement partiel</option>
-                        <option value="differe">Paiement différé</option>
-                    </select>
-                </div>
-
-                <div id="montant-paiement-group" class="form-group" style="display: none;">
-                    <label>Montant payé</label>
-                    <input type="number" id="validation-montant" name="montant" class="form-control" step="0.01"
-                           onchange="calculerReste()">
-                    <small id="reste-a-payer" style="display: block; margin-top: 5px; color: #c9a86a;"></small>
-                </div>
-
-                <!-- Section Cartes Cadeaux -->
+                <!-- Section Cartes Cadeaux (avant le type de paiement) -->
                 <div id="section-cartes-cadeaux" class="form-group" style="display: none;">
                     <label>Cartes cadeaux disponibles</label>
                     <div id="liste-cartes-cadeaux" style="background: #f0f8f0; border-radius: 8px; padding: 12px; margin-bottom: 10px;">
@@ -299,6 +283,22 @@
                             <strong id="reste-apres-cartes" style="color: #c9a86a;">0 CFA</strong>
                         </div>
                     </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Type de paiement</label>
+                    <select id="validation-type-paiement" name="type_paiement" class="form-control" onchange="updateMontantPaiement()">
+                        <option value="complet">Paiement complet</option>
+                        <option value="partiel">Paiement partiel</option>
+                        <option value="differe">Paiement différé</option>
+                    </select>
+                </div>
+
+                <div id="montant-paiement-group" class="form-group" style="display: none;">
+                    <label>Montant payé</label>
+                    <input type="number" id="validation-montant" name="montant" class="form-control"
+                           min="0" oninput="plafonnerMontant(); calculerReste()" onchange="plafonnerMontant(); calculerReste()">
+                    <small id="reste-a-payer" style="display: block; margin-top: 5px; color: #c9a86a;"></small>
                 </div>
 
                 <!-- Section double paiement -->
@@ -429,6 +429,23 @@
                     </div>
                 </div>
 
+                <!-- Section Cartes Cadeaux Forfait -->
+                <div id="forfait-section-cartes-cadeaux" class="form-group" style="display: none;">
+                    <label>Cartes cadeaux disponibles</label>
+                    <div id="forfait-liste-cartes-cadeaux" style="background: #f0f8f0; border-radius: 8px; padding: 12px; margin-bottom: 10px;">
+                    </div>
+                    <div id="forfait-recapitulatif-cartes" style="display: none; background: #fff8e1; border-radius: 8px; padding: 12px; margin-bottom: 10px; font-size: 13px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Carte(s) cadeau :</span>
+                            <strong id="forfait-total-cartes-cadeaux" style="color: #28a745;">0 CFA</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 5px;">
+                            <span>Reste à payer :</span>
+                            <strong id="forfait-reste-apres-cartes" style="color: #c9a86a;">0 CFA</strong>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Type de paiement -->
                 <div class="form-group">
                     <label>Type de paiement</label>
@@ -452,7 +469,7 @@
                 <div id="forfait-montant-container" class="form-group" style="display: none;">
                     <label>Montant payé maintenant</label>
                     <input type="number" id="forfait-montant" name="montant" class="form-control"
-                           placeholder="0" min="0">
+                           placeholder="0" min="0" oninput="plafonnerForfaitMontant()">
                 </div>
 
                 <!-- Section double paiement -->
@@ -1838,7 +1855,7 @@ function chargerCartesCadeaux(clientId) {
                         <strong>${c.code}</strong>
                         <div style="color: #888; font-size: 12px;">Solde : ${parseInt(c.solde).toLocaleString('fr-FR')} CFA</div>
                     </div>
-                    <input type="number" class="carte-cadeau-montant" data-carte-id="${c.id}" min="0" max="${c.solde}" placeholder="Montant" style="width: 120px; padding: 4px 8px; font-size: 13px;" disabled onchange="recalculerCartesCadeaux()">
+                    <input type="number" class="carte-cadeau-montant" data-carte-id="${c.id}" min="0" max="${c.solde}" placeholder="Montant" style="width: 120px; padding: 4px 8px; font-size: 13px;" disabled oninput="recalculerCartesCadeaux()" onchange="recalculerCartesCadeaux()">
                 </div>`;
             });
             liste.innerHTML = html;
@@ -1896,6 +1913,9 @@ function recalculerCartesCadeaux() {
         document.getElementById('section-moyen-paiement').style.display = 'block';
         document.getElementById('section-double-paiement').style.display = 'block';
     }
+
+    // Mettre à jour le montant payé en mode partiel
+    majMontantPartiel();
 }
 
 function fermerModalValidation() {
@@ -1946,23 +1966,16 @@ function toggleDoublePaiement() {
 function calculerMontant2() {
     const montant1 = parseFloat(document.getElementById('montant-paiement-1').value) || 0;
 
-    // Récupérer le total des cartes cadeaux s'il y en a
-    const checks = document.querySelectorAll('.carte-cadeau-check:checked');
-    let totalCartes = 0;
-    checks.forEach(check => {
-        const carteId = check.dataset.carteId;
-        const montantInput = document.querySelector(`.carte-cadeau-montant[data-carte-id="${carteId}"]`);
-        totalCartes += parseInt(montantInput.value) || 0;
-    });
-
-    // En mode partiel, utiliser le montant partiel comme base au lieu du total
+    // Base = reste après cartes cadeaux, ou montant partiel si en mode partiel
     const typePaiement = document.getElementById('validation-type-paiement').value;
-    let baseTotal = validationPrixTotal;
+    let baseTotal;
     if (typePaiement === 'partiel') {
         baseTotal = parseFloat(document.getElementById('validation-montant').value) || 0;
+    } else {
+        baseTotal = getResteApresCartes();
     }
 
-    const montant2 = Math.max(0, baseTotal - totalCartes - montant1);
+    const montant2 = Math.max(0, baseTotal - montant1);
     document.getElementById('montant-paiement-2-text').textContent = montant2.toLocaleString('fr-FR') + ' CFA';
 }
 
@@ -1977,7 +1990,6 @@ function updateMontantPaiement() {
     if (type === 'differe') {
         group.style.display = 'none';
         sectionMoyen.style.display = 'none';
-        if (cartesSection) cartesSection.style.display = 'none';
         // Masquer et décocher le double paiement en mode différé
         if (doublePaiementSection) doublePaiementSection.style.display = 'none';
         if (doublePaiementCheckbox && doublePaiementCheckbox.checked) {
@@ -1988,6 +2000,11 @@ function updateMontantPaiement() {
         group.style.display = 'block';
         sectionMoyen.style.display = '';
         if (doublePaiementSection) doublePaiementSection.style.display = '';
+        // Initialiser le montant au reste après cartes cadeaux
+        const resteApresCartes = getResteApresCartes();
+        const montantInput = document.getElementById('validation-montant');
+        montantInput.max = resteApresCartes;
+        montantInput.value = resteApresCartes;
         calculerReste();
     } else {
         group.style.display = 'none';
@@ -1996,13 +2013,51 @@ function updateMontantPaiement() {
     }
 }
 
+function getTotalCartesCadeaux() {
+    let totalCartes = 0;
+    const checks = document.querySelectorAll('.carte-cadeau-check:checked');
+    checks.forEach(check => {
+        const carteId = check.dataset.carteId;
+        const montantInput = document.querySelector(`.carte-cadeau-montant[data-carte-id="${carteId}"]`);
+        if (montantInput) totalCartes += parseInt(montantInput.value) || 0;
+    });
+    return totalCartes;
+}
+
+function getResteApresCartes() {
+    return Math.max(0, validationPrixTotal - getTotalCartesCadeaux());
+}
+
+function plafonnerMontant() {
+    const montantInput = document.getElementById('validation-montant');
+    const max = getResteApresCartes();
+    montantInput.max = max;
+    const val = parseFloat(montantInput.value);
+    if (val > max) {
+        montantInput.value = max;
+    }
+    if (val < 0) {
+        montantInput.value = 0;
+    }
+}
+
+function majMontantPartiel() {
+    // Met à jour le montant payé et le plafond à chaque changement de carte cadeau
+    const montantInput = document.getElementById('validation-montant');
+    const resteApresCartes = getResteApresCartes();
+    montantInput.max = resteApresCartes;
+    // Toujours mettre à jour la valeur au reste après cartes
+    montantInput.value = resteApresCartes;
+    calculerReste();
+}
+
 function calculerReste() {
-    const prixTotal = validationPrixTotal;
+    const resteApresCartes = getResteApresCartes();
     const montant = parseFloat(document.getElementById('validation-montant').value) || 0;
-    const reste = prixTotal - montant;
+    const reste = resteApresCartes - montant;
 
     document.getElementById('reste-a-payer').textContent =
-        'Reste à payer : ' + reste.toLocaleString('fr-FR') + ' CFA';
+        'Reste à payer : ' + Math.max(0, reste).toLocaleString('fr-FR') + ' CFA';
 }
 
 // Gérer le changement vers "Offert"
@@ -2086,9 +2141,9 @@ function validerRdvUnique() {
         const typePaiement = document.getElementById('validation-type-paiement').value;
         let montantRestant;
         if (typePaiement === 'partiel') {
-            montantRestant = (parseFloat(document.getElementById('validation-montant').value) || 0) - totalCartes;
+            montantRestant = parseFloat(document.getElementById('validation-montant').value) || 0;
         } else {
-            montantRestant = validationPrixTotal - totalCartes;
+            montantRestant = getResteApresCartes();
         }
         if (montant1 >= montantRestant) {
             hidePageLoader();
@@ -2192,12 +2247,12 @@ function validerRdvGroupe() {
                 return;
             }
 
-            // En mode partiel, la base est le montant partiel
+            // En mode partiel, la base est le montant partiel (déjà après cartes)
             let montantRestant;
             if (typePaiement === 'partiel') {
-                montantRestant = (parseFloat(document.getElementById('validation-montant').value) || 0) - totalCartes;
+                montantRestant = parseFloat(document.getElementById('validation-montant').value) || 0;
             } else {
-                montantRestant = validationPrixTotal - totalCartes;
+                montantRestant = getResteApresCartes();
             }
 
             if (montant1 >= montantRestant) {
@@ -2218,7 +2273,7 @@ function validerRdvGroupe() {
             let montant1 = 0;
 
             if (typePaiement === 'complet') {
-                montant1 = validationPrixTotal - totalCartes;
+                montant1 = getResteApresCartes();
             } else if (typePaiement === 'partiel') {
                 montant1 = parseInt(document.getElementById('validation-montant').value) || 0;
             }
@@ -2474,6 +2529,7 @@ function creerNouveauClient() {
 
 let forfaitsData = [];
 let clientForfaitsData = [];
+let venteForfaitContext = null;  // Contexte RDV pour auto-sélection après vente
 
 // Proposer la vente d'un forfait depuis la sélection de prestation
 function proposerVenteForfait(prestationId, prestationNom, prix, nbSeances) {
@@ -2485,19 +2541,36 @@ function proposerVenteForfait(prestationId, prestationNom, prix, nbSeances) {
         return;
     }
 
-    // Ouvrir le modal de vente de forfait
-    ouvrirModalForfait();
+    // Sauvegarder le contexte RDV pour auto-sélection après la vente
+    venteForfaitContext = {
+        clientId: clientId,
+        prestationId: prestationId,
+        prestationNom: prestationNom
+    };
+
+    // Réinitialiser le formulaire
+    document.getElementById('form-forfait').reset();
+    document.getElementById('forfait-client-id').value = '';
+    document.getElementById('forfait-client-search').value = '';
+    document.getElementById('forfait-details').style.display = 'none';
+    document.getElementById('forfait-montant-container').style.display = 'none';
+
+    // Afficher le modal
+    document.getElementById('modal-forfait').style.display = 'flex';
 
     // Pré-remplir avec le client
     document.getElementById('forfait-client-id').value = clientId;
     document.getElementById('forfait-client-search').value = clientNom;
 
-    // Pré-sélectionner le forfait
-    const forfaitSelect = document.getElementById('forfait-prestation');
-    forfaitSelect.value = prestationId;
+    // Charger les cartes cadeaux du client
+    chargerCartesCadeauxForfait(clientId);
 
-    // Déclencher la mise à jour du prix
-    updateForfaitPrix();
+    // Charger les forfaits puis pré-sélectionner celui demandé
+    chargerForfaitsDisponibles(function() {
+        const forfaitSelect = document.getElementById('forfait-prestation');
+        forfaitSelect.value = prestationId;
+        updateForfaitPrix();
+    });
 
     showInfo('Forfait "' + prestationNom + '" pré-sélectionné pour ' + clientNom);
 }
@@ -2651,6 +2724,9 @@ function annulerSelectionForfait() {
 }
 
 function ouvrirModalForfait() {
+    // Pas de contexte RDV pour l'ouverture directe
+    venteForfaitContext = null;
+
     // Réinitialiser le formulaire
     document.getElementById('form-forfait').reset();
     document.getElementById('forfait-client-id').value = '';
@@ -2674,7 +2750,7 @@ function fermerModalForfait() {
     document.getElementById('modal-forfait').style.display = 'none';
 }
 
-function chargerForfaitsDisponibles() {
+function chargerForfaitsDisponibles(callback) {
     fetch('{% url "agenda:api_forfaits_disponibles" institut.code %}')
         .then(response => response.json())
         .then(data => {
@@ -2705,6 +2781,8 @@ function chargerForfaitsDisponibles() {
                 });
                 select.appendChild(optgroup);
             });
+
+            if (callback) callback();
         })
         .catch(error => {
             console.error('Erreur chargement forfaits:', error);
@@ -2750,6 +2828,11 @@ function toggleForfaitMontant() {
         document.getElementById('forfait-montant-container').style.display = 'block';
         sectionMoyen.style.display = '';
         sectionDoublePaiement.style.display = '';
+        // Initialiser le montant au reste après cartes
+        const resteApresCartesForfait = getForfaitResteApresCartes();
+        const montantInput = document.getElementById('forfait-montant');
+        montantInput.max = resteApresCartesForfait;
+        montantInput.value = resteApresCartesForfait;
     } else {
         document.getElementById('forfait-montant-container').style.display = 'none';
         sectionMoyen.style.display = '';
@@ -2759,6 +2842,102 @@ function toggleForfaitMontant() {
 
 // Variable globale pour stocker le prix du forfait actuel
 let forfaitPrixActuel = 0;
+
+function getForfaitTotalCartes() {
+    let totalCartes = 0;
+    const checks = document.querySelectorAll('.forfait-carte-cadeau-check:checked');
+    checks.forEach(check => {
+        const carteId = check.dataset.carteId;
+        const montantInput = document.querySelector(`.forfait-carte-cadeau-montant[data-carte-id="${carteId}"]`);
+        if (montantInput) totalCartes += parseInt(montantInput.value) || 0;
+    });
+    return totalCartes;
+}
+
+function getForfaitResteApresCartes() {
+    return Math.max(0, (forfaitPrixActuel || 0) - getForfaitTotalCartes());
+}
+
+function plafonnerForfaitMontant() {
+    const input = document.getElementById('forfait-montant');
+    const max = getForfaitResteApresCartes();
+    input.max = max;
+    if (parseFloat(input.value) > max) {
+        input.value = max;
+    }
+    if (parseFloat(input.value) < 0) {
+        input.value = 0;
+    }
+}
+
+function chargerCartesCadeauxForfait(clientId) {
+    const section = document.getElementById('forfait-section-cartes-cadeaux');
+    const liste = document.getElementById('forfait-liste-cartes-cadeaux');
+    const recap = document.getElementById('forfait-recapitulatif-cartes');
+
+    fetch('/api/cartes-cadeaux/client/?client_id=' + clientId)
+        .then(r => r.json())
+        .then(data => {
+            if (data.cartes.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+            let html = '';
+            data.cartes.forEach(c => {
+                html += `<div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: white; border-radius: 6px; margin-bottom: 6px; font-size: 13px;">
+                    <input type="checkbox" class="forfait-carte-cadeau-check" data-carte-id="${c.id}" data-solde="${c.solde}" onchange="recalculerCartesCadeauxForfait()" style="width: auto;">
+                    <div style="flex: 1;">
+                        <strong>${c.code}</strong>
+                        <div style="color: #888; font-size: 12px;">Solde : ${parseInt(c.solde).toLocaleString('fr-FR')} CFA</div>
+                    </div>
+                    <input type="number" class="forfait-carte-cadeau-montant" data-carte-id="${c.id}" min="0" max="${c.solde}" placeholder="Montant" style="width: 120px; padding: 4px 8px; font-size: 13px;" disabled oninput="recalculerCartesCadeauxForfait()" onchange="recalculerCartesCadeauxForfait()">
+                </div>`;
+            });
+            liste.innerHTML = html;
+            recap.style.display = 'none';
+        });
+}
+
+function recalculerCartesCadeauxForfait() {
+    const checks = document.querySelectorAll('.forfait-carte-cadeau-check');
+    let totalCartes = 0;
+
+    checks.forEach(check => {
+        const carteId = check.dataset.carteId;
+        const montantInput = document.querySelector(`.forfait-carte-cadeau-montant[data-carte-id="${carteId}"]`);
+        const solde = parseInt(check.dataset.solde);
+
+        if (check.checked) {
+            montantInput.disabled = false;
+            if (!montantInput.value || parseInt(montantInput.value) === 0) {
+                const resteAPayer = (forfaitPrixActuel || 0) - totalCartes;
+                montantInput.value = Math.min(solde, resteAPayer);
+            }
+            totalCartes += parseInt(montantInput.value) || 0;
+        } else {
+            montantInput.disabled = true;
+            montantInput.value = '';
+        }
+    });
+
+    const recap = document.getElementById('forfait-recapitulatif-cartes');
+    const resteApresCartes = Math.max(0, (forfaitPrixActuel || 0) - totalCartes);
+
+    if (totalCartes > 0) {
+        recap.style.display = 'block';
+        document.getElementById('forfait-total-cartes-cadeaux').textContent = '-' + totalCartes.toLocaleString('fr-FR') + ' CFA';
+        document.getElementById('forfait-reste-apres-cartes').textContent = resteApresCartes.toLocaleString('fr-FR') + ' CFA';
+    } else {
+        recap.style.display = 'none';
+    }
+
+    // Mettre à jour le montant partiel
+    const montantInput = document.getElementById('forfait-montant');
+    montantInput.max = resteApresCartes;
+    montantInput.value = resteApresCartes;
+}
 
 function toggleDoublePaiementForfait() {
     const checkbox = document.getElementById('forfait-utilise-double-paiement');
@@ -2800,11 +2979,13 @@ function toggleDoublePaiementForfait() {
 function calculerMontant2Forfait() {
     const montant1 = parseFloat(document.getElementById('forfait-montant-paiement-1').value) || 0;
 
-    // En mode partiel, utiliser le montant partiel comme base au lieu du prix total
+    // En mode partiel, utiliser le montant partiel comme base, sinon le reste après cartes
     const typePaiement = document.querySelector('input[name="forfait_type_paiement"]:checked').value;
-    let baseTotal = forfaitPrixActuel;
+    let baseTotal;
     if (typePaiement === 'partiel') {
         baseTotal = parseFloat(document.getElementById('forfait-montant').value) || 0;
+    } else {
+        baseTotal = getForfaitResteApresCartes();
     }
 
     const montant2 = Math.max(0, baseTotal - montant1);
@@ -2856,6 +3037,21 @@ function acheterForfait() {
     formData.append('prestation_id', prestationId);
     formData.append('type_paiement', typePaiement);
     formData.append('montant', montant);
+
+    // Ajouter les cartes cadeaux sélectionnées
+    const cartesChecks = document.querySelectorAll('.forfait-carte-cadeau-check:checked');
+    const cartesData = [];
+    cartesChecks.forEach(check => {
+        const carteId = check.dataset.carteId;
+        const montantInput = document.querySelector(`.forfait-carte-cadeau-montant[data-carte-id="${carteId}"]`);
+        const montantCarte = parseInt(montantInput.value) || 0;
+        if (montantCarte > 0) {
+            cartesData.push({carte_id: parseInt(carteId), montant: montantCarte});
+        }
+    });
+    if (cartesData.length > 0) {
+        formData.append('cartes_cadeaux', JSON.stringify(cartesData));
+    }
 
     // Gérer le double paiement
     const checkbox = document.getElementById('forfait-utilise-double-paiement');
@@ -2912,12 +3108,15 @@ function acheterForfait() {
 
             // Si le forfait a été acheté depuis le formulaire de RDV,
             // recharger les forfaits du client et sélectionner la 1ère séance
-            const rdvClientId = document.getElementById('rdv-client').value;
-            const forfaitClientId = document.getElementById('forfait-client-id').value;
+            if (venteForfaitContext && data.forfait) {
+                const ctx = venteForfaitContext;
+                venteForfaitContext = null;
 
-            if (rdvClientId && forfaitClientId === rdvClientId && data.forfait) {
+                // S'assurer que le modal RDV est visible
+                document.getElementById('modal-rdv').style.display = 'flex';
+
                 // Recharger les forfaits du client puis auto-sélectionner
-                fetch(`/agenda/{{ institut.code }}/api/forfaits/client/${rdvClientId}/`)
+                fetch(`/agenda/{{ institut.code }}/api/forfaits/client/${ctx.clientId}/`)
                     .then(r => r.json())
                     .then(fData => {
                         clientForfaitsData = fData.forfaits;
@@ -2930,7 +3129,12 @@ function acheterForfait() {
                                 nouveauForfait.prestation_nom,
                                 nouveauForfait.nombre_seances_total
                             );
+                            showSuccess('Forfait vendu ! Séance 1 pré-sélectionnée, vous pouvez enregistrer le RDV.');
                         }
+                    })
+                    .catch(err => {
+                        console.error('Erreur rechargement forfaits:', err);
+                        showWarning('Forfait vendu mais erreur lors de la pré-sélection. Veuillez sélectionner le forfait manuellement.');
                     });
             }
         } else {
@@ -2967,6 +3171,7 @@ document.getElementById('forfait-client-search').addEventListener('input', funct
                         document.getElementById('forfait-client-id').value = client.id;
                         document.getElementById('forfait-client-search').value = client.prenom + ' ' + client.nom;
                         resultsDiv.innerHTML = '';
+                        chargerCartesCadeauxForfait(client.id);
                     };
                     resultsDiv.appendChild(item);
                 });

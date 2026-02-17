@@ -174,7 +174,7 @@
 
             <div id="montant-partiel-group" class="form-group" style="display: none;">
                 <label>Montant payé</label>
-                <input type="number" id="montant-paye" name="montant_paye" class="form-control" step="1" min="0">
+                <input type="number" id="montant-paye" name="montant_paye" class="form-control" step="1" min="0" oninput="plafonnerMontantExpress()">
             </div>
 
             <!-- Section double paiement -->
@@ -270,7 +270,6 @@
                     <th>Employé</th>
                     <th>Prestations</th>
                     <th style="text-align: right;">Total</th>
-                    <th style="text-align: center;">Mode</th>
                 </tr>
             </thead>
             <tbody>
@@ -285,29 +284,10 @@
                         {% endfor %}
                     </td>
                     <td style="text-align: right; font-weight: 600;">{{ vente.total|floatformat:0 }} CFA</td>
-                    <td style="text-align: center;">
-                        {% if vente.mode == 'especes' %}
-                        Espèces
-                        {% elif vente.mode == 'carte' %}
-                        Carte bancaire
-                        {% elif vente.mode == 'cheque' %}
-                        Chèque
-                        {% elif vente.mode == 'om' %}
-                        Orange Money
-                        {% elif vente.mode == 'wave' %}
-                        Wave
-                        {% elif vente.mode == 'carte_cadeau' %}
-                        Carte cadeau
-                        {% elif vente.mode == 'mixte' %}
-                        Mixte
-                        {% else %}
-                        {{ vente.mode }}
-                        {% endif %}
-                    </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" style="text-align: center; padding: 40px; color: #999;">
+                    <td colspan="5" style="text-align: center; padding: 40px; color: #999;">
                         Aucune vente pour aujourd'hui
                     </td>
                 </tr>
@@ -485,6 +465,31 @@ function calculerTotal() {
     }
 }
 
+function getResteApresCartesExpress() {
+    let totalCartes = 0;
+    const checks = document.querySelectorAll('.carte-cadeau-check-express:checked');
+    checks.forEach(check => {
+        const carteId = check.dataset.carteId;
+        const montantInput = document.querySelector(`.carte-cadeau-montant-express[data-carte-id="${carteId}"]`);
+        if (montantInput) totalCartes += parseInt(montantInput.value) || 0;
+    });
+    let total = 0;
+    window.prestationsSelectionnees.forEach(p => { total += p.prix * p.quantite; });
+    return Math.max(0, total - totalCartes);
+}
+
+function plafonnerMontantExpress() {
+    const input = document.getElementById('montant-paye');
+    const max = getResteApresCartesExpress();
+    input.max = max;
+    if (parseFloat(input.value) > max) {
+        input.value = max;
+    }
+    if (parseFloat(input.value) < 0) {
+        input.value = 0;
+    }
+}
+
 function updatePaiement() {
     const type = document.querySelector('input[name="type_paiement"]:checked').value;
     const montantGroup = document.getElementById('montant-partiel-group');
@@ -504,6 +509,11 @@ function updatePaiement() {
     } else if (type === 'partiel') {
         montantGroup.style.display = 'block';
         sectionMoyen.style.display = '';
+        // Initialiser le montant au reste après cartes cadeaux
+        const resteApresCartes = getResteApresCartesExpress();
+        const montantInput = document.getElementById('montant-paye');
+        montantInput.max = resteApresCartes;
+        montantInput.value = resteApresCartes;
         if (doublePaiementSection) doublePaiementSection.style.display = '';
     } else {
         montantGroup.style.display = 'none';
@@ -723,6 +733,14 @@ function recalculerCartesCadeaux(forceRecalcul = false) {
         totalResteAPayer.style.display = 'none';
         sectionTypePaiement.style.display = 'block';
         sectionMoyenPaiement.style.display = 'block';
+    }
+
+    // Mettre à jour le montant partiel si en mode partiel
+    const typePaiement = document.querySelector('input[name="type_paiement"]:checked');
+    if (typePaiement && typePaiement.value === 'partiel') {
+        const montantInput = document.getElementById('montant-paye');
+        montantInput.max = resteApresCartes;
+        montantInput.value = resteApresCartes;
     }
 }
 

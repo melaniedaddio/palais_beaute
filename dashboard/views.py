@@ -925,9 +925,7 @@ def export_rdv_excel(request):
     # Données
     row = 2
     for rdv in rdvs:
-        paiement = rdv.paiements.first()
-        montant = paiement.montant if paiement else 0
-        mode = paiement.get_mode_display() if paiement else ''
+        modes = ', '.join(dict.fromkeys(p.get_mode_display() for p in rdv.paiements.all()))
 
         ws.cell(row=row, column=1, value=rdv.date.strftime('%d/%m/%Y'))
         ws.cell(row=row, column=2, value=rdv.heure_debut.strftime('%H:%M'))
@@ -936,8 +934,8 @@ def export_rdv_excel(request):
         ws.cell(row=row, column=5, value=rdv.client.telephone)
         ws.cell(row=row, column=6, value=rdv.employe.nom)
         ws.cell(row=row, column=7, value=rdv.prestation.nom if rdv.prestation else '')
-        ws.cell(row=row, column=8, value=montant)
-        ws.cell(row=row, column=9, value=mode)
+        ws.cell(row=row, column=8, value=int(rdv.prix_total))
+        ws.cell(row=row, column=9, value=modes)
         row += 1
 
     # Ajuster la largeur des colonnes
