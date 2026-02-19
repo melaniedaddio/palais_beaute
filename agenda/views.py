@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from core.decorators import login_required_json as login_required
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 from django.contrib import messages
 from django.db.models import Q, Sum
 from django.utils import timezone
@@ -14,7 +14,7 @@ from core.models import (
     Institut, Employe, Client, Prestation, Option, RendezVous,
     RendezVousOption, Paiement, Credit, FamillePrestation, ClotureCaisse,
     PaiementCredit, ModificationLog, CarteCadeau, UtilisationCarteCadeau,
-    ForfaitClient, SeanceForfait
+    ForfaitClient, SeanceForfait, GroupeRDV
 )
 
 @login_required
@@ -166,6 +166,55 @@ def api_prestations(request, institut_code):
 
 @login_required
 @institut_required
+@require_GET
+def api_verifier_conflit(request, institut_code):
+    """API : Vérifie si un créneau est libre pour un employé (chevauchement avec RDV existants)"""
+    institut = get_object_or_404(Institut, code=institut_code, a_agenda=True)
+
+    employe_id      = request.GET.get('employe_id')
+    date_str        = request.GET.get('date')
+    heure_debut_str = request.GET.get('heure_debut')
+    heure_fin_str   = request.GET.get('heure_fin')
+    rdv_exclude_id  = request.GET.get('rdv_exclude_id')
+
+    if not all([employe_id, date_str, heure_debut_str, heure_fin_str]):
+        return JsonResponse({'conflit': False})
+
+    try:
+        heure_debut = datetime.strptime(heure_debut_str, '%H:%M').time()
+        heure_fin   = datetime.strptime(heure_fin_str,   '%H:%M').time()
+    except ValueError:
+        return JsonResponse({'conflit': False})
+
+    rdvs = RendezVous.objects.filter(
+        institut=institut,
+        employe_id=employe_id,
+        date=date_str,
+        heure_debut__lt=heure_fin,
+        heure_fin__gt=heure_debut,
+    ).exclude(statut__in=['annule', 'annule_client', 'absent'])
+
+    if rdv_exclude_id:
+        rdvs = rdvs.exclude(id=rdv_exclude_id)
+
+    rdv = rdvs.select_related('client', 'prestation').first()
+    if rdv:
+        return JsonResponse({
+            'conflit': True,
+            'rdv': {
+                'id': rdv.id,
+                'client': str(rdv.client),
+                'prestation': rdv.prestation.nom,
+                'heure_debut': rdv.heure_debut.strftime('%H:%M'),
+                'heure_fin':   rdv.heure_fin.strftime('%H:%M'),
+            }
+        })
+
+    return JsonResponse({'conflit': False})
+
+
+@login_required
+@institut_required
 @require_POST
 def api_rdv_creer(request, institut_code):
     """API : Créer un nouveau rendez-vous"""
@@ -294,6 +343,151 @@ def api_rdv_creer(request, institut_code):
 
 @login_required
 @institut_required
+@require_POST
+def api_rdv_creer_groupe(request, institut_code):
+    """API : Créer un groupe de rendez-vous (réservation multi-prestations en une fois)"""
+    institut = get_object_or_404(Institut, code=institut_code, a_agenda=True)
+
+    try:
+        data = json.loads(request.body)
+        client_id = data.get('client_id')
+        date_str = data.get('date')
+        prestations_data = data.get('prestations', [])
+
+        if not client_id:
+            return JsonResponse({'success': False, 'message': 'Client requis'}, status=400)
+        if not date_str:
+            return JsonResponse({'success': False, 'message': 'Date requise'}, status=400)
+        if not prestations_data:
+            return JsonResponse({'success': False, 'message': 'Au moins une prestation requise'}, status=400)
+
+        client = get_object_or_404(Client, id=client_id)
+        date_rdv = datetime.strptime(date_str, '%Y-%m-%d').date()
+
+        # Créer le groupe (conteneur)
+        groupe = GroupeRDV.objects.create(
+            client=client,
+            institut=institut,
+            date=date_rdv,
+            cree_par=request.user.utilisateur,
+            nombre_rdv=len(prestations_data),
+        )
+
+        rdvs_crees = []
+
+        for prest_data in prestations_data:
+            employe_id    = prest_data.get('employe_id')
+            heure_str     = prest_data.get('heure_debut')
+            prestation_id = prest_data.get('prestation_id')
+            prix_base     = Decimal(str(prest_data.get('prix_base', 0)))
+            options_list  = prest_data.get('options', [])
+            seance_forfait_id = prest_data.get('seance_forfait_id')
+
+            if not employe_id or not heure_str or not prestation_id:
+                groupe.delete()
+                return JsonResponse(
+                    {'success': False, 'message': 'Employé, heure et prestation requis pour chaque RDV'},
+                    status=400
+                )
+
+            employe    = get_object_or_404(Employe, id=employe_id, institut=institut)
+            prestation = get_object_or_404(Prestation, id=prestation_id)
+            heure_debut = datetime.strptime(heure_str, '%H:%M').time()
+
+            # Gérer la séance de forfait (Klinic)
+            seance_forfait  = None
+            forfait_client  = None
+            est_seance_forfait = False
+
+            if seance_forfait_id:
+                if '_' in str(seance_forfait_id):
+                    forfait_id, numero = str(seance_forfait_id).split('_')
+                    seance_forfait = get_object_or_404(
+                        SeanceForfait,
+                        forfait_id=forfait_id,
+                        numero=int(numero),
+                        forfait__client=client,
+                        forfait__institut=institut,
+                        statut='disponible'
+                    )
+                else:
+                    seance_forfait = get_object_or_404(
+                        SeanceForfait,
+                        id=seance_forfait_id,
+                        forfait__client=client,
+                        forfait__institut=institut,
+                        statut='disponible'
+                    )
+                forfait_client = seance_forfait.forfait
+                est_seance_forfait = True
+                prix_base = Decimal('0')
+                prestation = forfait_client.prestation
+
+            # Calculer le prix des options
+            prix_options = Decimal('0')
+            options_objs = []
+            quantites = {}
+            if options_list:
+                option_ids  = [o['option_id'] for o in options_list]
+                options_objs = list(Option.objects.filter(id__in=option_ids))
+                quantites   = {o['option_id']: int(o['quantite']) for o in options_list}
+                for opt in options_objs:
+                    qte = quantites.get(opt.id, 1)
+                    prix_options += opt.prix * qte
+
+            # Créer le RDV lié au groupe
+            rdv = RendezVous.objects.create(
+                institut=institut,
+                client=client,
+                employe=employe,
+                prestation=prestation,
+                famille=prestation.famille,
+                date=date_rdv,
+                heure_debut=heure_debut,
+                prix_base=prix_base,
+                prix_options=prix_options,
+                statut='planifie',
+                cree_par=request.user.utilisateur,
+                groupe=groupe,
+                est_seance_forfait=est_seance_forfait,
+                forfait=forfait_client,
+                numero_seance=seance_forfait.numero if seance_forfait else None,
+            )
+
+            # Programmer la séance forfait
+            if seance_forfait:
+                seance_forfait.programmer(rdv)
+
+            # Attacher les options
+            for opt in options_objs:
+                qte = quantites.get(opt.id, 1)
+                RendezVousOption.objects.create(
+                    rendez_vous=rdv,
+                    option=opt,
+                    prix_unitaire=opt.prix,
+                    quantite=qte,
+                    prix_total=opt.prix * qte,
+                )
+
+            rdvs_crees.append(rdv)
+
+        # Mettre à jour les totaux du groupe
+        groupe.recalculer_totaux()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{len(rdvs_crees)} rendez-vous créé(s) avec succès',
+            'nombre_rdv': len(rdvs_crees),
+            'groupe_id': groupe.id,
+            'rdv_ids': [rdv.id for rdv in rdvs_crees],
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+
+@login_required
+@institut_required
 def api_rdv_details(request, institut_code, rdv_id):
     """API : Récupérer les détails d'un RDV"""
     institut = get_object_or_404(Institut, code=institut_code, a_agenda=True)
@@ -322,6 +516,94 @@ def api_rdv_details(request, institut_code, rdv_id):
     }
 
     return JsonResponse(data)
+
+
+@login_required
+@institut_required
+@require_POST
+def api_rdv_ajouter_prestation(request, institut_code, rdv_id):
+    """API : Ajouter une prestation à un RDV existant (même employé, lié au même groupe)"""
+    institut = get_object_or_404(Institut, code=institut_code, a_agenda=True)
+    rdv_existant = get_object_or_404(RendezVous, id=rdv_id, institut=institut)
+
+    if rdv_existant.statut == 'valide':
+        return JsonResponse({'success': False, 'message': 'Impossible de modifier un RDV déjà validé'}, status=400)
+
+    try:
+        data = json.loads(request.body)
+        prestation_id = data.get('prestation_id')
+        heure_str     = data.get('heure_debut')
+        prix_base     = Decimal(str(data.get('prix_base', 0)))
+        options_list  = data.get('options', [])
+
+        if not prestation_id or not heure_str:
+            return JsonResponse({'success': False, 'message': 'Prestation et heure requises'}, status=400)
+
+        prestation  = get_object_or_404(Prestation, id=prestation_id)
+        heure_debut = datetime.strptime(heure_str, '%H:%M').time()
+
+        # Créer ou récupérer le groupe
+        groupe = rdv_existant.groupe
+        if not groupe:
+            groupe = GroupeRDV.objects.create(
+                client=rdv_existant.client,
+                institut=institut,
+                date=rdv_existant.date,
+                cree_par=request.user.utilisateur,
+                nombre_rdv=1,
+            )
+            rdv_existant.groupe = groupe
+            rdv_existant.save(update_fields=['groupe'])
+
+        # Calculer le prix des options
+        prix_options = Decimal('0')
+        options_objs = []
+        quantites = {}
+        if options_list:
+            option_ids  = [o['option_id'] for o in options_list]
+            options_objs = list(Option.objects.filter(id__in=option_ids))
+            quantites   = {o['option_id']: int(o['quantite']) for o in options_list}
+            for opt in options_objs:
+                prix_options += opt.prix * quantites.get(opt.id, 1)
+
+        # Créer le nouveau RDV (même employé, même client, même date, même groupe)
+        nouveau_rdv = RendezVous.objects.create(
+            institut=institut,
+            client=rdv_existant.client,
+            employe=rdv_existant.employe,
+            prestation=prestation,
+            famille=prestation.famille,
+            date=rdv_existant.date,
+            heure_debut=heure_debut,
+            prix_base=prix_base,
+            prix_options=prix_options,
+            statut='planifie',
+            cree_par=request.user.utilisateur,
+            groupe=groupe,
+        )
+
+        # Attacher les options
+        for opt in options_objs:
+            qte = quantites.get(opt.id, 1)
+            RendezVousOption.objects.create(
+                rendez_vous=nouveau_rdv,
+                option=opt,
+                prix_unitaire=opt.prix,
+                quantite=qte,
+                prix_total=opt.prix * qte,
+            )
+
+        groupe.recalculer_totaux()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Prestation "{prestation.nom}" ajoutée avec succès',
+            'rdv_id': nouveau_rdv.id,
+            'groupe_id': groupe.id,
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
 
 @login_required
@@ -357,6 +639,9 @@ def api_rdv_modifier(request, institut_code, rdv_id):
         ancien_prix_total = rdv.prix_total
 
         # Mettre à jour le RDV
+        employe_id = request.POST.get('employe_id')
+        if employe_id:
+            rdv.employe = get_object_or_404(Employe, id=employe_id, institut=institut)
         if prestation_id:
             rdv.prestation = get_object_or_404(Prestation, id=prestation_id)
         if date_str:
@@ -1589,13 +1874,38 @@ def api_rdv_valider_groupe(request, institut_code):
                 except SeanceForfait.DoesNotExist:
                     pass
 
-                # Créer le paiement forfait (0 CFA)
+                # Créer le paiement forfait (0 CFA pour la prestation de base)
                 Paiement.objects.create(
                     rendez_vous=rdv,
                     mode='forfait',
                     montant=0,
                 )
-                continue
+
+                # ✅ CORRECTION : Payer les options si présentes (non incluses dans le forfait)
+                if rdv.prix_options > 0 and prix_total_global > 0:
+                    if montant_paiement_1 > 0:
+                        proportion = Decimal(str(rdv.prix_options)) / Decimal(str(prix_total_global))
+                        montant_options_1 = int(montant_paiement_1 * proportion)
+                        if montant_options_1 > 0:
+                            Paiement.objects.create(
+                                rendez_vous=rdv,
+                                mode=moyen_paiement_1,
+                                montant=montant_options_1,
+                            )
+                            total_distribue_1 += montant_options_1
+
+                    if utilise_double_paiement and montant_paiement_2 > 0:
+                        proportion = Decimal(str(rdv.prix_options)) / Decimal(str(prix_total_global))
+                        montant_options_2 = int(montant_paiement_2 * proportion)
+                        if montant_options_2 > 0:
+                            Paiement.objects.create(
+                                rendez_vous=rdv,
+                                mode=moyen_paiement_2,
+                                montant=montant_options_2,
+                            )
+                            total_distribue_2 += montant_options_2
+
+                continue  # Passer au RDV suivant
 
             # Dernier RDV normal : attribuer le reste pour éviter les erreurs d'arrondi
             est_dernier = (rdv == rdvs_normaux[-1])

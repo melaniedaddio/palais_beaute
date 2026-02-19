@@ -348,6 +348,58 @@ class Option(models.Model):
         return f"{self.nom} - {self.prix} CFA"
 
 
+class GroupeRDV(models.Model):
+    """
+    Groupe de rendez-vous créés ensemble.
+    Permet de lier plusieurs RDV d'un même client créés en une seule réservation.
+    """
+    client = models.ForeignKey(
+        'Client',
+        on_delete=models.CASCADE,
+        related_name='groupes_rdv'
+    )
+    institut = models.ForeignKey(
+        'Institut',
+        on_delete=models.CASCADE,
+        related_name='groupes_rdv'
+    )
+    date = models.DateField()
+    date_creation = models.DateTimeField(auto_now_add=True)
+    cree_par = models.ForeignKey(
+        'Utilisateur',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='groupes_rdv_crees'
+    )
+    nombre_rdv = models.IntegerField(default=1)
+    prix_total = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Groupe de RDV"
+        verbose_name_plural = "Groupes de RDV"
+        ordering = ['-date_creation']
+
+    def __str__(self):
+        return f"Groupe #{self.id} - {self.client} - {self.date} ({self.nombre_rdv} RDV)"
+
+    def recalculer_totaux(self):
+        rdvs = self.rendez_vous.exclude(statut__in=['annule', 'annule_client'])
+        self.nombre_rdv = rdvs.count()
+        self.prix_total = sum(rdv.prix_total for rdv in rdvs)
+        self.save()
+
+    def get_rdvs_actifs(self):
+        return self.rendez_vous.exclude(
+            statut__in=['annule', 'annule_client']
+        ).order_by('heure_debut')
+
+    def tous_valides(self):
+        return not self.get_rdvs_actifs().exclude(statut='valide').exists()
+
+    def peut_etre_supprime(self):
+        return not self.rendez_vous.filter(statut='valide').exists()
+
+
 class RendezVous(models.Model):
     """
     Rendez-vous dans l'agenda (Palais, Klinic) ou vente Express.
@@ -416,6 +468,16 @@ class RendezVous(models.Model):
         related_name='rdv_crees'
     )
 
+    # Groupe de RDV (si créé avec d'autres en même temps)
+    groupe = models.ForeignKey(
+        'GroupeRDV',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='rendez_vous',
+        help_text="Groupe auquel appartient ce RDV (si créé avec d'autres)"
+    )
+
     # Champs pour forfaits multi-séances
     est_seance_forfait = models.BooleanField(
         default=False,
@@ -454,6 +516,20 @@ class RendezVous(models.Model):
         self.prix_total = self.prix_base + self.prix_options
 
         super().save(*args, **kwargs)
+
+    def fait_partie_groupe(self):
+        """Vérifie si ce RDV fait partie d'un groupe avec d'autres RDV"""
+        if not self.groupe:
+            return False
+        return self.groupe.nombre_rdv > 1
+
+    def get_autres_rdv_groupe(self):
+        """Retourne les autres RDV du même groupe"""
+        if not self.groupe:
+            return RendezVous.objects.none()
+        return self.groupe.rendez_vous.exclude(id=self.id).exclude(
+            statut__in=['annule', 'annule_client']
+        )
 
     def get_couleur(self):
         """Retourne la couleur basée sur le statut et la famille"""

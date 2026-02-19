@@ -22,6 +22,9 @@
             <button onclick="changeDate('today')" class="btn btn-primary" style="padding: 8px 15px;">
                 Aujourd'hui
             </button>
+            <button onclick="ouvrirModalReservation()" class="btn" style="padding: 8px 15px; background-color: #c9a86a; color: white;">
+                📅 Prendre un RDV
+            </button>
             {% if institut.code == 'klinic' %}
             <button onclick="ouvrirModalForfait()" class="btn" style="padding: 8px 15px; background-color: #9b59b6; color: white;">
                 Vendre un forfait
@@ -121,7 +124,16 @@
         <div class="modal-body">
             <form id="form-rdv">
                 <input type="hidden" id="rdv-id" name="rdv_id">
-                <input type="hidden" id="rdv-employe" name="employe_id">
+
+                <div class="form-group">
+                    <label>Employé</label>
+                    <select id="rdv-employe" name="employe_id" class="form-control" onchange="verifierConflitModification()">
+                        <option value="">-- Sélectionner un employé --</option>
+                        {% for employe in employes %}
+                        <option value="{{ employe.id }}">{{ employe.nom }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
 
                 <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                     <div class="form-group">
@@ -131,7 +143,8 @@
                     </div>
                     <div class="form-group">
                         <label>Heure</label>
-                        <input type="time" id="rdv-heure" name="heure" required class="form-control" step="900">
+                        <select id="rdv-heure" name="heure" class="form-control" onchange="verifierConflitModification()"></select>
+                        <div id="modif-conflit" style="display:none;background:#fff5f5;border:1px solid #dc3545;border-radius:6px;padding:8px 12px;font-size:12px;color:#dc3545;margin-top:6px;"></div>
                     </div>
                 </div>
 
@@ -169,7 +182,7 @@
 
                 <div class="form-group">
                     <label>Prestation</label>
-                    <select id="rdv-prestation" name="prestation_id" required class="form-control" onchange="calculerTotal(true); updateForfaitsButtons()">
+                    <select id="rdv-prestation" name="prestation_id" required class="form-control" onchange="calculerTotal(true); updateForfaitsButtons(); verifierConflitModification()">
                         <option value="">-- Sélectionner une prestation --</option>
                     </select>
                     <div id="prestation-info" style="margin-top: 8px; font-size: 13px; color: #666;"></div>
@@ -591,6 +604,153 @@
         <div class="modal-footer">
             <button type="button" class="btn btn-secondary" onclick="fermerModalNouveauClient()">Annuler</button>
             <button type="button" class="btn btn-primary" onclick="creerNouveauClient()">Créer le client</button>
+        </div>
+    </div>
+</div>
+
+<!-- ================================================================= -->
+<!-- MODAL NOUVELLE RÉSERVATION MULTI-PRESTATIONS                       -->
+<!-- ================================================================= -->
+<div id="modal-reservation" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 860px; max-height: 92vh; overflow-y: auto;">
+        <div class="modal-header" style="position: sticky; top: 0; background: white; z-index: 10;">
+            <h2>📅 Nouvelle réservation</h2>
+            <button class="modal-close" onclick="fermerModalReservation()">&times;</button>
+        </div>
+        <div class="modal-body">
+
+            <!-- Client + Date -->
+            <div style="display: grid; grid-template-columns: 1fr 200px; gap: 15px; margin-bottom: 20px;">
+                <div class="form-group" style="margin: 0;">
+                    <label>Client *</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="res-client-search" class="form-control"
+                               placeholder="Rechercher un client..." autocomplete="off" style="flex: 1;">
+                        <button type="button" class="btn btn-secondary"
+                                onclick="ouvrirModalNouveauClientDepuisReservation()"
+                                style="padding: 8px 12px; white-space: nowrap;">+ Client</button>
+                    </div>
+                    <input type="hidden" id="res-client-id">
+                    <div id="res-client-results" class="autocomplete-results"></div>
+                </div>
+                <div class="form-group" style="margin: 0;">
+                    <label>Date *</label>
+                    <input type="date" id="res-date" class="form-control" value="{{ date_selectionnee|date:'Y-m-d' }}">
+                </div>
+            </div>
+
+            {% if institut.code == 'klinic' %}
+            <!-- Forfaits actifs du client (klinic) -->
+            <div id="res-forfaits-section" style="display: none; margin-bottom: 20px;">
+                <label style="color: #9b59b6; font-weight: 600;">📦 Forfaits actifs du client</label>
+                <div id="res-forfaits-list" style="background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); border: 2px solid #9b59b6; border-radius: 8px; padding: 12px;"></div>
+            </div>
+            {% endif %}
+
+            <hr style="margin: 0 0 20px 0;">
+
+            <!-- Liste des prestations -->
+            <div style="font-weight: 600; font-size: 15px; margin-bottom: 12px; color: #333;">📋 Prestations</div>
+            <div id="res-liste-prestations"></div>
+
+            <!-- Bouton ajouter -->
+            <button type="button" onclick="ajouterPrestationSuivante()"
+                    style="width: 100%; padding: 12px; margin-top: 10px; background: white; border: 2px dashed #c9a86a; border-radius: 8px; cursor: pointer; color: #c9a86a; font-weight: 600; font-size: 14px;">
+                + Ajouter une prestation
+            </button>
+
+            <hr style="margin: 20px 0 15px 0;">
+
+            <!-- Récapitulatif -->
+            <div id="res-recap" style="display: none; background: #f9f7f2; border: 1px solid #e0d5b8; border-radius: 8px; padding: 15px;">
+                <div style="font-weight: 600; font-size: 14px; margin-bottom: 10px; color: #555;">📊 Récapitulatif</div>
+                <div id="res-recap-lignes"></div>
+                <div style="border-top: 2px solid #c9a86a; margin-top: 10px; padding-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+                    <strong style="font-size: 15px;">TOTAL</strong>
+                    <strong id="res-total-display" style="font-size: 22px; color: #c9a86a;">0 CFA</strong>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer" style="position: sticky; bottom: 0; background: white; z-index: 10;">
+            <button type="button" class="btn btn-secondary" onclick="fermerModalReservation()" style="padding: 8px 16px;">Annuler</button>
+            <button type="button" id="res-btn-creer" class="btn btn-primary" onclick="creerRdvGroupe()" style="padding: 8px 20px;">
+                ✅ Créer les rendez-vous
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ================================================================= -->
+<!-- MODAL AJOUTER PRESTATION À UN RDV EXISTANT                       -->
+<!-- ================================================================= -->
+<div id="modal-ajouter-prestation" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 620px; max-height: 88vh; overflow-y: auto;">
+        <div class="modal-header" style="position: sticky; top: 0; background: white; z-index: 10;">
+            <h2>➕ Ajouter une prestation</h2>
+            <button class="modal-close" onclick="fermerModalAjouterPrestation()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="ajout-rdv-id">
+            <input type="hidden" id="ajout-employe-id">
+            <input type="hidden" id="ajout-date-value">
+
+            <!-- Contexte du RDV -->
+            <div style="background:#f9f7f2;border:1px solid #e0d5b8;border-radius:8px;padding:12px;margin-bottom:20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:13px;">
+                <div><span style="color:#888;font-size:11px;">Client</span><br><strong id="ajout-client-nom">—</strong></div>
+                <div><span style="color:#888;font-size:11px;">Employé (même)</span><br><strong id="ajout-employe-nom">—</strong></div>
+                <div><span style="color:#888;font-size:11px;">Date</span><br><strong id="ajout-date">—</strong></div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:4px;">
+                <label>Heure de début *</label>
+                <select id="ajout-heure" class="form-control" onchange="mettreAJourHeureFin_Ajout()"></select>
+            </div>
+            <div id="ajout-heure-fin-display" style="font-size:12px;color:#c9a86a;text-align:right;margin-bottom:4px;min-height:14px;"></div>
+            <div id="ajout-conflit" style="display:none;background:#fff5f5;border:1px solid #dc3545;border-radius:6px;padding:8px 12px;font-size:12px;color:#dc3545;margin-bottom:10px;"></div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                <div class="form-group" style="margin:0;">
+                    <label style="font-size:12px;">Famille</label>
+                    <select id="ajout-famille" class="form-control" style="font-size:13px;" onchange="chargerPrestationsAjout(this.value)">
+                        <option value="">-- Famille --</option>
+                        {% for famille in familles %}
+                        <option value="{{ famille.id }}">{{ famille.nom }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label style="font-size:12px;">Prestation *</label>
+                    <select id="ajout-prestation" class="form-control" style="font-size:13px;"
+                            onchange="calculerSousTotalAjout(); mettreAJourHeureFin_Ajout()">
+                        <option value="">-- Prestation --</option>
+                    </select>
+                </div>
+            </div>
+
+            {% if options %}
+            <div class="form-group">
+                <label style="font-size:12px;">Options</label>
+                {% for option in options %}
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#f9f9f9;border-radius:4px;border:1px solid #e0e0e0;margin-bottom:4px;">
+                    <div><span style="font-size:13px;font-weight:500;">{{ option.nom }}</span> <span style="color:#666;font-size:12px;">+{{ option.prix }} CFA</span></div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <button type="button" onclick="ajusterOptionAjout({{ option.id }},-1)" style="width:28px;height:28px;border-radius:50%;border:1px solid #ddd;background:white;cursor:pointer;font-size:16px;line-height:1;">−</button>
+                        <span id="ajout-opt-qte-{{ option.id }}" style="font-weight:600;min-width:20px;text-align:center;">0</span>
+                        <button type="button" onclick="ajusterOptionAjout({{ option.id }},1)" style="width:28px;height:28px;border-radius:50%;border:1px solid #c9a86a;background:#c9a86a;color:white;cursor:pointer;font-size:16px;line-height:1;">+</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#fff9f0;border-radius:6px;border:1px solid #e0d5b8;margin-top:8px;">
+                <span style="font-size:14px;color:#555;">Sous-total</span>
+                <strong id="ajout-sous-total" style="font-size:18px;color:#c9a86a;">0 CFA</strong>
+            </div>
+        </div>
+        <div class="modal-footer" style="position:sticky;bottom:0;background:white;z-index:10;">
+            <button type="button" class="btn btn-secondary" onclick="fermerModalAjouterPrestation()" style="padding:8px 16px;">Annuler</button>
+            <button type="button" class="btn btn-primary" onclick="soumettreAjouterPrestation()" style="padding:8px 20px;">➕ Ajouter la prestation</button>
         </div>
     </div>
 </div>
@@ -1258,63 +1418,8 @@ function calculerTotal(fromPrestation = false) {
 
 // Nouveau RDV
 function nouvelRdv(employeId, heure) {
-    console.log('=== nouvelRdv v2026-01-20-10:45 appelé ===');
-    console.log('Paramètres - employeId:', employeId, 'heure:', heure);
-    console.log('Type de currentRdvId:', typeof window.currentRdvId);
-
-    // Supprimer les boutons supplémentaires s'ils existent
-    const btnSupprimer = document.getElementById('btn-supprimer-rdv');
-    const btnValider = document.getElementById('btn-valider-rdv');
-    if (btnSupprimer) btnSupprimer.remove();
-    if (btnValider) btnValider.remove();
-
-    document.getElementById('modal-rdv-title').textContent = 'Nouveau rendez-vous';
-    document.getElementById('form-rdv').reset();
-    document.getElementById('rdv-id').value = '';
-    document.getElementById('rdv-employe').value = employeId;
-    document.getElementById('rdv-heure').value = heure;
-    document.getElementById('rdv-prix-total').textContent = '0 CFA';
-    document.getElementById('rdv-client').value = '';
-    document.getElementById('rdv-client-search').value = '';
-
-    // Effacer les validations précédentes
-    clearValidation('rdv-date');
-    clearValidation('rdv-heure');
-    clearValidation('rdv-client-search');
-    clearValidation('rdv-prestation');
-    clearValidation('rdv-prix-base');
-
-    {% if institut.code == 'klinic' %}
-    // Réinitialiser les forfaits
-    document.getElementById('rdv-seance-forfait').value = '';
-    const forfaitContainer = document.getElementById('forfaits-client-container');
-    if (forfaitContainer) {
-        forfaitContainer.style.display = 'none';
-        forfaitContainer.innerHTML = `
-            <label style="color: #9b59b6; font-weight: 600;">Forfaits actifs du client</label>
-            <div id="forfaits-client-list" style="background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); border: 2px solid #9b59b6; border-radius: 8px; padding: 12px;"></div>
-        `;
-    }
-    // Réactiver les champs
-    document.getElementById('rdv-famille').disabled = false;
-    document.getElementById('rdv-prestation').disabled = false;
-    document.getElementById('rdv-prix-base').disabled = false;
-    {% endif %}
-
-    // Réinitialiser les quantités des options
-    document.querySelectorAll('.option-counter').forEach(optionDiv => {
-        const optionId = optionDiv.dataset.optionId;
-        document.getElementById('option-qte-' + optionId).textContent = '0';
-        optionDiv.style.background = '#f9f9f9';
-        optionDiv.style.borderColor = '#e0e0e0';
-    });
-
-    window.currentRdvId = null;
-
-    const modal = document.getElementById('modal-rdv');
-    console.log('Modal trouvé:', modal);
-    modal.style.display = 'flex';
-    console.log('Modal display mis à flex');
+    // Ouvre le modal multi-prestations pré-rempli avec l'employé et l'heure du créneau cliqué
+    ouvrirModalReservation(employeId, heure);
 }
 
 function fermerModalRdv() {
@@ -1360,6 +1465,13 @@ function enregistrerRdv() {
         if (isFormValid) {
             showError('Veuillez sélectionner un client');
         }
+        return;
+    }
+
+    // Bloquer si un conflit de planning a été détecté
+    const modifConflitEl = document.getElementById('modif-conflit');
+    if (modifConflitEl && modifConflitEl.dataset.conflit === 'true') {
+        showError('Conflit de planning détecté. Choisissez un autre horaire.');
         return;
     }
 
@@ -1562,6 +1674,9 @@ function ouvrirModalActions(rdv) {
                     <button class="btn" style="padding: 10px 16px; background: #c9a86a; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;" onclick="document.getElementById('modal-actions').style.display='none'; modifierRdv(window._actionRdv)">
                         Modifier le RDV
                     </button>
+                    <button class="btn" style="padding: 10px 16px; background: #3498db; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;" onclick="document.getElementById('modal-actions').style.display='none'; ouvrirModalAjouterPrestation(window._actionRdv)">
+                        ➕ Ajouter une prestation
+                    </button>
                     <button class="btn" style="padding: 10px 16px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;" onclick="document.getElementById('modal-actions').style.display='none'; ouvrirModalValidation(${rdv.id})">
                         Valider le RDV
                     </button>
@@ -1611,9 +1726,11 @@ function modifierRdv(rdv) {
     // Remplir le formulaire avec les données du RDV
     document.getElementById('modal-rdv-title').textContent = 'Modifier le rendez-vous';
     document.getElementById('rdv-id').value = rdv.id;
-    document.getElementById('rdv-employe').value = rdv.employe_id;
+    document.getElementById('rdv-employe').value = rdv.employe_id || '';
     document.getElementById('rdv-date').value = rdv.date;
-    document.getElementById('rdv-heure').value = rdv.heure_debut;
+    document.getElementById('rdv-heure').innerHTML = genererOptionsHoraires(rdv.heure_debut);
+    const modifConflitEl = document.getElementById('modif-conflit');
+    if (modifConflitEl) { modifConflitEl.style.display = 'none'; modifConflitEl.dataset.conflit = ''; }
     document.getElementById('rdv-client').value = rdv.client_id;
     document.getElementById('rdv-client-search').value = rdv.client;
     document.getElementById('rdv-prix-base').value = rdv.prix_base;
@@ -2522,6 +2639,607 @@ function creerNouveauClient() {
     });
 }
 
+// ============================
+// MODAL NOUVELLE RÉSERVATION MULTI-PRESTATIONS
+// ============================
+
+// Données Django sérialisées pour le JS
+window.employes = [{% for e in employes %}{"id":{{ e.id }},"nom":"{{ e.nom|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}];
+window.familles = [{% for f in familles %}{"id":{{ f.id }},"nom":"{{ f.nom|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}];
+window.options  = [{% for o in options %}{"id":{{ o.id }},"nom":"{{ o.nom|escapejs }}","prix":{{ o.prix }}}{% if not forloop.last %},{% endif %}{% endfor %}];
+
+let resBlocs = [];
+let resBlocCount = 0;
+
+function ouvrirModalReservation(employeId, heure) {
+    document.getElementById('res-client-id').value = '';
+    document.getElementById('res-client-search').value = '';
+    document.getElementById('res-client-results').innerHTML = '';
+    document.getElementById('res-liste-prestations').innerHTML = '';
+    document.getElementById('res-recap').style.display = 'none';
+    document.getElementById('res-recap-lignes').innerHTML = '';
+    document.getElementById('res-total-display').textContent = '0 CFA';
+    const forfaitsSection = document.getElementById('res-forfaits-section');
+    if (forfaitsSection) {
+        forfaitsSection.style.display = 'none';
+        document.getElementById('res-forfaits-list').innerHTML = '';
+    }
+    resBlocs = [];
+    resBlocCount = 0;
+    document.getElementById('modal-reservation').style.display = 'flex';
+    ajouterBlocPrestationReservation(employeId, heure);
+}
+
+function fermerModalReservation() {
+    document.getElementById('modal-reservation').style.display = 'none';
+}
+
+function ajouterBlocPrestationReservation(preEmployeId, preHeure) {
+    const index = resBlocCount++;
+    resBlocs.push({ index: index, isForfait: false, seanceForfaitId: null, heureFin: null });
+
+    let employeOptions = '<option value="">-- Employé --</option>';
+    window.employes.forEach(e => {
+        const sel = (String(e.id) === String(preEmployeId)) ? 'selected' : '';
+        employeOptions += `<option value="${e.id}" ${sel}>${e.nom}</option>`;
+    });
+
+    let familleOptions = '<option value="">-- Famille --</option>';
+    window.familles.forEach(f => {
+        familleOptions += `<option value="${f.id}">${f.nom}</option>`;
+    });
+
+    let optionsHtml = '';
+    window.options.forEach(o => {
+        optionsHtml += `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#f9f9f9;border-radius:4px;border:1px solid #e0e0e0;margin-bottom:4px;">
+                <div><span style="font-size:13px;font-weight:500;">${o.nom}</span> <span style="color:#666;font-size:12px;">+${o.prix} CFA</span></div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <button type="button" onclick="ajusterOptionReservation(${index},${o.id},-1)" style="width:28px;height:28px;border-radius:50%;border:1px solid #ddd;background:white;cursor:pointer;font-size:16px;line-height:1;">−</button>
+                    <span id="res-opt-qte-${index}-${o.id}" style="font-weight:600;min-width:20px;text-align:center;">0</span>
+                    <button type="button" onclick="ajusterOptionReservation(${index},${o.id},1)" style="width:28px;height:28px;border-radius:50%;border:1px solid #c9a86a;background:#c9a86a;color:white;cursor:pointer;font-size:16px;line-height:1;">+</button>
+                </div>
+            </div>`;
+    });
+
+    const div = document.createElement('div');
+    div.id = `res-bloc-${index}`;
+    div.style.cssText = 'background:white;border:1px solid #e0d5b8;border-radius:8px;padding:15px;margin-bottom:12px;';
+    div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <strong style="color:#c9a86a;">Prestation ${index + 1}</strong>
+            ${index > 0 ? `<button type="button" onclick="supprimerBlocPrestationReservation(${index})" style="background:none;border:none;color:#dc3545;cursor:pointer;font-size:22px;padding:0;line-height:1;" title="Supprimer">×</button>` : ''}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 130px;gap:10px;margin-bottom:4px;">
+            <div class="form-group" style="margin:0;">
+                <label style="font-size:12px;">Employé *</label>
+                <select id="res-employe-${index}" class="form-control" style="font-size:13px;">${employeOptions}</select>
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label style="font-size:12px;">Heure *</label>
+                <select id="res-heure-${index}" onchange="mettreAJourHeureFin(${index})"
+                        class="form-control" style="font-size:13px;">${genererOptionsHoraires(preHeure || '')}</select>
+            </div>
+        </div>
+        <div id="res-heure-fin-${index}" style="font-size:12px;color:#c9a86a;text-align:right;margin-bottom:4px;min-height:14px;"></div>
+        <div id="res-conflit-${index}" style="display:none;background:#fff5f5;border:1px solid #dc3545;border-radius:6px;padding:8px 12px;font-size:12px;color:#dc3545;margin-bottom:8px;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+            <div class="form-group" style="margin:0;">
+                <label style="font-size:12px;">Famille</label>
+                <select id="res-famille-${index}" class="form-control" style="font-size:13px;" onchange="chargerPrestationsBlocReservation(${index},this.value)">${familleOptions}</select>
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label style="font-size:12px;">Prestation *</label>
+                <select id="res-prestation-${index}" class="form-control" style="font-size:13px;" onchange="selectionnerPrestationReservation(${index})">
+                    <option value="">-- Prestation --</option>
+                </select>
+            </div>
+        </div>
+        <div id="res-forfait-badge-${index}"></div>
+        ${window.options.length > 0 ? `<div class="form-group" style="margin:0 0 10px 0;"><label style="font-size:12px;">Options</label><div>${optionsHtml}</div></div>` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#fff9f0;border-radius:6px;border:1px solid #e0d5b8;">
+            <span style="font-size:13px;color:#555;">Sous-total</span>
+            <strong id="res-sous-total-${index}" style="color:#c9a86a;">0 CFA</strong>
+        </div>`;
+    document.getElementById('res-liste-prestations').appendChild(div);
+    calculerTotalReservation();
+}
+
+function supprimerBlocPrestationReservation(index) {
+    const el = document.getElementById(`res-bloc-${index}`);
+    if (el) el.remove();
+    resBlocs = resBlocs.filter(b => b.index !== index);
+    calculerTotalReservation();
+}
+
+function chargerPrestationsBlocReservation(index, familleId) {
+    const select = document.getElementById(`res-prestation-${index}`);
+    select.innerHTML = '<option value="">-- Prestation --</option>';
+    if (!familleId) return;
+    const prestations = window.prestationsData.filter(p => p.famille_id == familleId);
+    prestations.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        let label = p.nom + ' - ' + p.prix + ' CFA (' + p.duree + 'h)';
+        if (p.type_prestation === 'forfait') label = '📦 ' + label + ' [Forfait ' + p.nombre_seances + ' séances]';
+        opt.textContent = label;
+        opt.dataset.prix = p.prix;
+        opt.dataset.duree = p.duree;
+        opt.dataset.type = p.type_prestation || 'normal';
+        select.appendChild(opt);
+    });
+    selectionnerPrestationReservation(index);
+}
+
+function selectionnerPrestationReservation(index) {
+    {% if institut.code == 'klinic' %}
+    mettreAJourBoutonsForFaitReservation(index);
+    {% endif %}
+    mettreAJourHeureFin(index);
+    calculerSousTotalBlocReservation(index);
+    calculerTotalReservation();
+}
+
+function ajusterOptionReservation(blocIndex, optionId, delta) {
+    const qteEl = document.getElementById(`res-opt-qte-${blocIndex}-${optionId}`);
+    if (!qteEl) return;
+    let qte = parseInt(qteEl.textContent) || 0;
+    qteEl.textContent = Math.max(0, qte + delta);
+    calculerSousTotalBlocReservation(blocIndex);
+    calculerTotalReservation();
+}
+
+function calculerSousTotalBlocReservation(blocIndex) {
+    const bloc = resBlocs.find(b => b.index === blocIndex);
+    if (!bloc) return 0;
+    const prestSel = document.getElementById(`res-prestation-${blocIndex}`);
+    const selOpt = prestSel ? prestSel.options[prestSel.selectedIndex] : null;
+    const prixBase = bloc.isForfait ? 0 : (selOpt && selOpt.value ? parseInt(selOpt.dataset.prix) || 0 : 0);
+    let prixOptions = 0;
+    window.options.forEach(o => {
+        const qteEl = document.getElementById(`res-opt-qte-${blocIndex}-${o.id}`);
+        prixOptions += (qteEl ? parseInt(qteEl.textContent) || 0 : 0) * o.prix;
+    });
+    const sousTotal = prixBase + prixOptions;
+    const el = document.getElementById(`res-sous-total-${blocIndex}`);
+    if (el) {
+        if (bloc.isForfait && prixOptions === 0) el.textContent = '0 CFA (séance forfait)';
+        else el.textContent = sousTotal + ' CFA';
+    }
+    return sousTotal;
+}
+
+function calculerTotalReservation() {
+    let total = 0;
+    resBlocs.forEach(b => {
+        if (document.getElementById(`res-bloc-${b.index}`)) total += calculerSousTotalBlocReservation(b.index);
+    });
+    mettreAJourRecapReservation(total);
+}
+
+function mettreAJourRecapReservation(total) {
+    const blocsActifs = resBlocs.filter(b => document.getElementById(`res-bloc-${b.index}`));
+    const recapDiv = document.getElementById('res-recap');
+    if (blocsActifs.length === 0) { recapDiv.style.display = 'none'; return; }
+    let lignesHtml = '';
+    blocsActifs.forEach((bloc, i) => {
+        const prestSel = document.getElementById(`res-prestation-${bloc.index}`);
+        const nom = prestSel && prestSel.options[prestSel.selectedIndex]?.value
+            ? prestSel.options[prestSel.selectedIndex].text.split(' - ')[0]
+            : '(non sélectionnée)';
+        const st = calculerSousTotalBlocReservation(bloc.index);
+        const label = (bloc.isForfait ? '📦 ' : '') + nom;
+        lignesHtml += `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span>${i+1}. ${label}</span><span>${st > 0 ? st + ' CFA' : (bloc.isForfait ? '0 CFA (forfait)' : '0 CFA')}</span></div>`;
+    });
+    document.getElementById('res-recap-lignes').innerHTML = lignesHtml;
+    document.getElementById('res-total-display').textContent = (total || 0) + ' CFA';
+    recapDiv.style.display = 'block';
+}
+
+function ouvrirModalNouveauClientDepuisReservation() {
+    ouvrirModalNouveauClient();
+}
+
+function creerRdvGroupe() {
+    const clientId = document.getElementById('res-client-id').value;
+    const date = document.getElementById('res-date').value;
+    if (!clientId) { showError('Veuillez sélectionner un client'); return; }
+    if (!date) { showError('Veuillez sélectionner une date'); return; }
+    const blocsActifs = resBlocs.filter(b => document.getElementById(`res-bloc-${b.index}`));
+    if (blocsActifs.length === 0) { showError('Veuillez ajouter au moins une prestation'); return; }
+
+    const prestations = [];
+    for (let i = 0; i < blocsActifs.length; i++) {
+        const bloc = blocsActifs[i];
+        const num = i + 1;
+        const employeId = document.getElementById(`res-employe-${bloc.index}`)?.value;
+        const heure    = document.getElementById(`res-heure-${bloc.index}`)?.value;
+        const prestId  = document.getElementById(`res-prestation-${bloc.index}`)?.value;
+        if (!employeId) { showError(`Prestation ${num} : veuillez sélectionner un employé`); return; }
+        if (!heure)     { showError(`Prestation ${num} : veuillez saisir une heure`); return; }
+        if (!prestId)   { showError(`Prestation ${num} : veuillez sélectionner une prestation`); return; }
+
+        const optionsList = [];
+        window.options.forEach(o => {
+            const qteEl = document.getElementById(`res-opt-qte-${bloc.index}-${o.id}`);
+            const qte = qteEl ? parseInt(qteEl.textContent) || 0 : 0;
+            if (qte > 0) optionsList.push({ option_id: o.id, quantite: qte });
+        });
+
+        const prestSel = document.getElementById(`res-prestation-${bloc.index}`);
+        const selOpt = prestSel?.options[prestSel.selectedIndex];
+        const prixBase = bloc.isForfait ? 0 : (selOpt ? parseInt(selOpt.dataset.prix) || 0 : 0);
+
+        prestations.push({
+            employe_id: parseInt(employeId),
+            heure_debut: heure,
+            prestation_id: parseInt(prestId),
+            prix_base: prixBase,
+            options: optionsList,
+            seance_forfait_id: bloc.seanceForfaitId || null,
+        });
+    }
+
+    // Bloquer si un conflit de planning a été détecté
+    const blocsEnConflit = blocsActifs.filter(b => {
+        const el = document.getElementById(`res-conflit-${b.index}`);
+        return el && el.dataset.conflit === 'true';
+    });
+    if (blocsEnConflit.length > 0) {
+        showError('Conflit de planning détecté. Corrigez les horaires signalés en rouge avant de continuer.');
+        return;
+    }
+
+    showPageLoader('Création des rendez-vous...');
+    fetch(`/agenda/{{ institut.code }}/api/rdv/creer-groupe/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+        body: JSON.stringify({ client_id: parseInt(clientId), date: date, prestations: prestations })
+    })
+    .then(r => r.json())
+    .then(data => {
+        hidePageLoader();
+        if (data.success) {
+            fermerModalReservation();
+            showSuccess(`${data.nombre_rdv} rendez-vous créé(s) avec succès`);
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showError(data.message || 'Erreur lors de la création des rendez-vous');
+        }
+    })
+    .catch(error => {
+        hidePageLoader();
+        console.error('Erreur creerRdvGroupe:', error);
+        showError('Erreur lors de la création des rendez-vous');
+    });
+}
+
+// Autocomplete client — modal réservation
+document.getElementById('res-client-search').addEventListener('input', function(e) {
+    const query = e.target.value;
+    const resultsDiv = document.getElementById('res-client-results');
+    if (query.length < 2) { resultsDiv.innerHTML = ''; return; }
+    fetch('/api/clients/search/?q=' + encodeURIComponent(query))
+        .then(r => r.json())
+        .then(data => {
+            resultsDiv.innerHTML = '';
+            if (data.clients && data.clients.length > 0) {
+                data.clients.forEach(client => {
+                    const item = document.createElement('div');
+                    item.className = 'autocomplete-item';
+                    item.textContent = client.prenom + ' ' + client.nom + ' - ' + client.telephone;
+                    item.onclick = function() {
+                        document.getElementById('res-client-id').value = client.id;
+                        document.getElementById('res-client-search').value = client.prenom + ' ' + client.nom;
+                        resultsDiv.innerHTML = '';
+                        {% if institut.code == 'klinic' %}
+                        chargerForfaitsClientReservation(client.id);
+                        {% endif %}
+                    };
+                    resultsDiv.appendChild(item);
+                });
+            } else {
+                resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:#999;">Aucun client trouvé</div>';
+            }
+        })
+        .catch(() => { resultsDiv.innerHTML = '<div class="autocomplete-item" style="color:#f00;">Erreur de recherche</div>'; });
+});
+
+// Génère les <option> pour un <select> d'horaires (07:00 → 23:00, pas de 15 min)
+function genererOptionsHoraires(selected) {
+    let html = '<option value="">-- Heure --</option>';
+    for (let h = 7; h <= 23; h++) {
+        for (let m = 0; m < 60; m += 15) {
+            if (h === 23 && m > 0) break;
+            const val = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+            const sel = (val === selected) ? 'selected' : '';
+            html += `<option value="${val}" ${sel}>${val}</option>`;
+        }
+    }
+    return html;
+}
+
+// Calcule et affiche "HH:MM → HH:MM" pour un bloc du modal réservation
+function mettreAJourHeureFin(blocIndex) {
+    const heureEl  = document.getElementById(`res-heure-${blocIndex}`);
+    const prestSel = document.getElementById(`res-prestation-${blocIndex}`);
+    const affEl    = document.getElementById(`res-heure-fin-${blocIndex}`);
+    if (!heureEl || !affEl) return;
+
+    const heure   = heureEl.value;
+    const selOpt  = prestSel ? prestSel.options[prestSel.selectedIndex] : null;
+    const duree   = selOpt && selOpt.value && selOpt.dataset.duree ? parseFloat(selOpt.dataset.duree) : null;
+
+    if (heure && duree !== null) {
+        const [h, m]   = heure.split(':').map(Number);
+        const finMin   = h * 60 + m + Math.round(duree * 60);
+        const heureFin = `${String(Math.floor(finMin / 60)).padStart(2,'0')}:${String(finMin % 60).padStart(2,'0')}`;
+        affEl.textContent = `${heure} → ${heureFin}`;
+        affEl.style.color = '#c9a86a';
+        const bloc = resBlocs.find(b => b.index === blocIndex);
+        if (bloc) bloc.heureFin = heureFin;
+    } else {
+        affEl.textContent = heure ? `${heure} → ?` : '';
+        affEl.style.color = '#aaa';
+        const bloc = resBlocs.find(b => b.index === blocIndex);
+        if (bloc) bloc.heureFin = null;
+    }
+    verifierConflitBloc(blocIndex);
+}
+
+// "+" Ajouter une prestation → pré-remplit l'heure avec la fin du dernier bloc
+function ajouterPrestationSuivante() {
+    const blocsActifs = resBlocs.filter(b => document.getElementById(`res-bloc-${b.index}`));
+    let prochainHeure = null;
+    if (blocsActifs.length > 0) {
+        const last = blocsActifs[blocsActifs.length - 1];
+        prochainHeure = last.heureFin || null;
+    }
+    ajouterBlocPrestationReservation(null, prochainHeure);
+}
+
+// Calcule et affiche "HH:MM → HH:MM" dans le modal "ajouter prestation"
+function mettreAJourHeureFin_Ajout() {
+    const heureEl  = document.getElementById('ajout-heure');
+    const prestSel = document.getElementById('ajout-prestation');
+    const affEl    = document.getElementById('ajout-heure-fin-display');
+    if (!heureEl || !affEl) return;
+
+    const heure  = heureEl.value;
+    const selOpt = prestSel ? prestSel.options[prestSel.selectedIndex] : null;
+    const duree  = selOpt && selOpt.value && selOpt.dataset.duree ? parseFloat(selOpt.dataset.duree) : null;
+
+    if (heure && duree !== null) {
+        const [h, m]   = heure.split(':').map(Number);
+        const finMin   = h * 60 + m + Math.round(duree * 60);
+        const heureFin = `${String(Math.floor(finMin / 60)).padStart(2,'0')}:${String(finMin % 60).padStart(2,'0')}`;
+        affEl.textContent = `${heure} → ${heureFin}`;
+        affEl.style.color = '#c9a86a';
+        affEl.dataset.heureFin = heureFin;
+    } else {
+        affEl.textContent = heure ? `${heure} → ?` : '';
+        affEl.style.color = '#aaa';
+        affEl.dataset.heureFin = '';
+    }
+    verifierConflitAjout();
+}
+
+// Vérifie en temps réel si la modification d'un RDV crée un conflit de planning
+function verifierConflitModification() {
+    const conflitEl = document.getElementById('modif-conflit');
+    if (!conflitEl) return;
+
+    const employe_id  = document.getElementById('rdv-employe')?.value  || '';
+    const date        = document.getElementById('rdv-date')?.value      || '';
+    const heure_debut = document.getElementById('rdv-heure')?.value     || '';
+    const rdvId       = document.getElementById('rdv-id')?.value        || '';
+
+    // Calculer heure_fin à partir de la durée de la prestation sélectionnée
+    const prestSel = document.getElementById('rdv-prestation');
+    const selOpt   = prestSel ? prestSel.options[prestSel.selectedIndex] : null;
+    const duree    = selOpt && selOpt.value && selOpt.dataset.duree ? parseFloat(selOpt.dataset.duree) : null;
+
+    if (!employe_id || !date || !heure_debut || duree === null) {
+        conflitEl.style.display = 'none';
+        conflitEl.dataset.conflit = '';
+        return;
+    }
+
+    const [h, m]    = heure_debut.split(':').map(Number);
+    const finMin    = h * 60 + m + Math.round(duree * 60);
+    const heure_fin = `${String(Math.floor(finMin / 60)).padStart(2,'0')}:${String(finMin % 60).padStart(2,'0')}`;
+
+    fetch(`/agenda/{{ institut.code }}/api/verifier-conflit/?employe_id=${employe_id}&date=${date}&heure_debut=${heure_debut}&heure_fin=${heure_fin}&rdv_exclude_id=${rdvId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.conflit) {
+                conflitEl.innerHTML = `⚠️ Conflit : RDV de ${data.rdv.heure_debut} à ${data.rdv.heure_fin} — ${data.rdv.client} (${data.rdv.prestation})`;
+                conflitEl.style.display = 'block';
+                conflitEl.dataset.conflit = 'true';
+            } else {
+                conflitEl.style.display = 'none';
+                conflitEl.dataset.conflit = '';
+            }
+        })
+        .catch(() => { conflitEl.style.display = 'none'; conflitEl.dataset.conflit = ''; });
+}
+
+// Vérifie en temps réel si un bloc du modal réservation crée un conflit
+function verifierConflitBloc(blocIndex) {
+    const conflitEl = document.getElementById(`res-conflit-${blocIndex}`);
+    if (!conflitEl) return;
+    const bloc = resBlocs.find(b => b.index === blocIndex);
+    if (!bloc) return;
+
+    const employe_id  = document.getElementById(`res-employe-${blocIndex}`)?.value || '';
+    const heure_debut = document.getElementById(`res-heure-${blocIndex}`)?.value  || '';
+    const date        = document.getElementById('res-date')?.value || '';
+    const heure_fin   = bloc.heureFin;
+
+    if (!employe_id || !date || !heure_debut || !heure_fin) {
+        conflitEl.style.display = 'none';
+        conflitEl.dataset.conflit = '';
+        return;
+    }
+
+    fetch(`/agenda/{{ institut.code }}/api/verifier-conflit/?employe_id=${employe_id}&date=${date}&heure_debut=${heure_debut}&heure_fin=${heure_fin}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.conflit) {
+                conflitEl.innerHTML = `⚠️ Conflit : RDV de ${data.rdv.heure_debut} à ${data.rdv.heure_fin} — ${data.rdv.client} (${data.rdv.prestation})`;
+                conflitEl.style.display = 'block';
+                conflitEl.dataset.conflit = 'true';
+            } else {
+                conflitEl.style.display = 'none';
+                conflitEl.dataset.conflit = '';
+            }
+        })
+        .catch(() => { conflitEl.style.display = 'none'; conflitEl.dataset.conflit = ''; });
+}
+
+// Vérifie en temps réel si la nouvelle prestation crée un conflit (modal ajouter prestation)
+function verifierConflitAjout() {
+    const conflitEl  = document.getElementById('ajout-conflit');
+    if (!conflitEl) return;
+
+    const employe_id  = document.getElementById('ajout-employe-id')?.value  || '';
+    const date        = document.getElementById('ajout-date-value')?.value   || '';
+    const heure_debut = document.getElementById('ajout-heure')?.value        || '';
+    const rdvId       = document.getElementById('ajout-rdv-id')?.value       || '';
+    const affEl       = document.getElementById('ajout-heure-fin-display');
+    const heure_fin   = affEl?.dataset.heureFin || '';
+
+    if (!employe_id || !date || !heure_debut || !heure_fin) {
+        conflitEl.style.display = 'none';
+        conflitEl.dataset.conflit = '';
+        return;
+    }
+
+    fetch(`/agenda/{{ institut.code }}/api/verifier-conflit/?employe_id=${employe_id}&date=${date}&heure_debut=${heure_debut}&heure_fin=${heure_fin}&rdv_exclude_id=${rdvId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.conflit) {
+                conflitEl.innerHTML = `⚠️ Conflit : RDV de ${data.rdv.heure_debut} à ${data.rdv.heure_fin} — ${data.rdv.client} (${data.rdv.prestation})`;
+                conflitEl.style.display = 'block';
+                conflitEl.dataset.conflit = 'true';
+            } else {
+                conflitEl.style.display = 'none';
+                conflitEl.dataset.conflit = '';
+            }
+        })
+        .catch(() => { conflitEl.style.display = 'none'; conflitEl.dataset.conflit = ''; });
+}
+
+// ============================
+// AJOUTER PRESTATION À UN RDV EXISTANT
+// ============================
+
+function ouvrirModalAjouterPrestation(rdv) {
+    document.getElementById('ajout-rdv-id').value = rdv.id;
+    document.getElementById('ajout-employe-id').value = rdv.employe_id || '';
+    document.getElementById('ajout-date-value').value = rdv.date || '';
+    document.getElementById('ajout-client-nom').textContent = rdv.client;
+    document.getElementById('ajout-employe-nom').textContent = rdv.employe;
+    document.getElementById('ajout-date').textContent = rdv.date;
+    // Pré-remplir l'heure avec heure_fin du RDV (début de la prestation suivante)
+    document.getElementById('ajout-heure').innerHTML = genererOptionsHoraires(rdv.heure_fin || '');
+    document.getElementById('ajout-conflit').style.display = 'none';
+    document.getElementById('ajout-conflit').dataset.conflit = '';
+    // Réinitialiser
+    document.getElementById('ajout-famille').value = '';
+    document.getElementById('ajout-prestation').innerHTML = '<option value="">-- Prestation --</option>';
+    document.getElementById('ajout-sous-total').textContent = '0 CFA';
+    window.options.forEach(o => {
+        const el = document.getElementById(`ajout-opt-qte-${o.id}`);
+        if (el) el.textContent = '0';
+    });
+    document.getElementById('modal-ajouter-prestation').style.display = 'flex';
+}
+
+function fermerModalAjouterPrestation() {
+    document.getElementById('modal-ajouter-prestation').style.display = 'none';
+}
+
+function chargerPrestationsAjout(familleId) {
+    const select = document.getElementById('ajout-prestation');
+    select.innerHTML = '<option value="">-- Prestation --</option>';
+    if (!familleId) { calculerSousTotalAjout(); mettreAJourHeureFin_Ajout(); return; }
+    window.prestationsData.filter(p => p.famille_id == familleId).forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.nom + ' - ' + p.prix + ' CFA (' + p.duree + 'h)';
+        opt.dataset.prix = p.prix;
+        opt.dataset.duree = p.duree;
+        select.appendChild(opt);
+    });
+    calculerSousTotalAjout();
+    mettreAJourHeureFin_Ajout();
+}
+
+function ajusterOptionAjout(optionId, delta) {
+    const el = document.getElementById(`ajout-opt-qte-${optionId}`);
+    if (!el) return;
+    el.textContent = Math.max(0, (parseInt(el.textContent) || 0) + delta);
+    calculerSousTotalAjout();
+}
+
+function calculerSousTotalAjout() {
+    const prestSel = document.getElementById('ajout-prestation');
+    const selOpt = prestSel ? prestSel.options[prestSel.selectedIndex] : null;
+    const prixBase = selOpt && selOpt.value ? parseInt(selOpt.dataset.prix) || 0 : 0;
+    let prixOptions = 0;
+    window.options.forEach(o => {
+        const el = document.getElementById(`ajout-opt-qte-${o.id}`);
+        prixOptions += (el ? parseInt(el.textContent) || 0 : 0) * o.prix;
+    });
+    document.getElementById('ajout-sous-total').textContent = (prixBase + prixOptions) + ' CFA';
+}
+
+function soumettreAjouterPrestation() {
+    const rdvId  = document.getElementById('ajout-rdv-id').value;
+    const heure  = document.getElementById('ajout-heure').value;
+    const prestId = document.getElementById('ajout-prestation').value;
+    if (!heure)   { showError('Veuillez saisir une heure'); return; }
+    if (!prestId) { showError('Veuillez sélectionner une prestation'); return; }
+
+    // Bloquer si un conflit de planning a été détecté
+    const ajoutConflitEl = document.getElementById('ajout-conflit');
+    if (ajoutConflitEl && ajoutConflitEl.dataset.conflit === 'true') {
+        showError('Conflit de planning détecté. Choisissez un autre horaire.');
+        return;
+    }
+
+    const prestSel = document.getElementById('ajout-prestation');
+    const selOpt   = prestSel.options[prestSel.selectedIndex];
+    const prixBase = selOpt ? parseInt(selOpt.dataset.prix) || 0 : 0;
+
+    const optionsList = [];
+    window.options.forEach(o => {
+        const el  = document.getElementById(`ajout-opt-qte-${o.id}`);
+        const qte = el ? parseInt(el.textContent) || 0 : 0;
+        if (qte > 0) optionsList.push({ option_id: o.id, quantite: qte });
+    });
+
+    showPageLoader('Ajout en cours...');
+    fetch(`/agenda/{{ institut.code }}/api/rdv/${rdvId}/ajouter-prestation/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+        body: JSON.stringify({ prestation_id: parseInt(prestId), heure_debut: heure, prix_base: prixBase, options: optionsList })
+    })
+    .then(r => r.json())
+    .then(data => {
+        hidePageLoader();
+        if (data.success) {
+            fermerModalAjouterPrestation();
+            showSuccess(data.message || 'Prestation ajoutée avec succès');
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showError(data.message || 'Erreur lors de l\'ajout');
+        }
+    })
+    .catch(() => { hidePageLoader(); showError('Erreur lors de l\'ajout'); });
+}
+
 {% if institut.code == 'klinic' %}
 // ============================
 // FORFAITS MULTI-SÉANCES
@@ -3184,6 +3902,105 @@ document.getElementById('forfait-client-search').addEventListener('input', funct
             resultsDiv.innerHTML = '<div class="autocomplete-item" style="color: #f00;">Erreur de recherche</div>';
         });
 });
+
+// ============================
+// FORFAITS — MODAL RÉSERVATION (klinic)
+// ============================
+
+let resForfaitsData = [];
+
+function chargerForfaitsClientReservation(clientId) {
+    const section = document.getElementById('res-forfaits-section');
+    const list = document.getElementById('res-forfaits-list');
+    fetch(`/agenda/{{ institut.code }}/api/forfaits/client/${clientId}/`)
+        .then(r => r.json())
+        .then(data => {
+            resForfaitsData = data.forfaits || [];
+            if (resForfaitsData.length > 0) {
+                section.style.display = 'block';
+                list.innerHTML = '';
+                resForfaitsData.forEach(forfait => {
+                    const div = document.createElement('div');
+                    div.style.cssText = 'margin-bottom:8px;padding:8px 12px;background:white;border-radius:6px;';
+                    div.dataset.prestationId = forfait.prestation_id;
+                    div.className = 'res-forfait-item';
+                    div.innerHTML = `
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div>
+                                <strong style="color:#9b59b6;font-size:13px;">${forfait.prestation_nom}</strong>
+                                <div style="font-size:11px;color:#666;">${forfait.seances_restantes} séance(s) restante(s) sur ${forfait.nombre_seances_total}</div>
+                            </div>
+                            ${forfait.seances_disponibles.length > 0 ? `
+                            <button type="button" class="res-forfait-use-btn"
+                                    data-prestation-id="${forfait.prestation_id}"
+                                    onclick="utiliserSeanceForfaitReservation(0,${forfait.id},${forfait.seances_disponibles[0]},'${forfait.prestation_nom.replace(/'/g,"\\'").replace(/"/g,'\\"')}',${forfait.nombre_seances_total})"
+                                    style="padding:5px 10px;background:#9b59b6;color:white;font-size:11px;border:none;border-radius:4px;cursor:pointer;">
+                                Utiliser séance ${forfait.seances_disponibles[0]}
+                            </button>
+                            ` : '<span style="color:#999;font-size:11px;">Toutes programmées</span>'}
+                        </div>`;
+                    list.appendChild(div);
+                });
+                mettreAJourBoutonsForFaitReservation(0);
+            } else {
+                section.style.display = 'none';
+            }
+        })
+        .catch(() => { section.style.display = 'none'; });
+}
+
+function mettreAJourBoutonsForFaitReservation(blocIndex) {
+    const prestSel = document.getElementById(`res-prestation-${blocIndex}`);
+    const selectedId = prestSel ? prestSel.value : '';
+    document.querySelectorAll('.res-forfait-use-btn').forEach(btn => {
+        btn.style.display = (!selectedId || btn.dataset.prestationId == selectedId) ? '' : 'none';
+    });
+}
+
+function utiliserSeanceForfaitReservation(blocIndex, forfaitId, numeroSeance, prestationNom, totalSeances) {
+    const forfait = resForfaitsData.find(f => f.id === forfaitId);
+    if (!forfait) return;
+    const bloc = resBlocs.find(b => b.index === blocIndex);
+    if (!bloc) return;
+
+    bloc.seanceForfaitId = `${forfaitId}_${numeroSeance}`;
+    bloc.isForfait = true;
+
+    const prestSel = document.getElementById(`res-prestation-${blocIndex}`);
+    const famSel   = document.getElementById(`res-famille-${blocIndex}`);
+    if (prestSel) { prestSel.innerHTML = `<option value="${forfait.prestation_id}" selected>${prestationNom}</option>`; prestSel.disabled = true; }
+    if (famSel)   { famSel.disabled = true; }
+
+    const badge = document.getElementById(`res-forfait-badge-${blocIndex}`);
+    if (badge) badge.innerHTML = `
+        <div style="background:linear-gradient(135deg,#d4edda,#c3e6cb);border:2px solid #28a745;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <strong style="color:#155724;font-size:13px;">📦 Séance forfait</strong>
+                <div style="font-size:12px;color:#155724;">${prestationNom} — Séance ${numeroSeance}/${totalSeances}</div>
+            </div>
+            <button type="button" onclick="annulerSeanceForfaitReservation(${blocIndex})" style="background:none;border:1px solid #155724;color:#155724;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;">Annuler</button>
+        </div>`;
+    calculerSousTotalBlocReservation(blocIndex);
+    calculerTotalReservation();
+}
+
+function annulerSeanceForfaitReservation(blocIndex) {
+    const bloc = resBlocs.find(b => b.index === blocIndex);
+    if (!bloc) return;
+    bloc.seanceForfaitId = null;
+    bloc.isForfait = false;
+    const famSel  = document.getElementById(`res-famille-${blocIndex}`);
+    const prestSel = document.getElementById(`res-prestation-${blocIndex}`);
+    if (famSel)   { famSel.disabled = false; famSel.value = ''; }
+    if (prestSel) { prestSel.disabled = false; prestSel.innerHTML = '<option value="">-- Prestation --</option>'; }
+    const badge = document.getElementById(`res-forfait-badge-${blocIndex}`);
+    if (badge) badge.innerHTML = '';
+    calculerSousTotalBlocReservation(blocIndex);
+    calculerTotalReservation();
+    const clientId = document.getElementById('res-client-id').value;
+    if (clientId) chargerForfaitsClientReservation(clientId);
+}
+
 {% endif %}
 </script>
 {% endblock %}
