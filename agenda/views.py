@@ -63,6 +63,9 @@ def index(request, institut_code):
             rdv_data = {
                 'id': rdv.id,
                 'client': rdv.client.get_full_name(),
+                'client_id': rdv.client.id,
+                'employe': rdv.employe.nom,
+                'employe_id': rdv.employe.id,
                 'prestation': rdv.prestation.nom,
                 'heure_debut': rdv.heure_debut.strftime('%H:%M'),
                 'heure_fin': rdv.heure_fin.strftime('%H:%M'),
@@ -70,7 +73,7 @@ def index(request, institut_code):
                                       datetime.combine(date.today(), rdv.heure_debut)).total_seconds() / 900),
                 'prix_total': float(rdv.prix_total),
                 'statut': rdv.statut,
-                'couleur': rdv.get_couleur(),  # Utiliser la méthode qui gère le statut
+                'couleur': rdv.get_couleur(),
                 'options': [opt.option.nom for opt in rdv.options_selectionnees.all()],
                 'est_seance_forfait': rdv.est_seance_forfait,
             }
