@@ -531,16 +531,46 @@ def api_rdv_ajouter_prestation(request, institut_code, rdv_id):
 
     try:
         data = json.loads(request.body)
-        prestation_id = data.get('prestation_id')
-        heure_str     = data.get('heure_debut')
-        prix_base     = Decimal(str(data.get('prix_base', 0)))
-        options_list  = data.get('options', [])
+        prestation_id     = data.get('prestation_id')
+        heure_str         = data.get('heure_debut')
+        prix_base         = Decimal(str(data.get('prix_base', 0)))
+        options_list      = data.get('options', [])
+        seance_forfait_id = data.get('seance_forfait_id')
 
         if not prestation_id or not heure_str:
             return JsonResponse({'success': False, 'message': 'Prestation et heure requises'}, status=400)
 
         prestation  = get_object_or_404(Prestation, id=prestation_id)
         heure_debut = datetime.strptime(heure_str, '%H:%M').time()
+
+        # Gérer la séance de forfait
+        seance_forfait  = None
+        forfait_client  = None
+        est_seance_forfait = False
+
+        if seance_forfait_id:
+            if '_' in str(seance_forfait_id):
+                forfait_id, numero = str(seance_forfait_id).split('_')
+                seance_forfait = get_object_or_404(
+                    SeanceForfait,
+                    forfait_id=forfait_id,
+                    numero=int(numero),
+                    forfait__client=rdv_existant.client,
+                    forfait__institut=institut,
+                    statut='disponible'
+                )
+            else:
+                seance_forfait = get_object_or_404(
+                    SeanceForfait,
+                    id=seance_forfait_id,
+                    forfait__client=rdv_existant.client,
+                    forfait__institut=institut,
+                    statut='disponible'
+                )
+            forfait_client = seance_forfait.forfait
+            est_seance_forfait = True
+            prix_base = Decimal('0')
+            prestation = forfait_client.prestation
 
         # Créer ou récupérer le groupe
         groupe = rdv_existant.groupe
@@ -580,7 +610,14 @@ def api_rdv_ajouter_prestation(request, institut_code, rdv_id):
             statut='planifie',
             cree_par=request.user.utilisateur,
             groupe=groupe,
+            est_seance_forfait=est_seance_forfait,
+            forfait=forfait_client,
+            numero_seance=seance_forfait.numero if seance_forfait else None,
         )
+
+        # Programmer la séance forfait
+        if seance_forfait:
+            seance_forfait.programmer(nouveau_rdv)
 
         # Attacher les options
         for opt in options_objs:
@@ -595,11 +632,16 @@ def api_rdv_ajouter_prestation(request, institut_code, rdv_id):
 
         groupe.recalculer_totaux()
 
+        message = f'Prestation "{prestation.nom}" ajoutée avec succès'
+        if est_seance_forfait:
+            message = f'Séance {seance_forfait.numero}/{forfait_client.nombre_seances_total} du forfait programmée'
+
         return JsonResponse({
             'success': True,
-            'message': f'Prestation "{prestation.nom}" ajoutée avec succès',
+            'message': message,
             'rdv_id': nouveau_rdv.id,
             'groupe_id': groupe.id,
+            'est_seance_forfait': est_seance_forfait,
         })
 
     except Exception as e:

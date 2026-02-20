@@ -402,7 +402,7 @@
 
 {% if institut.code == 'klinic' %}
 <!-- Modal Vente Forfait -->
-<div id="modal-forfait" class="modal" style="display: none;">
+<div id="modal-forfait" class="modal" style="display: none; z-index: 3000;">
     <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
             <h2>Vendre un forfait</h2>
@@ -693,6 +693,8 @@
             <input type="hidden" id="ajout-rdv-id">
             <input type="hidden" id="ajout-employe-id">
             <input type="hidden" id="ajout-date-value">
+            <input type="hidden" id="ajout-client-id">
+            <input type="hidden" id="ajout-seance-forfait-id">
 
             <!-- Contexte du RDV -->
             <div style="background:#f9f7f2;border:1px solid #e0d5b8;border-radius:8px;padding:12px;margin-bottom:20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:13px;">
@@ -721,11 +723,12 @@
                 <div class="form-group" style="margin:0;">
                     <label style="font-size:12px;">Prestation *</label>
                     <select id="ajout-prestation" class="form-control" style="font-size:13px;"
-                            onchange="calculerSousTotalAjout(); mettreAJourHeureFin_Ajout()">
+                            onchange="calculerSousTotalAjout(); mettreAJourHeureFin_Ajout(); typeof verifierForfaitAjout==='function'&&verifierForfaitAjout();">
                         <option value="">-- Prestation --</option>
                     </select>
                 </div>
             </div>
+            <div id="ajout-forfait-badge"></div>
 
             {% if options %}
             <div class="form-group">
@@ -3149,10 +3152,25 @@ function ouvrirModalAjouterPrestation(rdv) {
     document.getElementById('ajout-famille').value = '';
     document.getElementById('ajout-prestation').innerHTML = '<option value="">-- Prestation --</option>';
     document.getElementById('ajout-sous-total').textContent = '0 CFA';
+    document.getElementById('ajout-client-id').value = rdv.client_id || '';
+    document.getElementById('ajout-seance-forfait-id').value = '';
+    const ajoutBadge = document.getElementById('ajout-forfait-badge');
+    if (ajoutBadge) ajoutBadge.innerHTML = '';
     window.options.forEach(o => {
         const el = document.getElementById(`ajout-opt-qte-${o.id}`);
         if (el) el.textContent = '0';
     });
+    {% if institut.code == 'klinic' %}
+    // Charger les forfaits actifs du client pour ce modal
+    if (rdv.client_id) {
+        fetch(`/agenda/{{ institut.code }}/api/forfaits/client/${rdv.client_id}/`)
+            .then(r => r.json())
+            .then(data => { clientForfaitsData = data.forfaits || []; })
+            .catch(() => { clientForfaitsData = []; });
+    } else {
+        clientForfaitsData = [];
+    }
+    {% endif %}
     document.getElementById('modal-ajouter-prestation').style.display = 'flex';
 }
 
@@ -3163,6 +3181,9 @@ function fermerModalAjouterPrestation() {
 function chargerPrestationsAjout(familleId) {
     const select = document.getElementById('ajout-prestation');
     select.innerHTML = '<option value="">-- Prestation --</option>';
+    const ajoutBadge = document.getElementById('ajout-forfait-badge');
+    if (ajoutBadge) ajoutBadge.innerHTML = '';
+    document.getElementById('ajout-seance-forfait-id').value = '';
     if (!familleId) { calculerSousTotalAjout(); mettreAJourHeureFin_Ajout(); return; }
     window.prestationsData.filter(p => p.famille_id == familleId).forEach(p => {
         const opt = document.createElement('option');
@@ -3170,6 +3191,9 @@ function chargerPrestationsAjout(familleId) {
         opt.textContent = p.nom + ' - ' + p.prix + ' CFA (' + p.duree + 'h)';
         opt.dataset.prix = p.prix;
         opt.dataset.duree = p.duree;
+        opt.dataset.type = p.type_prestation || '';
+        opt.dataset.nom = p.nom;
+        opt.dataset.nbSeances = p.nombre_seances || 1;
         select.appendChild(opt);
     });
     calculerSousTotalAjout();
@@ -3220,11 +3244,13 @@ function soumettreAjouterPrestation() {
         if (qte > 0) optionsList.push({ option_id: o.id, quantite: qte });
     });
 
+    const seanceForfaitId = document.getElementById('ajout-seance-forfait-id')?.value || '';
+
     showPageLoader('Ajout en cours...');
     fetch(`/agenda/{{ institut.code }}/api/rdv/${rdvId}/ajouter-prestation/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-        body: JSON.stringify({ prestation_id: parseInt(prestId), heure_debut: heure, prix_base: prixBase, options: optionsList })
+        body: JSON.stringify({ prestation_id: parseInt(prestId), heure_debut: heure, prix_base: seanceForfaitId ? 0 : prixBase, options: optionsList, seance_forfait_id: seanceForfaitId || null })
     })
     .then(r => r.json())
     .then(data => {
@@ -3830,17 +3856,41 @@ function acheterForfait() {
                 const ctx = venteForfaitContext;
                 venteForfaitContext = null;
 
-                // S'assurer que le modal RDV est visible
-                document.getElementById('modal-rdv').style.display = 'flex';
-
-                // Recharger les forfaits du client puis auto-sélectionner
                 fetch(`/agenda/{{ institut.code }}/api/forfaits/client/${ctx.clientId}/`)
                     .then(r => r.json())
                     .then(fData => {
-                        clientForfaitsData = fData.forfaits;
-                        // Trouver le forfait nouvellement acheté
                         const nouveauForfait = fData.forfaits.find(f => f.id === data.forfait.id);
-                        if (nouveauForfait && nouveauForfait.seances_disponibles.length > 0) {
+                        if (!nouveauForfait || nouveauForfait.seances_disponibles.length === 0) {
+                            showWarning('Forfait vendu mais erreur lors de la pré-sélection. Veuillez sélectionner le forfait manuellement.');
+                            return;
+                        }
+                        if (ctx.fromReservation) {
+                            // Depuis le modal réservation multi-prestations
+                            resForfaitsData = fData.forfaits;
+                            utiliserSeanceForfaitReservation(
+                                ctx.resBlocIndex,
+                                nouveauForfait.id,
+                                nouveauForfait.seances_disponibles[0],
+                                nouveauForfait.prestation_nom,
+                                nouveauForfait.nombre_seances_total
+                            );
+                            chargerForfaitsClientReservation(ctx.clientId);
+                            showSuccess('Forfait vendu ! Séance 1 pré-sélectionnée.');
+                        } else if (ctx.fromAjout) {
+                            // Depuis le modal "ajouter une prestation"
+                            clientForfaitsData = fData.forfaits;
+                            document.getElementById('modal-ajouter-prestation').style.display = 'flex';
+                            utiliserSeanceAjout(
+                                nouveauForfait.id,
+                                nouveauForfait.seances_disponibles[0],
+                                nouveauForfait.prestation_nom,
+                                nouveauForfait.nombre_seances_total
+                            );
+                            showSuccess('Forfait vendu ! Séance 1 pré-sélectionnée.');
+                        } else {
+                            // Depuis le modal modification RDV
+                            clientForfaitsData = fData.forfaits;
+                            document.getElementById('modal-rdv').style.display = 'flex';
                             selectionnerSeanceForfait(
                                 nouveauForfait.id,
                                 nouveauForfait.seances_disponibles[0],
@@ -3949,12 +3999,216 @@ function chargerForfaitsClientReservation(clientId) {
         .catch(() => { section.style.display = 'none'; });
 }
 
-function mettreAJourBoutonsForFaitReservation(blocIndex) {
-    const prestSel = document.getElementById(`res-prestation-${blocIndex}`);
-    const selectedId = prestSel ? prestSel.value : '';
-    document.querySelectorAll('.res-forfait-use-btn').forEach(btn => {
-        btn.style.display = (!selectedId || btn.dataset.prestationId == selectedId) ? '' : 'none';
+// Ouvre le modal vente forfait depuis le modal réservation (client sans forfait)
+function proposerVenteForfaitReservation(blocIndex, prestationId, prestationNom, prix, nbSeances) {
+    const clientId  = document.getElementById('res-client-id')?.value;
+    const clientNom = document.getElementById('res-client-search')?.value;
+    if (!clientId) { showWarning('Veuillez d\'abord sélectionner un client'); return; }
+
+    venteForfaitContext = {
+        clientId: clientId,
+        prestationId: prestationId,
+        prestationNom: prestationNom,
+        fromReservation: true,
+        resBlocIndex: blocIndex,
+    };
+
+    document.getElementById('form-forfait').reset();
+    document.getElementById('forfait-client-id').value = '';
+    document.getElementById('forfait-client-search').value = '';
+    document.getElementById('forfait-details').style.display = 'none';
+    document.getElementById('forfait-montant-container').style.display = 'none';
+    document.getElementById('modal-forfait').style.display = 'flex';
+    document.getElementById('forfait-client-id').value = clientId;
+    document.getElementById('forfait-client-search').value = clientNom;
+    chargerCartesCadeauxForfait(clientId);
+    chargerForfaitsDisponibles(function() {
+        const sel = document.getElementById('forfait-prestation');
+        sel.value = prestationId;
+        sel.dispatchEvent(new Event('change'));
     });
+}
+
+// ============================
+// FORFAIT DANS MODAL "AJOUTER PRESTATION"
+// ============================
+
+function verifierForfaitAjout() {
+    const badge    = document.getElementById('ajout-forfait-badge');
+    if (!badge) return;
+    const prestSel = document.getElementById('ajout-prestation');
+    const selOpt   = prestSel ? prestSel.options[prestSel.selectedIndex] : null;
+    const selectedId  = prestSel ? prestSel.value : '';
+    const typePresta  = selOpt ? selOpt.dataset.type : '';
+    const prixBase    = selOpt ? parseFloat(selOpt.dataset.prix) || 0 : 0;
+    const nbSeances   = selOpt ? parseInt(selOpt.dataset.nbSeances) || 1 : 1;
+    const prestNom    = selOpt && selOpt.value ? (selOpt.dataset.nom || selOpt.text) : '';
+
+    if (!selectedId || typePresta !== 'forfait') {
+        badge.innerHTML = '';
+        document.getElementById('ajout-seance-forfait-id').value = '';
+        return;
+    }
+
+    const forfaitActif = clientForfaitsData.find(f => f.prestation_id == selectedId && f.seances_restantes > 0);
+    if (forfaitActif) {
+        const nextSeance = forfaitActif.seances_disponibles[0];
+        if (nextSeance !== undefined) {
+            badge.innerHTML = `
+                <div style="background:linear-gradient(135deg,#e8d5f5,#d4b8e8);border:2px solid #9b59b6;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <strong style="color:#6c3483;font-size:13px;">📦 Forfait disponible</strong>
+                        <div style="font-size:12px;color:#6c3483;">${forfaitActif.prestation_nom} — Séance ${nextSeance}/${forfaitActif.nombre_seances_total}</div>
+                    </div>
+                    <button type="button" class="btn"
+                            onclick="utiliserSeanceAjout(${forfaitActif.id},${nextSeance},'${forfaitActif.prestation_nom.replace(/'/g,"\\'").replace(/"/g,'\\"')}',${forfaitActif.nombre_seances_total})"
+                            style="padding:5px 10px;background:#9b59b6;color:white;font-size:11px;border:none;border-radius:4px;cursor:pointer;">
+                        Utiliser séance ${nextSeance}
+                    </button>
+                </div>`;
+        } else {
+            badge.innerHTML = `
+                <div style="background:#f8d7da;border:1px solid #f5c6cb;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#721c24;">
+                    ⚠️ Toutes les séances de ce forfait sont déjà programmées
+                </div>`;
+        }
+    } else {
+        badge.innerHTML = `
+            <div style="background:linear-gradient(135deg,#fff3cd,#ffeeba);border:2px solid #ffc107;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <strong style="color:#856404;font-size:13px;">📦 Ce client n'a pas ce forfait</strong>
+                    <div style="font-size:12px;color:#856404;">${prestNom} — ${nbSeances} séances</div>
+                </div>
+                <button type="button" class="btn"
+                        onclick="proposerVenteForfaitAjout(${selectedId},'${prestNom.replace(/'/g,"\\'").replace(/"/g,'\\"')}',${prixBase},${nbSeances})"
+                        style="padding:5px 10px;background:#9b59b6;color:white;font-size:12px;border:none;border-radius:4px;cursor:pointer;">
+                    Vendre ce forfait
+                </button>
+            </div>`;
+    }
+}
+
+function utiliserSeanceAjout(forfaitId, numeroSeance, prestationNom, totalSeances) {
+    document.getElementById('ajout-seance-forfait-id').value = `${forfaitId}_${numeroSeance}`;
+    document.getElementById('ajout-sous-total').textContent = '0 CFA (séance forfait)';
+    const badge = document.getElementById('ajout-forfait-badge');
+    if (badge) badge.innerHTML = `
+        <div style="background:linear-gradient(135deg,#d4edda,#c3e6cb);border:2px solid #28a745;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <strong style="color:#155724;font-size:13px;">📦 Séance forfait</strong>
+                <div style="font-size:12px;color:#155724;">${prestationNom} — Séance ${numeroSeance}/${totalSeances}</div>
+            </div>
+            <button type="button" onclick="annulerSeanceAjout()" style="background:none;border:1px solid #155724;color:#155724;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;">Annuler</button>
+        </div>`;
+}
+
+function annulerSeanceAjout() {
+    document.getElementById('ajout-seance-forfait-id').value = '';
+    calculerSousTotalAjout();
+    verifierForfaitAjout();
+}
+
+function proposerVenteForfaitAjout(prestationId, prestationNom, prix, nbSeances) {
+    const clientId  = document.getElementById('ajout-client-id').value;
+    const clientNom = document.getElementById('ajout-client-nom').textContent;
+    if (!clientId) { showWarning('Client non identifié'); return; }
+
+    venteForfaitContext = {
+        clientId: clientId,
+        prestationId: prestationId,
+        prestationNom: prestationNom,
+        fromAjout: true,
+    };
+
+    document.getElementById('form-forfait').reset();
+    document.getElementById('forfait-client-id').value = '';
+    document.getElementById('forfait-client-search').value = '';
+    document.getElementById('forfait-details').style.display = 'none';
+    document.getElementById('forfait-montant-container').style.display = 'none';
+    document.getElementById('modal-forfait').style.display = 'flex';
+    document.getElementById('forfait-client-id').value = clientId;
+    document.getElementById('forfait-client-search').value = clientNom;
+    chargerCartesCadeauxForfait(clientId);
+    chargerForfaitsDisponibles(function() {
+        const sel = document.getElementById('forfait-prestation');
+        sel.value = prestationId;
+        sel.dispatchEvent(new Event('change'));
+    });
+}
+
+function mettreAJourBoutonsForFaitReservation(blocIndex) {
+    const prestSel  = document.getElementById(`res-prestation-${blocIndex}`);
+    const badge     = document.getElementById(`res-forfait-badge-${blocIndex}`);
+    if (!prestSel) return;
+
+    const selectedId = prestSel.value;
+    const selOpt     = prestSel.options[prestSel.selectedIndex];
+    const typePresta = selOpt ? selOpt.dataset.type : '';
+    const prixBase   = selOpt ? parseFloat(selOpt.dataset.prix) || 0 : 0;
+    const nbSeances  = selOpt ? parseInt(selOpt.dataset.nbSeances) || 1 : 1;
+    const prestNom   = selOpt && selOpt.value ? (selOpt.dataset.nom || selOpt.text) : '';
+
+    // Les boutons de la section forfaits du haut sont uniquement informatifs
+    document.querySelectorAll('.res-forfait-use-btn').forEach(btn => {
+        btn.style.display = 'none';
+    });
+
+    if (!badge) return;
+
+    // Prestation de type forfait → vérifier si le client en a un actif
+    if (selectedId && typePresta === 'forfait') {
+        const clientId = document.getElementById('res-client-id')?.value;
+        if (!clientId) {
+            badge.innerHTML = `
+                <div style="margin-bottom:8px;padding:8px 12px;background:#f8d7da;border-radius:6px;font-size:12px;color:#721c24;">
+                    ⚠️ Sélectionnez d'abord un client pour vérifier ses forfaits
+                </div>`;
+            return;
+        }
+        const forfaitActif = resForfaitsData.find(f => f.prestation_id == selectedId && f.seances_restantes > 0);
+        if (!forfaitActif) {
+            badge.innerHTML = `
+                <div style="background:linear-gradient(135deg,#fff3cd,#ffeeba);border:2px solid #ffc107;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <strong style="color:#856404;font-size:13px;">📦 Ce client n'a pas ce forfait</strong>
+                        <div style="font-size:12px;color:#856404;">${prestNom} — ${nbSeances} séances</div>
+                    </div>
+                    <button type="button" class="btn"
+                            onclick="proposerVenteForfaitReservation(${blocIndex},${selectedId},'${prestNom.replace(/'/g,"\\'")}',${prixBase},${nbSeances})"
+                            style="padding:5px 10px;background:#9b59b6;color:white;font-size:12px;border:none;border-radius:4px;cursor:pointer;">
+                        Vendre ce forfait
+                    </button>
+                </div>`;
+        } else {
+            // Forfait trouvé → trouver la prochaine séance disponible (pas déjà prise par un autre bloc)
+            const usedSeances = resBlocs
+                .filter(b => b.index !== blocIndex && b.seanceForfaitId && b.seanceForfaitId.startsWith(`${forfaitActif.id}_`))
+                .map(b => parseInt(b.seanceForfaitId.split('_')[1]));
+            const nextSeance = forfaitActif.seances_disponibles.find(s => !usedSeances.includes(s));
+
+            if (nextSeance !== undefined) {
+                badge.innerHTML = `
+                    <div style="background:linear-gradient(135deg,#e8d5f5,#d4b8e8);border:2px solid #9b59b6;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <strong style="color:#6c3483;font-size:13px;">📦 Forfait disponible</strong>
+                            <div style="font-size:12px;color:#6c3483;">${forfaitActif.prestation_nom} — Séance ${nextSeance}/${forfaitActif.nombre_seances_total}</div>
+                        </div>
+                        <button type="button" class="btn"
+                                onclick="utiliserSeanceForfaitReservation(${blocIndex},${forfaitActif.id},${nextSeance},'${forfaitActif.prestation_nom.replace(/'/g,"\\'").replace(/"/g,'\\"')}',${forfaitActif.nombre_seances_total})"
+                                style="padding:5px 10px;background:#9b59b6;color:white;font-size:11px;border:none;border-radius:4px;cursor:pointer;">
+                            Utiliser séance ${nextSeance}
+                        </button>
+                    </div>`;
+            } else {
+                badge.innerHTML = `
+                    <div style="background:#f8d7da;border:1px solid #f5c6cb;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#721c24;">
+                        ⚠️ Toutes les séances de ce forfait sont déjà programmées
+                    </div>`;
+            }
+        }
+    } else {
+        badge.innerHTML = '';
+    }
 }
 
 function utiliserSeanceForfaitReservation(blocIndex, forfaitId, numeroSeance, prestationNom, totalSeances) {
