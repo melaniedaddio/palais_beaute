@@ -109,8 +109,9 @@ class Client(models.Model):
     telephone = models.CharField(max_length=20, unique=True)
     email = models.EmailField(blank=True, null=True)
     sexe = models.CharField(max_length=1, choices=SEXE_CHOICES, default='F')
+    date_naissance = models.DateField(blank=True, null=True)
     date_creation = models.DateTimeField(auto_now_add=True)
-    notes = models.TextField(blank=True, null=True)  # Notes optionnelles
+    notes = models.TextField(blank=True, null=True)  # Observations / notes libres
     actif = models.BooleanField(default=True)
 
     class Meta:
@@ -373,6 +374,12 @@ class GroupeRDV(models.Model):
     )
     nombre_rdv = models.IntegerField(default=1)
     prix_total = models.IntegerField(default=0)
+    duree_personnalisee = models.IntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1)],
+        help_text="Durée totale personnalisée en minutes (remplace la somme des durées des prestations)"
+    )
 
     class Meta:
         verbose_name = "Groupe de RDV"
@@ -381,6 +388,35 @@ class GroupeRDV(models.Model):
 
     def __str__(self):
         return f"Groupe #{self.id} - {self.client} - {self.date} ({self.nombre_rdv} RDV)"
+
+    def get_duree_totale(self):
+        """Retourne la durée totale en minutes (personnalisée si définie, sinon somme des RDVs actifs)."""
+        if self.duree_personnalisee:
+            return self.duree_personnalisee
+        rdvs = self.get_rdvs_actifs()
+        total = 0
+        for rdv in rdvs:
+            if rdv.prestation.duree_minutes:
+                total += rdv.prestation.duree_minutes
+            elif rdv.prestation.duree:
+                total += int(float(rdv.prestation.duree) * 60)
+        return total
+
+    def get_duree_display(self):
+        """Retourne la durée formatée (ex: '1h30' ou '45 min')."""
+        minutes = self.get_duree_totale()
+        if not minutes:
+            return "-"
+        heures = minutes // 60
+        mins = minutes % 60
+        if heures > 0 and mins > 0:
+            return f"{heures}h{mins:02d}"
+        elif heures > 0:
+            return f"{heures}h"
+        return f"{mins} min"
+
+    def a_duree_personnalisee(self):
+        return self.duree_personnalisee is not None
 
     def recalculer_totaux(self):
         rdvs = self.rendez_vous.exclude(statut__in=['annule', 'annule_client'])

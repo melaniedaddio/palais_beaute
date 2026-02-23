@@ -30,4 +30,5 @@ urlpatterns = [
     path('api/cartes-cadeaux/verifier/', views.api_verifier_carte_cadeau, name='api_verifier_carte_cadeau'),
     path('api/cartes-cadeaux/client/', views.api_rechercher_cartes_client, name='api_rechercher_cartes_client'),
     path('api/cartes-cadeaux/<int:carte_id>/supprimer/', views.api_supprimer_carte_cadeau, name='api_supprimer_carte_cadeau'),
+    path('api/cartes-cadeaux/<int:carte_id>/whatsapp/<str:destinataire>/', views.api_carte_cadeau_whatsapp, name='api_carte_cadeau_whatsapp'),
 ]

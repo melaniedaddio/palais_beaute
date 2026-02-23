@@ -42,7 +42,7 @@ def index(request, institut_code):
         date=date_selectionnee
     ).exclude(
         statut__in=['annule', 'annule_client']
-    ).select_related('client', 'employe', 'prestation').prefetch_related('options_selectionnees__option')
+    ).select_related('client', 'employe', 'prestation', 'groupe').prefetch_related('options_selectionnees__option')
 
     # Créer la grille horaire (7h à 23h, créneaux de 15min)
     debut_journee = time(7, 0)
@@ -76,6 +76,8 @@ def index(request, institut_code):
                 'couleur': rdv.get_couleur(),
                 'options': [opt.option.nom for opt in rdv.options_selectionnees.all()],
                 'est_seance_forfait': rdv.est_seance_forfait,
+                'groupe_id': rdv.groupe_id,
+                'groupe_duree_personnalisee': rdv.groupe.duree_personnalisee if rdv.groupe else None,
             }
             # Ajouter les infos forfait si applicable
             if rdv.est_seance_forfait and rdv.forfait:
@@ -199,17 +201,47 @@ def api_verifier_conflit(request, institut_code):
 
     if rdv_exclude_id:
         rdvs = rdvs.exclude(id=rdv_exclude_id)
+        # Exclure aussi tous les RDVs du même groupe que le RDV exclu
+        try:
+            rdv_exclu = RendezVous.objects.only('groupe_id').get(id=rdv_exclude_id)
+            if rdv_exclu.groupe_id:
+                rdvs = rdvs.exclude(groupe_id=rdv_exclu.groupe_id)
+        except RendezVous.DoesNotExist:
+            pass
 
-    rdv = rdvs.select_related('client', 'prestation').first()
-    if rdv:
+    # Pour les groupes avec duree_personnalisee, recalculer la fin effective
+    # afin d'éviter les faux conflits avec des RDVs "hors durée"
+    rdvs_candidats = list(rdvs.select_related('client', 'prestation', 'groupe'))
+
+    rdv_conflit = None
+    for rdv_c in rdvs_candidats:
+        if rdv_c.groupe_id and rdv_c.groupe and rdv_c.groupe.duree_personnalisee:
+            from django.db.models import Min as _Min
+            debut_groupe = RendezVous.objects.filter(
+                groupe_id=rdv_c.groupe_id,
+            ).exclude(
+                statut__in=['annule', 'annule_client', 'absent']
+            ).aggregate(debut=_Min('heure_debut'))['debut']
+            if debut_groupe:
+                dt_fin_eff = datetime.combine(date.today(), debut_groupe) + timedelta(
+                    minutes=rdv_c.groupe.duree_personnalisee
+                )
+                heure_fin_eff = dt_fin_eff.time()
+                # Pas de chevauchement réel si la fin effective est <= heure_debut demandée
+                if heure_fin_eff <= heure_debut:
+                    continue
+        rdv_conflit = rdv_c
+        break
+
+    if rdv_conflit:
         return JsonResponse({
             'conflit': True,
             'rdv': {
-                'id': rdv.id,
-                'client': str(rdv.client),
-                'prestation': rdv.prestation.nom,
-                'heure_debut': rdv.heure_debut.strftime('%H:%M'),
-                'heure_fin':   rdv.heure_fin.strftime('%H:%M'),
+                'id': rdv_conflit.id,
+                'client': str(rdv_conflit.client),
+                'prestation': rdv_conflit.prestation.nom,
+                'heure_debut': rdv_conflit.heure_debut.strftime('%H:%M'),
+                'heure_fin':   rdv_conflit.heure_fin.strftime('%H:%M'),
             }
         })
 
@@ -356,6 +388,7 @@ def api_rdv_creer_groupe(request, institut_code):
         client_id = data.get('client_id')
         date_str = data.get('date')
         prestations_data = data.get('prestations', [])
+        duree_personnalisee = data.get('duree_personnalisee')  # en minutes, optionnel
 
         if not client_id:
             return JsonResponse({'success': False, 'message': 'Client requis'}, status=400)
@@ -367,6 +400,16 @@ def api_rdv_creer_groupe(request, institut_code):
         client = get_object_or_404(Client, id=client_id)
         date_rdv = datetime.strptime(date_str, '%Y-%m-%d').date()
 
+        # Valider la durée personnalisée si fournie
+        duree_perso_int = None
+        if duree_personnalisee is not None:
+            try:
+                duree_perso_int = int(duree_personnalisee)
+                if duree_perso_int < 1:
+                    duree_perso_int = None
+            except (ValueError, TypeError):
+                duree_perso_int = None
+
         # Créer le groupe (conteneur)
         groupe = GroupeRDV.objects.create(
             client=client,
@@ -374,6 +417,7 @@ def api_rdv_creer_groupe(request, institut_code):
             date=date_rdv,
             cree_par=request.user.utilisateur,
             nombre_rdv=len(prestations_data),
+            duree_personnalisee=duree_perso_int,
         )
 
         rdvs_crees = []
@@ -515,6 +559,7 @@ def api_rdv_details(request, institut_code, rdv_id):
         'prix_total': float(rdv.prix_total),
         'statut': rdv.statut,
         'est_seance_forfait': rdv.est_seance_forfait,
+        'groupe_id': rdv.groupe_id,
         'options': [{'id': opt.option.id, 'nom': opt.option.nom, 'prix': float(opt.prix_unitaire), 'quantite': opt.quantite} for opt in options]
     }
 
@@ -539,12 +584,39 @@ def api_rdv_ajouter_prestation(request, institut_code, rdv_id):
         prix_base         = Decimal(str(data.get('prix_base', 0)))
         options_list      = data.get('options', [])
         seance_forfait_id = data.get('seance_forfait_id')
+        employe_id_param  = data.get('employe_id')
 
         if not prestation_id or not heure_str:
             return JsonResponse({'success': False, 'message': 'Prestation et heure requises'}, status=400)
 
         prestation  = get_object_or_404(Prestation, id=prestation_id)
         heure_debut = datetime.strptime(heure_str, '%H:%M').time()
+
+        # Déterminer l'employé (peut être différent du RDV d'origine)
+        if employe_id_param and str(employe_id_param) != str(rdv_existant.employe_id):
+            employe = get_object_or_404(Employe, id=employe_id_param, institut=institut)
+            # Vérifier conflit pour ce nouvel employé
+            duree_min = prestation.duree_minutes if prestation.duree_minutes else (
+                int(float(prestation.duree) * 60) if prestation.duree else 0
+            )
+            heure_fin_new = (datetime.combine(rdv_existant.date, heure_debut) + timedelta(
+                minutes=duree_min
+            )).time()
+            conflits = RendezVous.objects.filter(
+                institut=institut,
+                employe=employe,
+                date=rdv_existant.date,
+                heure_debut__lt=heure_fin_new,
+                heure_fin__gt=heure_debut,
+            ).exclude(statut__in=['annule', 'annule_client', 'absent'])
+            if conflits.exists():
+                rdv_conflit = conflits.first()
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Conflit : {employe.nom} a déjà un RDV ({rdv_conflit.client} - {rdv_conflit.heure_debut.strftime("%H:%M")})',
+                }, status=400)
+        else:
+            employe = rdv_existant.employe
 
         # Gérer la séance de forfait
         seance_forfait  = None
@@ -599,11 +671,11 @@ def api_rdv_ajouter_prestation(request, institut_code, rdv_id):
             for opt in options_objs:
                 prix_options += opt.prix * quantites.get(opt.id, 1)
 
-        # Créer le nouveau RDV (même employé, même client, même date, même groupe)
+        # Créer le nouveau RDV (même client, même date, même groupe, employé potentiellement différent)
         nouveau_rdv = RendezVous.objects.create(
             institut=institut,
             client=rdv_existant.client,
-            employe=rdv_existant.employe,
+            employe=employe,
             prestation=prestation,
             famille=prestation.famille,
             date=rdv_existant.date,
@@ -634,6 +706,18 @@ def api_rdv_ajouter_prestation(request, institut_code, rdv_id):
             )
 
         groupe.recalculer_totaux()
+
+        # Durée personnalisée : s'applique uniquement au nouveau RDV (pas au groupe entier)
+        # pour ne pas modifier l'affichage des autres RDVs du groupe
+        duree_personnalisee = data.get('duree_personnalisee')
+        if duree_personnalisee is not None:
+            try:
+                duree_int = int(duree_personnalisee)
+                if duree_int > 0:
+                    fin_custom = (datetime.combine(rdv_existant.date, heure_debut) + timedelta(minutes=duree_int)).time()
+                    RendezVous.objects.filter(id=nouveau_rdv.id).update(heure_fin=fin_custom)
+            except (ValueError, TypeError):
+                pass
 
         message = f'Prestation "{prestation.nom}" ajoutée avec succès'
         if est_seance_forfait:
@@ -729,6 +813,17 @@ def api_rdv_modifier(request, institut_code, rdv_id):
             rdv.raison_modification = raison_modification
 
         rdv.save()
+
+        # Durée personnalisée : modifier heure_fin de CE RDV uniquement, sans toucher au groupe
+        duree_personnalisee = request.POST.get('duree_personnalisee')
+        if duree_personnalisee:
+            try:
+                duree_int = int(duree_personnalisee)
+                if duree_int > 0:
+                    fin_custom = (datetime.combine(rdv.date, rdv.heure_debut) + timedelta(minutes=duree_int)).time()
+                    RendezVous.objects.filter(id=rdv.id).update(heure_fin=fin_custom)
+            except (ValueError, TypeError):
+                pass
 
         # Créer un log de modification de prix
         if prix_modifie:
@@ -941,12 +1036,28 @@ def api_rdv_annule_client(request, institut_code, rdv_id):
         }, status=400)
 
     try:
-        rdv.statut = 'annule_client'
-        rdv.save()
-        return JsonResponse({
-            'success': True,
-            'message': 'Rendez-vous marqué comme annulé par le client'
-        })
+        annuler_groupe = request.POST.get('annuler_groupe') == 'true'
+
+        if annuler_groupe and rdv.groupe_id:
+            # Annuler tous les RDVs du groupe (non validés, non déjà annulés)
+            rdvs_groupe = RendezVous.objects.filter(
+                groupe_id=rdv.groupe_id,
+                institut=institut,
+            ).exclude(statut__in=['valide', 'absent', 'annule_client'])
+            nb = rdvs_groupe.count()
+            rdvs_groupe.update(statut='annule_client')
+            return JsonResponse({
+                'success': True,
+                'message': f'{nb} prestation(s) du groupe annulée(s) par le client'
+            })
+        else:
+            rdv.statut = 'annule_client'
+            rdv.save()
+            return JsonResponse({
+                'success': True,
+                'message': 'Rendez-vous marqué comme annulé par le client'
+            })
+
     except Exception as e:
         return JsonResponse({
             'success': False,
@@ -1547,6 +1658,57 @@ def api_cloturer_caisse(request, institut_code):
 
 @login_required
 @institut_required
+@require_POST
+def api_groupe_modifier(request, institut_code, groupe_id):
+    """API : Modifier l'heure de début et/ou la durée personnalisée d'un groupe de RDVs"""
+    institut = get_object_or_404(Institut, code=institut_code, a_agenda=True)
+    groupe   = get_object_or_404(GroupeRDV, id=groupe_id, institut=institut)
+
+    try:
+        data = json.loads(request.body)
+        nouvelle_heure_str   = data.get('heure_debut')
+        duree_personnalisee  = data.get('duree_personnalisee')
+
+        rdvs_actifs = list(
+            RendezVous.objects.filter(groupe=groupe)
+            .exclude(statut__in=['annule', 'annule_client', 'absent'])
+            .order_by('heure_debut')
+        )
+
+        if not rdvs_actifs:
+            return JsonResponse({'success': False, 'message': 'Aucun RDV actif dans ce groupe'}, status=400)
+
+        # --- Décaler l'heure de début de tous les RDVs ---
+        if nouvelle_heure_str:
+            nouvelle_heure = datetime.strptime(nouvelle_heure_str, '%H:%M').time()
+            ancienne_heure = rdvs_actifs[0].heure_debut
+            decalage_min = int(
+                (datetime.combine(date.today(), nouvelle_heure) -
+                 datetime.combine(date.today(), ancienne_heure)).total_seconds() / 60
+            )
+            if decalage_min != 0:
+                for rdv in rdvs_actifs:
+                    nouvelle_dt = datetime.combine(date.today(), rdv.heure_debut) + timedelta(minutes=decalage_min)
+                    rdv.heure_debut = nouvelle_dt.time()
+                    rdv.save(update_fields=['heure_debut'])
+
+        # --- Durée personnalisée ---
+        if duree_personnalisee is not None:
+            try:
+                duree_int = int(duree_personnalisee)
+                groupe.duree_personnalisee = duree_int if duree_int > 0 else None
+                groupe.save(update_fields=['duree_personnalisee'])
+            except (ValueError, TypeError):
+                pass
+
+        return JsonResponse({'success': True, 'message': 'Groupe modifié avec succès'})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+
+@login_required
+@institut_required
 def api_forfaits_disponibles(request, institut_code):
     """API : Récupérer les forfaits disponibles pour un institut (Klinic uniquement)"""
     institut = get_object_or_404(Institut, code=institut_code)
@@ -2057,3 +2219,109 @@ def api_forfait_supprimer(request, institut_code, forfait_id):
             'success': False,
             'message': str(e)
         }, status=400)
+
+
+@login_required
+@institut_required
+def page_rappels(request, institut_code):
+    """Page de rappels : affiche les RDVs du lendemain groupés par employé."""
+    institut = get_object_or_404(Institut, code=institut_code, a_agenda=True)
+
+    demain = date.today() + timedelta(days=1)
+
+    employes = Employe.objects.filter(
+        institut=institut,
+        actif=True
+    ).order_by('ordre_affichage', 'nom')
+
+    rdvs_demain = RendezVous.objects.filter(
+        institut=institut,
+        date=demain,
+    ).exclude(
+        statut__in=['annule', 'annule_client']
+    ).select_related('client', 'employe', 'prestation').order_by('employe__ordre_affichage', 'heure_debut')
+
+    # Grouper par employé, en dédupliquant les groupes
+    # On passe une liste de dicts pour éviter les attributs underscore inaccessibles en template
+    rdvs_par_employe = {}
+    for employe in employes:
+        rdvs_employe_bruts = [rdv for rdv in rdvs_demain if rdv.employe_id == employe.id]
+        items_employe = []
+        groupes_vus = set()
+
+        for rdv in rdvs_employe_bruts:
+            if rdv.groupe_id:
+                if rdv.groupe_id in groupes_vus:
+                    # Déjà traité → ignorer
+                    continue
+                groupes_vus.add(rdv.groupe_id)
+                # Récupérer toutes les prestations du groupe pour cet employé
+                rdvs_du_groupe = [r for r in rdvs_employe_bruts if r.groupe_id == rdv.groupe_id]
+                prestations_groupe = ', '.join(r.prestation.nom for r in rdvs_du_groupe)
+                items_employe.append({
+                    'rdv': rdv,
+                    'prestations_groupe': prestations_groupe,
+                    'nb_prestations': len(rdvs_du_groupe),
+                })
+            else:
+                items_employe.append({
+                    'rdv': rdv,
+                    'prestations_groupe': None,
+                    'nb_prestations': 1,
+                })
+
+        if items_employe:
+            rdvs_par_employe[employe] = items_employe
+
+    return render(request, 'agenda/rappels.html', {
+        'institut': institut,
+        'demain': demain,
+        'rdvs_par_employe': rdvs_par_employe,
+    })
+
+
+@login_required
+@institut_required
+def api_rdv_whatsapp_rappel(request, institut_code, rdv_id):
+    """API : Génère un lien WhatsApp de rappel RDV pour le lendemain."""
+    from core.utils import generer_lien_whatsapp
+
+    institut = get_object_or_404(Institut, code=institut_code, a_agenda=True)
+    rdv = get_object_or_404(
+        RendezVous.objects.select_related('client', 'prestation', 'employe'),
+        id=rdv_id,
+        institut=institut
+    )
+
+    telephone = rdv.client.telephone
+    prenom = rdv.client.prenom
+    heure = rdv.heure_debut.strftime('%Hh%M')
+
+    # Si le RDV fait partie d'un groupe, lister toutes les prestations
+    if rdv.groupe_id:
+        rdvs_groupe = RendezVous.objects.filter(
+            groupe_id=rdv.groupe_id
+        ).exclude(
+            statut__in=['annule', 'annule_client']
+        ).select_related('prestation').order_by('heure_debut')
+        prestations_str = ', '.join(r.prestation.nom for r in rdvs_groupe)
+    else:
+        prestations_str = rdv.prestation.nom
+
+    message = (
+        f"Bonjour {prenom} \U0001f60a\n\n"
+        f"Nous vous rappelons votre rendez-vous demain au {institut.nom} :\n\n"
+        f"\U0001f550 Heure : *{heure}*\n"
+        f"\U0001f485 Prestation(s) : {prestations_str}\n\n"
+        f"En cas d'empêchement, merci de nous prévenir à l'avance.\n"
+        f"À demain ! \U0001f496"
+    )
+
+    lien = generer_lien_whatsapp(telephone, message)
+    if not lien:
+        return JsonResponse({
+            'success': False,
+            'message': f'Numéro de téléphone invalide pour {rdv.client.get_full_name()}'
+        })
+
+    return JsonResponse({'success': True, 'lien': lien})

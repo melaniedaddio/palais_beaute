@@ -369,8 +369,12 @@
                     {% endif %}
                 </td>
                 <td>
-                    <div style="display: flex; gap: 8px;">
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                         <a href="{% url 'core:imprimer_carte_cadeau' carte_id=carte.id %}" target="_blank" class="btn btn-outline" style="padding: 6px 12px; font-size: 12px;">Imprimer</a>
+                        {% if carte.statut == 'active' %}
+                        <button onclick="envoyerWhatsAppCarte({{ carte.id }}, 'beneficiaire')" class="btn btn-outline" style="padding: 6px 10px; font-size: 12px; background: #25D366; color: white; border-color: #25D366;" title="WhatsApp bénéficiaire">📱 Bénéf.</button>
+                        <button onclick="envoyerWhatsAppCarte({{ carte.id }}, 'acheteur')" class="btn btn-outline" style="padding: 6px 10px; font-size: 12px; background: #128C7E; color: white; border-color: #128C7E;" title="WhatsApp acheteur">📱 Achet.</button>
+                        {% endif %}
                         {% if request.user.utilisateur.is_patron %}
                         <button onclick="ouvrirModalSupprimerCarte({{ carte.id }}, '{{ carte.code }}', {{ carte.utilisations.count }})" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Supprimer</button>
                         {% endif %}
@@ -1186,6 +1190,21 @@ document.getElementById('modalSupprimerCarte').addEventListener('click', functio
 document.getElementById('modalNouveauClient').addEventListener('click', function(e) {
     if (e.target === this) fermerModalNouveauClient();
 });
+
+// === WhatsApp carte cadeau ===
+async function envoyerWhatsAppCarte(carteId, destinataire) {
+    try {
+        const resp = await fetch(`/api/cartes-cadeaux/${carteId}/whatsapp/${destinataire}/`);
+        const data = await resp.json();
+        if (data.success) {
+            window.open(data.lien, '_blank');
+        } else {
+            showError(data.message || 'Impossible de générer le lien WhatsApp');
+        }
+    } catch (err) {
+        showError('Erreur réseau');
+    }
+}
 
 // Initialiser autocomplete
 setupAutocomplete('searchAcheteur', 'resultsAcheteur', 'acheteurId', 'acheteurSelected');

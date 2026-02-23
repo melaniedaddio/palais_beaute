@@ -468,13 +468,24 @@
         <h1 class="page-title">Dashboard Patron</h1>
         <p class="page-subtitle">Vue d'ensemble - {{ date_debut|date:"d/m/Y" }} au {{ date_fin|date:"d/m/Y" }}</p>
     </div>
-    <div class="periode-selector">
-        <select id="periode-select" class="form-control" onchange="window.location.href='?periode=' + this.value" style="width: 200px; padding: 10px; border-radius: 8px; border: 2px solid var(--primary); font-weight: 500;">
+    <div class="periode-selector" style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+        <select id="periode-select" class="form-control" onchange="onPeriodeChange(this.value)" style="width: 200px; padding: 10px; border-radius: 8px; border: 2px solid var(--primary); font-weight: 500;">
             <option value="jour" {% if periode == 'jour' %}selected{% endif %}>Aujourd'hui</option>
             <option value="semaine" {% if periode == 'semaine' %}selected{% endif %}>Cette semaine</option>
             <option value="mois" {% if periode == 'mois' %}selected{% endif %}>Ce mois</option>
             <option value="annee" {% if periode == 'annee' %}selected{% endif %}>Cette année</option>
+            <option value="personnalisee" {% if periode == 'personnalisee' %}selected{% endif %}>Personnalisée…</option>
         </select>
+        <div id="bloc-dates-custom" style="display:{% if periode == 'personnalisee' %}flex{% else %}none{% endif %};gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+            <input type="date" id="date-debut-custom" class="form-control"
+                   value="{{ date_debut_custom }}" style="width:160px;padding:8px;">
+            <span style="color:var(--text-light);font-weight:600;">→</span>
+            <input type="date" id="date-fin-custom" class="form-control"
+                   value="{{ date_fin_custom }}" style="width:160px;padding:8px;">
+            <button class="btn btn-primary" style="padding:8px 16px;font-size:14px;" onclick="appliquerDatesCustom()">
+                Appliquer
+            </button>
+        </div>
     </div>
 </div>
 
@@ -647,7 +658,7 @@
 
 <!-- Graphiques -->
 <div class="dashboard-grid">
-    {% if periode != 'jour' %}
+    {% if montrer_evolution_ca %}
     <div class="dashboard-card">
         <div class="dashboard-card-header">
             <h2 class="dashboard-card-title">Evolution du CA</h2>
@@ -947,6 +958,24 @@
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+// ─── Sélecteur de période + plage personnalisée ───────────────────────────────
+function onPeriodeChange(val) {
+    const bloc = document.getElementById('bloc-dates-custom');
+    if (val === 'personnalisee') {
+        bloc.style.display = 'flex';
+    } else {
+        bloc.style.display = 'none';
+        window.location.href = '?periode=' + val;
+    }
+}
+
+function appliquerDatesCustom() {
+    const d1 = document.getElementById('date-debut-custom').value;
+    const d2 = document.getElementById('date-fin-custom').value;
+    if (!d1 || !d2) { alert('Veuillez sélectionner les deux dates.'); return; }
+    window.location.href = '?periode=personnalisee&date_debut_custom=' + d1 + '&date_fin_custom=' + d2;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Forcer le scroll en haut de la page
     window.scrollTo(0, 0);
@@ -1131,7 +1160,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         console.log('Chargement stats institut:', institut, 'période:', periode);
 
-        fetch(`{% url "dashboard:api_stats_institut" %}?institut=${institut}&periode=${periode}`)
+        const dateDebutCustom = '{{ date_debut_custom }}';
+        const dateFinCustom   = '{{ date_fin_custom }}';
+        let urlInstitut = `{% url "dashboard:api_stats_institut" %}?institut=${institut}&periode=${periode}`;
+        if (periode === 'personnalisee' && dateDebutCustom && dateFinCustom) {
+            urlInstitut += `&date_debut_custom=${dateDebutCustom}&date_fin_custom=${dateFinCustom}`;
+        }
+        fetch(urlInstitut)
             .then(response => response.json())
             .then(data => {
                 console.log('Données reçues:', data);
@@ -1179,14 +1214,23 @@ document.addEventListener('DOMContentLoaded', function() {
                             title: {
                                 display: true,
                                 text: data.institut
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const val = Math.round(context.parsed.x);
+                                        return ' ' + val.toLocaleString('fr-FR') + ' CFA';
+                                    }
+                                }
                             }
                         },
                         scales: {
                             x: {
                                 beginAtZero: true,
                                 ticks: {
+                                    precision: 0,
                                     callback: function(value) {
-                                        return value.toLocaleString('fr-FR') + ' CFA';
+                                        return Math.round(value).toLocaleString('fr-FR') + ' CFA';
                                     }
                                 }
                             }

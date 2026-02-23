@@ -396,11 +396,23 @@ def api_client_creer(request):
                 }
             })
 
+    date_naissance_str = request.POST.get('date_naissance', '').strip()
+    date_naissance = None
+    if date_naissance_str:
+        from datetime import date as date_type
+        try:
+            date_naissance = date_type.fromisoformat(date_naissance_str)
+        except ValueError:
+            pass
+    notes = request.POST.get('notes', '').strip() or None
+
     client = Client.objects.create(
         nom=nom,
         prenom=prenom,
         telephone=telephone_normalise if telephone_normalise else telephone,
-        email=email
+        email=email,
+        date_naissance=date_naissance,
+        notes=notes,
     )
 
     return JsonResponse({
@@ -434,10 +446,22 @@ def api_client_modifier(request, pk):
     if Client.objects.filter(telephone=telephone).exclude(pk=pk).exists():
         return JsonResponse({'success': False, 'message': 'Ce numéro de téléphone est déjà utilisé'})
 
+    date_naissance_str = request.POST.get('date_naissance', '').strip()
+    date_naissance = None
+    if date_naissance_str:
+        from datetime import date as date_type
+        try:
+            date_naissance = date_type.fromisoformat(date_naissance_str)
+        except ValueError:
+            pass
+    notes = request.POST.get('notes', '').strip() or None
+
     client.nom = nom
     client.prenom = prenom
     client.telephone = telephone
     client.email = email
+    client.date_naissance = date_naissance
+    client.notes = notes
     client.save()
 
     return JsonResponse({
@@ -915,6 +939,55 @@ def imprimer_carte_cadeau(request, carte_id):
     return render(request, 'cartes_cadeaux/bon_cadeau_print.html', {
         'carte': carte,
     })
+
+
+@login_required
+def api_carte_cadeau_whatsapp(request, carte_id, destinataire):
+    """Génère un lien WhatsApp pour envoyer les infos d'une carte cadeau."""
+    from .utils import generer_lien_whatsapp
+
+    if destinataire not in ('beneficiaire', 'acheteur'):
+        return JsonResponse({'success': False, 'message': 'Destinataire invalide'}, status=400)
+
+    try:
+        carte = CarteCadeau.objects.select_related(
+            'beneficiaire', 'acheteur', 'institut_achat'
+        ).get(id=carte_id)
+    except CarteCadeau.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Carte non trouvée'}, status=404)
+
+    if destinataire == 'beneficiaire':
+        client = carte.beneficiaire
+        message = (
+            f"Bonjour {client.prenom} 😊\n\n"
+            f"Vous avez reçu une carte cadeau de {carte.montant_initial:,} FCFA "
+            f"au {carte.institut_achat.nom} !\n\n"
+            f"🎁 Code : *{carte.code}*\n"
+            f"💰 Solde : {carte.solde:,} FCFA\n"
+        )
+    else:
+        client = carte.acheteur
+        message = (
+            f"Bonjour {client.prenom} 😊\n\n"
+            f"Votre carte cadeau de {carte.montant_initial:,} FCFA "
+            f"au {carte.institut_achat.nom} a bien été créée !\n\n"
+            f"🎁 Code : *{carte.code}*\n"
+            f"👤 Bénéficiaire : {carte.beneficiaire.get_full_name()}\n"
+        )
+
+    if carte.date_expiration:
+        message += f"📅 Valable jusqu'au : {carte.date_expiration.strftime('%d/%m/%Y')}\n"
+
+    message += f"\nÀ très bientôt ! 💖"
+
+    lien = generer_lien_whatsapp(client.telephone, message)
+    if not lien:
+        return JsonResponse({
+            'success': False,
+            'message': f'Numéro de téléphone invalide pour {client.get_full_name()}'
+        })
+
+    return JsonResponse({'success': True, 'lien': lien})
 
 
 @login_required

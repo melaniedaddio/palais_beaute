@@ -565,7 +565,7 @@
                     <div class="client-actions">
                         <a href="{% url 'core:client_detail' client.id %}" class="btn-action btn-voir">Voir</a>
                         {% if request.user.utilisateur.is_patron %}
-                        <button class="btn-action btn-modifier" onclick="ouvrirModalClient({{ client.id }}, '{{ client.nom|escapejs }}', '{{ client.prenom|escapejs }}', '{{ client.telephone }}', '{{ client.email|default:""|escapejs }}')">Modifier</button>
+                        <button class="btn-action btn-modifier" onclick="ouvrirModalClient({{ client.id }}, '{{ client.nom|escapejs }}', '{{ client.prenom|escapejs }}', '{{ client.telephone }}', '{{ client.email|default:""|escapejs }}', '{{ client.date_naissance|default:"" }}', '{{ client.notes|default:""|escapejs }}')">Modifier</button>
                         {% endif %}
                     </div>
                 </td>
@@ -639,6 +639,16 @@
                 <input type="email" class="form-control" id="email" name="email">
             </div>
 
+            <div class="form-group">
+                <label for="date_naissance">Date de naissance (optionnel)</label>
+                <input type="date" class="form-control" id="date_naissance" name="date_naissance">
+            </div>
+
+            <div class="form-group">
+                <label for="notes">Observation (optionnel)</label>
+                <textarea class="form-control" id="notes" name="notes" rows="3" style="resize:vertical;"></textarea>
+            </div>
+
             <div class="modal-actions">
                 {% if request.user.utilisateur.is_patron %}
                 <button type="button" class="btn-delete" id="btn-supprimer-client" onclick="supprimerClient()" style="display: none;">Supprimer</button>
@@ -652,12 +662,14 @@
 </div>
 
 <script>
-function ouvrirModalClient(id = null, nom = '', prenom = '', telephone = '', email = '') {
+function ouvrirModalClient(id = null, nom = '', prenom = '', telephone = '', email = '', date_naissance = '', notes = '') {
     document.getElementById('client-id').value = id || '';
     document.getElementById('nom').value = nom;
     document.getElementById('prenom').value = prenom;
     document.getElementById('telephone').value = telephone;
     document.getElementById('email').value = email;
+    document.getElementById('date_naissance').value = date_naissance;
+    document.getElementById('notes').value = notes;
 
     document.getElementById('modal-title').textContent = id ? 'Modifier client' : 'Nouveau client';
 

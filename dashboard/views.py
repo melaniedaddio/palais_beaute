@@ -34,6 +34,17 @@ def index(request):
     elif periode == 'annee':
         date_debut = today.replace(month=1, day=1)
         date_fin = today
+    elif periode == 'personnalisee':
+        date_debut_str = request.GET.get('date_debut_custom', '')
+        date_fin_str   = request.GET.get('date_fin_custom', '')
+        try:
+            date_debut = dt_date.fromisoformat(date_debut_str)
+            date_fin   = dt_date.fromisoformat(date_fin_str)
+            if date_fin < date_debut:
+                date_fin = date_debut
+        except ValueError:
+            date_debut = today
+            date_fin   = today
     else:
         date_debut = today.replace(day=1)
         date_fin = today
@@ -472,10 +483,18 @@ def index(request):
     # Total des écarts de la période
     total_ecart_periode = clotures_periode.aggregate(total=Sum('ecart'))['total'] or 0
 
+    montrer_evolution_ca = not (
+        periode == 'jour' or
+        (periode == 'personnalisee' and date_debut == date_fin)
+    )
+
     context = {
         'periode': periode,
         'date_debut': date_debut,
         'date_fin': date_fin,
+        'date_debut_custom': date_debut.isoformat() if periode == 'personnalisee' else '',
+        'date_fin_custom':   date_fin.isoformat()   if periode == 'personnalisee' else '',
+        'montrer_evolution_ca': montrer_evolution_ca,
         'ca_total': ca_total,
         'ca_paiements_total': ca_paiements_total,
         'ca_cartes_vendues_total': ca_cartes_vendues_total,
@@ -700,18 +719,32 @@ def api_stats_institut(request):
 
     today = timezone.now().date()
 
-    # Définir les dates selon la période
+    # Définir les dates selon la période — identique à dashboard/views.py index()
     if periode == 'jour':
         date_debut = today
         date_fin = today
     elif periode == 'semaine':
-        date_debut = today - timedelta(days=6)
+        date_debut = today - timedelta(days=today.weekday())
         date_fin = today
     elif periode == 'mois':
-        date_debut = today - timedelta(days=29)
+        date_debut = today.replace(day=1)
         date_fin = today
-    else:  # annee
+    elif periode == 'annee':
         date_debut = today.replace(month=1, day=1)
+        date_fin = today
+    elif periode == 'personnalisee':
+        date_debut_str = request.GET.get('date_debut_custom', '')
+        date_fin_str   = request.GET.get('date_fin_custom', '')
+        try:
+            date_debut = dt_date.fromisoformat(date_debut_str)
+            date_fin   = dt_date.fromisoformat(date_fin_str)
+            if date_fin < date_debut:
+                date_fin = date_debut
+        except ValueError:
+            date_debut = today
+            date_fin   = today
+    else:
+        date_debut = today.replace(day=1)
         date_fin = today
 
     # Pour Express : récupérer les dates clôturées
@@ -757,7 +790,7 @@ def api_stats_institut(request):
         if ca > 0:  # Ne montrer que les employés avec du CA
             employes_stats.append({
                 'nom': employe.nom,
-                'ca': float(ca)
+                'ca': int(ca)
             })
 
     # Top prestations

@@ -352,9 +352,15 @@
                 {% if client.email %}
                 <div class="client-contact">{{ client.email }}</div>
                 {% endif %}
+                {% if client.date_naissance %}
+                <div class="client-contact">🎂 {{ client.date_naissance|date:"d/m/Y" }}</div>
+                {% endif %}
                 <div class="client-contact" style="opacity: 0.7; font-size: 0.9em;">
                     Client depuis le {{ client.date_creation|date:"d/m/Y" }}
                 </div>
+                {% if client.notes %}
+                <div class="client-contact" style="margin-top: 8px; font-style: italic; opacity: 0.85;">{{ client.notes }}</div>
+                {% endif %}
             </div>
             {% if request.user.utilisateur.is_patron %}
             <button class="btn-modifier" onclick="ouvrirModalModifier()">
@@ -561,6 +567,17 @@
                 <label for="email">Email (optionnel)</label>
                 <input type="email" class="form-control" id="email" name="email"
                        value="{{ client.email|default:'' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="date_naissance">Date de naissance (optionnel)</label>
+                <input type="date" class="form-control" id="date_naissance" name="date_naissance"
+                       value="{{ client.date_naissance|default:'' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="notes">Observation (optionnel)</label>
+                <textarea class="form-control" id="notes" name="notes" rows="3" style="resize:vertical;">{{ client.notes|default:'' }}</textarea>
             </div>
 
             <div class="modal-actions">

@@ -7,6 +7,10 @@ urlpatterns = [
     # Vue principale
     path('<str:institut_code>/', views.index, name='index'),
 
+    # Rappels du lendemain
+    path('<str:institut_code>/rappels/', views.page_rappels, name='page_rappels'),
+    path('<str:institut_code>/api/rdv/<int:rdv_id>/whatsapp-rappel/', views.api_rdv_whatsapp_rappel, name='api_rdv_whatsapp_rappel'),
+
     # Clôture de caisse
     path('<str:institut_code>/cloture/', views.cloture_caisse, name='cloture_caisse'),
     path('<str:institut_code>/api/cloture/', views.api_cloturer_caisse, name='api_cloturer_caisse'),
@@ -27,6 +31,7 @@ urlpatterns = [
     path('<str:institut_code>/api/rdv/valider-groupe/', views.api_rdv_valider_groupe, name='api_rdv_valider_groupe'),
     path('<str:institut_code>/api/rdv/creer-groupe/', views.api_rdv_creer_groupe, name='api_rdv_creer_groupe'),
     path('<str:institut_code>/api/rdv/<int:rdv_id>/ajouter-prestation/', views.api_rdv_ajouter_prestation, name='api_rdv_ajouter_prestation'),
+    path('<str:institut_code>/api/groupe/<int:groupe_id>/modifier/', views.api_groupe_modifier, name='api_groupe_modifier'),
 
     # Forfaits multi-séances
     path('<str:institut_code>/api/forfaits/', views.api_forfaits_disponibles, name='api_forfaits_disponibles'),

@@ -11,29 +11,35 @@
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
             <!-- Navigation date -->
-            <button onclick="changeDate(-1)" class="btn btn-secondary" style="padding: 8px 12px;">
-                &larr; Jour précédent
+            <button onclick="changeDate(-1)" class="btn-agenda-header" style="background:linear-gradient(135deg,#c9a86a,#b89858);color:white;">
+                ← Jour précédent
             </button>
             <input type="date" id="date-selector" value="{{ date_selectionnee|date:'Y-m-d' }}"
-                   onchange="changeDate(0)" class="form-control" style="width: 160px;">
-            <button onclick="changeDate(1)" class="btn btn-secondary" style="padding: 8px 12px;">
-                Jour suivant &rarr;
+                   onchange="changeDate(0)" class="form-control" style="width:160px;height:36px;box-sizing:border-box;">
+            <button onclick="changeDate(1)" class="btn-agenda-header" style="background:linear-gradient(135deg,#c9a86a,#b89858);color:white;">
+                Jour suivant →
             </button>
-            <button onclick="changeDate('today')" class="btn btn-primary" style="padding: 8px 15px;">
+            <button onclick="changeDate('today')" class="btn-agenda-header" style="background:linear-gradient(135deg,#e8b4b8,#d4a5a5);color:white;">
                 Aujourd'hui
             </button>
-            <button onclick="ouvrirModalReservation()" class="btn" style="padding: 8px 15px; background-color: #c9a86a; color: white;">
+            <button onclick="ouvrirModalReservation()" class="btn-agenda-header" style="background:#c9a86a;color:white;">
                 📅 Prendre un RDV
             </button>
             {% if institut.code == 'klinic' %}
-            <button onclick="ouvrirModalForfait()" class="btn" style="padding: 8px 15px; background-color: #9b59b6; color: white;">
+            <button onclick="ouvrirModalForfait()" class="btn-agenda-header" style="background:#9b59b6;color:white;">
                 Vendre un forfait
             </button>
             {% endif %}
             <a href="{% url 'agenda:cloture_caisse' institut.code %}?date={{ date_selectionnee|date:'Y-m-d' }}"
-               class="btn btn-success" style="padding: 8px 15px; text-decoration: none;">
+               class="btn-agenda-header" style="background:#28a745;color:white;text-decoration:none;">
                 Clôture caisse
             </a>
+            {% if request.user.utilisateur.is_patron %}
+            <a href="{% url 'agenda:page_rappels' institut.code %}"
+               class="btn-agenda-header" style="background:#25D366;color:white;text-decoration:none;">
+                📱 Rappels demain
+            </a>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -189,6 +195,25 @@
                 </div>
 
                 <div class="form-group">
+                    <label>⏱ Durée de la prestation</label>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <select id="rdv-duree-heures" class="form-control" style="width:75px;" onchange="mettreAJourAffichageDureeModif()">
+                            <option value="0">0</option><option value="1">1</option><option value="2">2</option>
+                            <option value="3">3</option><option value="4">4</option><option value="5">5</option>
+                            <option value="6">6</option><option value="7">7</option><option value="8">8</option>
+                            <option value="9">9</option><option value="10">10</option>
+                        </select>
+                        <span style="font-size:13px;">h</span>
+                        <select id="rdv-duree-minutes" class="form-control" style="width:75px;" onchange="mettreAJourAffichageDureeModif()">
+                            <option value="0">0</option><option value="15">15</option>
+                            <option value="30">30</option><option value="45">45</option>
+                        </select>
+                        <span style="font-size:13px;">min</span>
+                        <span id="rdv-duree-display" style="font-size:12px;color:#888;"></span>
+                    </div>
+                </div>
+
+                <div class="form-group">
                     <label>Options</label>
                     <div id="options-list" style="display: grid; grid-template-columns: 1fr; gap: 8px;">
                         {% for option in options %}
@@ -222,8 +247,8 @@
             </form>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="fermerModalRdv()" style="padding: 8px 16px;">Annuler</button>
-            <button type="button" class="btn btn-primary" onclick="enregistrerRdv()" style="padding: 8px 16px;">Enregistrer</button>
+            <button type="button" class="btn btn-secondary" onclick="fermerModalRdv()">Annuler</button>
+            <button type="button" class="btn btn-primary" onclick="enregistrerRdv()">Enregistrer</button>
         </div>
     </div>
 </div>
@@ -358,7 +383,8 @@
                 <div id="montant-moyen-1-group" class="form-group" style="display: none;">
                     <label>Montant payé avec le 1er moyen</label>
                     <input type="number" id="montant-paiement-1" name="montant_paiement_1" class="form-control" step="1" min="0"
-                           onchange="calculerMontant2()">
+                           oninput="calculerMontant2()" onchange="calculerMontant2()">
+                    <small id="montant-paiement-1-erreur" style="display:none;color:#dc3545;margin-top:4px;"></small>
                 </div>
 
                 <!-- Moyen de paiement 2 (si double paiement) -->
@@ -394,8 +420,8 @@
             </form>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="fermerModalValidation()" style="padding: 8px 16px;">Annuler</button>
-            <button type="button" class="btn btn-success" onclick="validerRdv()" style="padding: 8px 16px;">Valider le RDV</button>
+            <button type="button" class="btn btn-secondary" onclick="fermerModalValidation()">Annuler</button>
+            <button type="button" class="btn btn-success" onclick="validerRdv()">Valider le RDV</button>
         </div>
     </div>
 </div>
@@ -530,7 +556,8 @@
                 <div id="forfait-montant-moyen-1-group" class="form-group" style="display: none;">
                     <label>Montant payé avec le 1er moyen</label>
                     <input type="number" id="forfait-montant-paiement-1" name="forfait_montant_paiement_1" class="form-control" step="1" min="0"
-                           onchange="calculerMontant2Forfait()">
+                           oninput="calculerMontant2Forfait()" onchange="calculerMontant2Forfait()">
+                    <small id="forfait-montant-paiement-1-erreur" style="display:none;color:#dc3545;margin-top:4px;"></small>
                 </div>
 
                 <!-- Moyen de paiement 2 (si double paiement) -->
@@ -566,15 +593,15 @@
             </form>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="fermerModalForfait()" style="padding: 8px 16px;">Annuler</button>
-            <button type="button" class="btn" onclick="acheterForfait()" style="padding: 8px 16px; background-color: #9b59b6; color: white;">Vendre le forfait</button>
+            <button type="button" class="btn btn-secondary" onclick="fermerModalForfait()">Annuler</button>
+            <button type="button" class="btn" onclick="acheterForfait()" style="background-color: #9b59b6; color: white;">Vendre le forfait</button>
         </div>
     </div>
 </div>
 {% endif %}
 
 <!-- Modal Créer Client Rapide -->
-<div id="modal-nouveau-client" class="modal" style="display: none;">
+<div id="modal-nouveau-client" class="modal" style="display: none; z-index: 3100;">
     <div class="modal-content" style="max-width: 500px;">
         <div class="modal-header">
             <h3>Nouveau Client</h3>
@@ -597,6 +624,14 @@
                 <div class="form-group">
                     <label>Email</label>
                     <input type="email" id="nouveau-client-email" class="form-control" placeholder="Optionnel">
+                </div>
+                <div class="form-group">
+                    <label>Date de naissance</label>
+                    <input type="date" id="nouveau-client-date-naissance" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Observation</label>
+                    <textarea id="nouveau-client-notes" class="form-control" rows="3" style="resize:vertical;" placeholder="Optionnel"></textarea>
                 </div>
                 <div id="nouveau-client-error" class="alert alert-danger" style="display: none;"></div>
             </form>
@@ -671,9 +706,45 @@
                 </div>
             </div>
         </div>
+        <!-- Section durée personnalisée (visible si ≥2 prestations) -->
+        <div id="res-section-duree" style="display: none; margin: 0 0 15px 0; padding: 12px 16px; background: #f0f8ff; border: 1px solid #b8d4e8; border-radius: 8px;">
+            <div style="font-size: 13px; color: #555; margin-bottom: 8px;">
+                ⏱ <strong>Durée catalogue :</strong> <span id="res-duree-catalogue">-</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                <input type="checkbox" id="res-personnaliser-duree" onchange="toggleDureePersonnalisee()" style="width: auto;">
+                <label for="res-personnaliser-duree" style="margin: 0; font-size: 13px; font-weight: 500; cursor: pointer;">Personnaliser la durée totale</label>
+            </div>
+            <div id="res-duree-inputs" style="display: none; gap: 10px; align-items: center; margin-top: 8px;">
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <select id="res-duree-heures" class="form-control" style="width: 75px; padding: 6px 8px;" onchange="mettreAJourDureePersonnalisee()">
+                        <option value="0">0</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9">9</option>
+                        <option value="10">10</option>
+                    </select>
+                    <span style="font-size: 13px;">h</span>
+                    <select id="res-duree-minutes" class="form-control" style="width: 75px; padding: 6px 8px;" onchange="mettreAJourDureePersonnalisee()">
+                        <option value="0">0</option>
+                        <option value="15">15</option>
+                        <option value="30">30</option>
+                        <option value="45">45</option>
+                    </select>
+                    <span style="font-size: 13px;">min</span>
+                </div>
+                <div style="font-size: 12px; color: #888;">→ Total : <strong id="res-duree-perso-display">0 min</strong></div>
+            </div>
+        </div>
         <div class="modal-footer" style="position: sticky; bottom: 0; background: white; z-index: 10;">
-            <button type="button" class="btn btn-secondary" onclick="fermerModalReservation()" style="padding: 8px 16px;">Annuler</button>
-            <button type="button" id="res-btn-creer" class="btn btn-primary" onclick="creerRdvGroupe()" style="padding: 8px 20px;">
+            <button type="button" class="btn btn-secondary" onclick="fermerModalReservation()">Annuler</button>
+            <button type="button" id="res-btn-creer" class="btn btn-primary" onclick="creerRdvGroupe()">
                 ✅ Créer les rendez-vous
             </button>
         </div>
@@ -686,20 +757,27 @@
 <div id="modal-ajouter-prestation" class="modal" style="display: none;">
     <div class="modal-content" style="max-width: 620px; max-height: 88vh; overflow-y: auto;">
         <div class="modal-header" style="position: sticky; top: 0; background: white; z-index: 10;">
-            <h2>➕ Ajouter une prestation</h2>
+            <h2 id="ajout-modal-titre">➕ Ajouter une prestation</h2>
             <button class="modal-close" onclick="fermerModalAjouterPrestation()">&times;</button>
         </div>
         <div class="modal-body">
             <input type="hidden" id="ajout-rdv-id">
-            <input type="hidden" id="ajout-employe-id">
             <input type="hidden" id="ajout-date-value">
             <input type="hidden" id="ajout-client-id">
             <input type="hidden" id="ajout-seance-forfait-id">
+            <div id="ajout-groupe-note" style="display:none;background:#e8f4fd;border:1px solid #b8d9f5;border-radius:8px;padding:10px 14px;font-size:13px;color:#1a6a9a;margin-bottom:14px;"></div>
 
             <!-- Contexte du RDV -->
             <div style="background:#f9f7f2;border:1px solid #e0d5b8;border-radius:8px;padding:12px;margin-bottom:20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:13px;">
                 <div><span style="color:#888;font-size:11px;">Client</span><br><strong id="ajout-client-nom">—</strong></div>
-                <div><span style="color:#888;font-size:11px;">Employé (même)</span><br><strong id="ajout-employe-nom">—</strong></div>
+                <div>
+                    <span style="color:#888;font-size:11px;">Employé</span>
+                    <select id="ajout-employe-id" class="form-control" style="font-size:13px;margin-top:2px;" onchange="mettreAJourUiSelonEmployeAjout()">
+                        {% for employe in employes %}
+                        <option value="{{ employe.id }}">{{ employe.nom }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
                 <div><span style="color:#888;font-size:11px;">Date</span><br><strong id="ajout-date">—</strong></div>
             </div>
 
@@ -750,15 +828,85 @@
                 <span style="font-size:14px;color:#555;">Sous-total</span>
                 <strong id="ajout-sous-total" style="font-size:18px;color:#c9a86a;">0 CFA</strong>
             </div>
+
+            <!-- Section durée totale du groupe -->
+            <div id="ajout-section-duree" style="margin-top:12px;padding:12px 16px;background:#f0f8ff;border:1px solid #b8d4e8;border-radius:8px;">
+                <div style="font-size:13px;color:#555;margin-bottom:8px;">
+                    ⏱ <strong>Durée de la prestation :</strong> <span id="ajout-duree-catalogue">—</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                    <input type="checkbox" id="ajout-personnaliser-duree" onchange="toggleDureeAjout()" style="width:auto;">
+                    <label for="ajout-personnaliser-duree" style="margin:0;font-size:13px;font-weight:500;cursor:pointer;">Définir une durée totale pour le groupe</label>
+                </div>
+                <div id="ajout-duree-inputs" style="display:none;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <select id="ajout-duree-heures" class="form-control" style="width:75px;padding:6px 8px;" onchange="mettreAJourDureeAjout()">
+                            <option value="0">0</option><option value="1">1</option><option value="2">2</option>
+                            <option value="3">3</option><option value="4">4</option><option value="5">5</option>
+                            <option value="6">6</option><option value="7">7</option><option value="8">8</option>
+                            <option value="9">9</option><option value="10">10</option>
+                        </select>
+                        <span style="font-size:13px;">h</span>
+                        <select id="ajout-duree-minutes" class="form-control" style="width:75px;padding:6px 8px;" onchange="mettreAJourDureeAjout()">
+                            <option value="0">0</option><option value="15">15</option>
+                            <option value="30">30</option><option value="45">45</option>
+                        </select>
+                        <span style="font-size:13px;">min</span>
+                    </div>
+                    <div style="font-size:12px;color:#888;">→ Total : <strong id="ajout-duree-perso-display">0 min</strong></div>
+                </div>
+            </div>
         </div>
         <div class="modal-footer" style="position:sticky;bottom:0;background:white;z-index:10;">
-            <button type="button" class="btn btn-secondary" onclick="fermerModalAjouterPrestation()" style="padding:8px 16px;">Annuler</button>
-            <button type="button" class="btn btn-primary" onclick="soumettreAjouterPrestation()" style="padding:8px 20px;">➕ Ajouter la prestation</button>
+            <button type="button" class="btn btn-secondary" onclick="fermerModalAjouterPrestation()">Annuler</button>
+            <button type="button" class="btn btn-primary" onclick="soumettreAjouterPrestation()">➕ Ajouter la prestation</button>
         </div>
     </div>
 </div>
 
 <style>
+/* ── Boutons harmonisés ─────────────────────────────────────────────────── */
+/* Boutons du header de l'agenda (nav date, actions rapides) */
+.btn-agenda-header {
+    padding: 0 14px;
+    height: 36px;
+    font-size: 13px;
+    font-family: inherit;
+    line-height: 1;
+    box-sizing: border-box;
+    border-radius: 8px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+.btn-agenda-header:hover { opacity: 0.85; }
+
+/* Boutons d'action dans le popup RDV (générés en JS) */
+.btn-popup-action {
+    padding: 10px 16px;
+    font-size: 13px;
+    border-radius: 8px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    display: block;
+    margin-bottom: 6px;
+    transition: opacity 0.2s;
+}
+.btn-popup-action:hover { opacity: 0.85; }
+.btn-popup-action:last-child { margin-bottom: 0; }
+/* ────────────────────────────────────────────────────────────────────────── */
+
 /* Stats cards */
 .stats-grid {
     display: grid;
@@ -1462,6 +1610,16 @@ function fermerModalRdv() {
     if (btnValider) btnValider.remove();
 }
 
+function mettreAJourAffichageDureeModif() {
+    const h = parseInt(document.getElementById('rdv-duree-heures')?.value) || 0;
+    const m = parseInt(document.getElementById('rdv-duree-minutes')?.value) || 0;
+    const total = h * 60 + m;
+    const el = document.getElementById('rdv-duree-display');
+    if (el) el.textContent = total > 0
+        ? '→ ' + (h > 0 ? (m > 0 ? `${h}h${String(m).padStart(2,'0')}` : `${h}h`) : `${m} min`)
+        : '';
+}
+
 // Enregistrer RDV
 function enregistrerRdv() {
     const form = document.getElementById('form-rdv');
@@ -1544,6 +1702,12 @@ function enregistrerRdv() {
     // Ajouter les options au formData
     formData.set('options_data', JSON.stringify(optionsAvecQuantites));
 
+    // Durée personnalisée — s'applique uniquement à ce RDV (pas au groupe)
+    const dureeH = parseInt(document.getElementById('rdv-duree-heures')?.value) || 0;
+    const dureeM = parseInt(document.getElementById('rdv-duree-minutes')?.value) || 0;
+    const dureePerso = dureeH * 60 + dureeM;
+    if (dureePerso > 0) formData.set('duree_personnalisee', dureePerso);
+
     console.log('Envoi du formulaire:', Object.fromEntries(formData));
     console.log('Options avec quantités:', optionsAvecQuantites);
 
@@ -1580,7 +1744,35 @@ function enregistrerRdv() {
 // Afficher les RDV sur la grille
 function afficherRdvSurGrille() {
     Object.keys(window.rdvData).forEach(employeId => {
+        // Groupes déjà affichés pour cet employé (pour la durée personnalisée)
+        const groupesAffiches = new Set();
+
         window.rdvData[employeId].forEach(rdv => {
+            // Si ce RDV appartient à un groupe (avec ou sans durée personnalisée)
+            if (rdv.groupe_id) {
+                if (groupesAffiches.has(rdv.groupe_id)) {
+                    // Déjà affiché via le premier RDV du groupe → ignorer
+                    return;
+                }
+                // Premier RDV de ce groupe pour cet employé
+                groupesAffiches.add(rdv.groupe_id);
+                // Tous les RDVs du groupe pour cet employé
+                const rdvsGroupe = window.rdvData[employeId].filter(r => r.groupe_id === rdv.groupe_id);
+                // Noms combinés et prix total
+                const nomsCombines = rdvsGroupe.map(r => r.prestation).join(' + ');
+                const prixGroupeTotal = rdvsGroupe.reduce((s, r) => s + (r.prix_total || 0), 0);
+                // Durée : personnalisée si définie, sinon somme des créneaux
+                const dureeCombinee = rdv.groupe_duree_personnalisee
+                    ? Math.ceil(rdv.groupe_duree_personnalisee / 15)
+                    : rdvsGroupe.reduce((s, r) => s + (r.duree_creneaux || 1), 0);
+                rdv = Object.assign({}, rdv, {
+                    duree_creneaux: dureeCombinee,
+                    prestation: nomsCombines,
+                    prix_total: prixGroupeTotal,
+                    _nb_prestations: rdvsGroupe.length,
+                });
+            }
+
             const cell = document.querySelector(
                 `.employe-cell[data-employe-id="${employeId}"][data-heure="${rdv.heure_debut.substring(0, 5)}"]`
             );
@@ -1631,10 +1823,17 @@ function afficherRdvSurGrille() {
                     forfaitBadge = `<div style="font-size: 10px; color: #9b59b6; font-weight: 600;">${rdv.label_forfait}</div>`;
                 }
 
+                // Badge groupe durée personnalisée
+                let groupeBadge = '';
+                if (rdv._nb_prestations && rdv._nb_prestations > 1) {
+                    groupeBadge = `<div style="font-size: 10px; color: #0077aa; font-weight: 600;">📦 ${rdv._nb_prestations} prestations</div>`;
+                }
+
                 card.innerHTML = `
                     <div class="rdv-client">${rdv.client}</div>
                     <div class="rdv-prestation">${rdv.prestation}</div>
                     ${forfaitBadge}
+                    ${groupeBadge}
                     <div class="rdv-prix">${rdv.prix_total.toLocaleString('fr-FR')} CFA</div>
                     ${statutBadge}
                 `;
@@ -1680,7 +1879,7 @@ function ouvrirModalActions(rdv) {
     let patronButtons = '';
     if (window.isPatron) {
         patronButtons = `
-            <button class="btn" style="padding: 10px 16px; background: #dc3545; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;" onclick="marquerAnnule(${rdv.id})">
+            <button class="btn-popup-action" style="background:#dc3545;color:white;" onclick="marquerAnnule(${rdv.id})">
                 Annulé
             </button>
         `;
@@ -1700,14 +1899,18 @@ function ouvrirModalActions(rdv) {
                 <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
                     <strong>${rdv.prestation}</strong> - ${rdv.prix_total.toLocaleString('fr-FR')} CFA
                 </p>
-                <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <button class="btn" style="padding: 10px 16px; background: #c9a86a; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;" onclick="document.getElementById('modal-actions').style.display='none'; modifierRdv(window._actionRdv)">
-                        Modifier le RDV
-                    </button>
-                    <button class="btn" style="padding: 10px 16px; background: #3498db; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;" onclick="document.getElementById('modal-actions').style.display='none'; ouvrirModalAjouterPrestation(window._actionRdv)">
+                <div style="display:flex;flex-direction:column;">
+                    ${rdv.groupe_id ? `
+                    <button class="btn-popup-action" style="background:#c9a86a;color:white;" onclick="document.getElementById('modal-actions').style.display='none'; ouvrirModalModifierGroupe(window._actionRdv)">
+                        ✏️ Modifier le groupe
+                    </button>` : `
+                    <button class="btn-popup-action" style="background:#c9a86a;color:white;" onclick="document.getElementById('modal-actions').style.display='none'; modifierRdv(window._actionRdv)">
+                        ✏️ Modifier le RDV
+                    </button>`}
+                    <button class="btn-popup-action" style="background:#3498db;color:white;" onclick="document.getElementById('modal-actions').style.display='none'; ouvrirModalAjouterPrestation(window._actionRdv)">
                         ➕ Ajouter une prestation
                     </button>
-                    <button class="btn" style="padding: 10px 16px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%;" onclick="document.getElementById('modal-actions').style.display='none'; ouvrirModalValidation(${rdv.id})">
+                    <button class="btn-popup-action" style="background:#28a745;color:white;" onclick="document.getElementById('modal-actions').style.display='none'; ouvrirModalValidation(${rdv.id})">
                         Valider le RDV
                     </button>
                     ${patronButtons}
@@ -1724,16 +1927,230 @@ function ouvrirModalActions(rdv) {
     });
 }
 
+// Récupère tous les RDVs d'un groupe depuis window.rdvData (toutes colonnes employés)
+function getRdvsGroupe(groupeId) {
+    const rdvs = [];
+    Object.values(window.rdvData).forEach(list => {
+        list.forEach(r => { if (r.groupe_id === groupeId) rdvs.push(r); });
+    });
+    return rdvs.sort((a, b) => a.heure_debut.localeCompare(b.heure_debut));
+}
+
+// Ouvre un RDV par id pour le modifier (fetch détails puis modifierRdv)
+function modifierRdvById(rdvId) {
+    const modalActions = document.getElementById('modal-actions');
+    if (modalActions) modalActions.style.display = 'none';
+    const modalGroupe = document.getElementById('modal-modifier-groupe');
+    if (modalGroupe) modalGroupe.style.display = 'none';
+
+    showPageLoader('Chargement...');
+    fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/')
+        .then(r => r.json())
+        .then(rdvDetails => {
+            hidePageLoader();
+            modifierRdv(rdvDetails);
+        })
+        .catch(() => { hidePageLoader(); showError('Erreur réseau'); });
+}
+
+// Modal de modification d'un groupe : heure, durée totale, retirer prestation
+function ouvrirModalModifierGroupe(rdv) {
+    let modal = document.getElementById('modal-modifier-groupe');
+    if (modal) modal.remove();
+
+    const rdvsGroupe   = getRdvsGroupe(rdv.groupe_id);
+    const groupeId     = rdv.groupe_id;
+    const dureePers    = rdv.groupe_duree_personnalisee || rdvsGroupe[0]?.groupe_duree_personnalisee || null;
+    const heureDebut   = rdvsGroupe.length > 0 ? rdvsGroupe[0].heure_debut.substring(0,5) : '08:00';
+
+    const dureeCochee  = dureePers ? 'checked' : '';
+    const hPerso       = dureePers ? Math.floor(dureePers / 60) : 0;
+    const mPerso       = dureePers ? dureePers % 60 : 0;
+    const dureeTexte   = dureePers
+        ? (hPerso > 0 ? (mPerso > 0 ? `${hPerso}h${String(mPerso).padStart(2,'0')}` : `${hPerso}h`) : `${mPerso} min`)
+        : '—';
+
+    const lignes = rdvsGroupe.map(r => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #f0e8d5;">
+            <div style="flex:1;min-width:0;">
+                <span style="font-weight:700;font-size:14px;color:#3d2b1f;">${r.heure_debut.substring(0,5)}</span>
+                <span style="font-size:13px;color:#3d2b1f;margin-left:8px;">${r.prestation}</span>
+                <div style="font-size:12px;color:#888;margin-top:2px;">${r.employe} · ${r.prix_total.toLocaleString('fr-FR')} CFA</div>
+            </div>
+            <button onclick="retirerPrestationGroupe(${r.id})"
+                    style="background:#fff0f0;color:#dc3545;border:1px solid #f5c2c7;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+                ✕ Retirer
+            </button>
+        </div>
+    `).join('');
+
+    modal = document.createElement('div');
+    modal.id = 'modal-modifier-groupe';
+    modal.className = 'modal';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:480px;max-height:90vh;overflow-y:auto;">
+            <div class="modal-header" style="position:sticky;top:0;background:white;z-index:10;">
+                <h2>✏️ Modifier le groupe — ${rdv.client}</h2>
+                <button class="modal-close" onclick="document.getElementById('modal-modifier-groupe').style.display='none'">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <!-- Heure de début du groupe -->
+                <div style="margin-bottom:16px;">
+                    <label style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:6px;">⏰ Heure de début du groupe</label>
+                    <select id="mg-heure-debut" class="form-control">
+                        ${genererOptionsHoraires(heureDebut)}
+                    </select>
+                    <div style="font-size:12px;color:#888;margin-top:4px;">Toutes les prestations seront décalées ensemble.</div>
+                </div>
+
+                <!-- Durée totale personnalisée -->
+                <div style="padding:12px 16px;background:#f0f8ff;border:1px solid #b8d4e8;border-radius:8px;margin-bottom:16px;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                        <input type="checkbox" id="mg-personnaliser-duree" ${dureeCochee}
+                               onchange="document.getElementById('mg-duree-inputs').style.display=this.checked?'flex':'none'"
+                               style="width:auto;">
+                        <label for="mg-personnaliser-duree" style="margin:0;font-size:13px;font-weight:600;cursor:pointer;">⏱ Durée totale personnalisée</label>
+                    </div>
+                    <div id="mg-duree-inputs" style="display:${dureePers ? 'flex' : 'none'};gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <select id="mg-duree-heures" class="form-control" style="width:75px;padding:6px 8px;" onchange="mettreAJourDureeGroupeModal()">
+                                ${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}"${v===hPerso?' selected':''}>${v}</option>`).join('')}
+                            </select>
+                            <span style="font-size:13px;">h</span>
+                            <select id="mg-duree-minutes" class="form-control" style="width:75px;padding:6px 8px;" onchange="mettreAJourDureeGroupeModal()">
+                                ${[0,15,30,45].map(v=>`<option value="${v}"${v===mPerso?' selected':''}>${v}</option>`).join('')}
+                            </select>
+                            <span style="font-size:13px;">min</span>
+                        </div>
+                        <div style="font-size:12px;color:#888;">→ <strong id="mg-duree-display">${dureeTexte}</strong></div>
+                    </div>
+                </div>
+
+                <!-- Liste des prestations -->
+                <div>
+                    <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:6px;">📋 Prestations (${rdvsGroupe.length})</div>
+                    ${lignes}
+                </div>
+
+                <!-- Ajouter une prestation -->
+                <div style="margin-top:14px;">
+                    <button class="btn-popup-action" style="background:#3498db;color:white;"
+                            onclick="document.getElementById('modal-modifier-groupe').style.display='none'; ouvrirModalAjouterPrestation(window._actionRdv)">
+                        ➕ Ajouter une prestation à ce groupe
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer" style="position:sticky;bottom:0;background:white;z-index:10;">
+                <button class="btn btn-secondary" onclick="document.getElementById('modal-modifier-groupe').style.display='none'">Annuler</button>
+                <button class="btn btn-primary" onclick="enregistrerModificationsGroupe(${groupeId})">✅ Enregistrer</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+}
+
+function mettreAJourDureeGroupeModal() {
+    const h   = parseInt(document.getElementById('mg-duree-heures').value)  || 0;
+    const m   = parseInt(document.getElementById('mg-duree-minutes').value) || 0;
+    const tot = h * 60 + m;
+    const el  = document.getElementById('mg-duree-display');
+    if (el) el.textContent = tot > 0
+        ? (h > 0 ? (m > 0 ? `${h}h${String(m).padStart(2,'0')}` : `${h}h`) : `${m} min`)
+        : '0 min';
+}
+
+function enregistrerModificationsGroupe(groupeId) {
+    const heureDebut = document.getElementById('mg-heure-debut')?.value || null;
+    const cbDuree    = document.getElementById('mg-personnaliser-duree');
+    let dureePers    = null;
+
+    if (cbDuree && cbDuree.checked) {
+        const h = parseInt(document.getElementById('mg-duree-heures').value)  || 0;
+        const m = parseInt(document.getElementById('mg-duree-minutes').value) || 0;
+        dureePers = h * 60 + m > 0 ? h * 60 + m : null;
+    } else {
+        dureePers = 0; // 0 = supprimer la durée personnalisée
+    }
+
+    document.getElementById('modal-modifier-groupe').style.display = 'none';
+    showPageLoader('Enregistrement...');
+
+    fetch(`/agenda/{{ institut.code }}/api/groupe/${groupeId}/modifier/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+        body: JSON.stringify({ heure_debut: heureDebut, duree_personnalisee: dureePers })
+    })
+    .then(r => r.json())
+    .then(data => {
+        hidePageLoader();
+        if (data.success) {
+            showSuccess(data.message || 'Groupe modifié');
+            setTimeout(() => location.reload(), 800);
+        } else {
+            showError(data.message || 'Erreur');
+        }
+    })
+    .catch(() => { hidePageLoader(); showError('Erreur réseau'); });
+}
+
+function retirerPrestationGroupe(rdvId) {
+    if (!confirm('Retirer cette prestation du groupe ?')) return;
+    const modal = document.getElementById('modal-modifier-groupe');
+    if (modal) modal.style.display = 'none';
+    showPageLoader('Suppression...');
+    fetch(`/agenda/{{ institut.code }}/api/rdv/${rdvId}/supprimer/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        hidePageLoader();
+        if (data.success) { showSuccess('Prestation retirée'); setTimeout(() => location.reload(), 800); }
+        else showError(data.message || 'Erreur');
+    })
+    .catch(() => { hidePageLoader(); showError('Erreur réseau'); });
+}
+
 // Marquer un RDV comme annulé (patron uniquement)
 function marquerAnnule(rdvId) {
-    if (!confirm('Confirmer l\'annulation de ce rendez-vous ?')) return;
-    document.getElementById('modal-actions').style.display = 'none';
+    const rdv = window._actionRdv;
+    let annulerGroupe = false;
 
+    if (rdv && rdv.groupe_id) {
+        const rdvsGroupe = getRdvsGroupe(rdv.groupe_id);
+        const nb = rdvsGroupe.length;
+        if (nb > 1) {
+            const choix = confirm(
+                `Ce RDV fait partie d'un groupe de ${nb} prestation(s).\n\n` +
+                `Appuyez sur OK pour annuler TOUT le groupe.\n` +
+                `Appuyez sur Annuler pour annuler uniquement cette prestation.`
+            );
+            // choix = true → tout le groupe | false → seulement ce RDV
+            annulerGroupe = choix;
+            if (!confirm(annulerGroupe
+                ? `Confirmer l'annulation du groupe entier (${nb} prestations) ?`
+                : 'Confirmer l\'annulation de cette prestation uniquement ?'
+            )) return;
+        } else {
+            if (!confirm('Confirmer l\'annulation de ce rendez-vous ?')) return;
+        }
+    } else {
+        if (!confirm('Confirmer l\'annulation de ce rendez-vous ?')) return;
+    }
+
+    document.getElementById('modal-actions').style.display = 'none';
     showPageLoader('Annulation en cours...');
+
+    const formData = new FormData();
+    if (annulerGroupe) formData.append('annuler_groupe', 'true');
 
     fetch('/agenda/{{ institut.code }}/api/rdv/' + rdvId + '/annule-client/', {
         method: 'POST',
-        headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+        body: formData
     })
     .then(response => response.json())
     .then(data => {
@@ -1775,6 +2192,20 @@ function modifierRdv(rdv) {
         // Garder le prix du RDV (pas le prix catalogue)
         document.getElementById('rdv-prix-base').value = rdv.prix_base;
         calculerTotal(false);
+
+        // Pré-remplir les selects durée depuis heure_debut / heure_fin du RDV
+        if (rdv.heure_debut && rdv.heure_fin) {
+            const [hd, md] = rdv.heure_debut.split(':').map(Number);
+            const [hf, mf] = rdv.heure_fin.split(':').map(Number);
+            const dureeMin = (hf * 60 + mf) - (hd * 60 + md);
+            if (dureeMin > 0) {
+                const selH = document.getElementById('rdv-duree-heures');
+                const selM = document.getElementById('rdv-duree-minutes');
+                if (selH) selH.value = Math.floor(dureeMin / 60);
+                if (selM) selM.value = Math.round((dureeMin % 60) / 15) * 15 % 60;
+                mettreAJourAffichageDureeModif();
+            }
+        }
 
         // Restaurer les quantités des options
         // D'abord, remettre toutes les quantités à 0
@@ -2117,7 +2548,9 @@ function toggleDoublePaiement() {
 
 // Fonction pour calculer automatiquement le montant du 2ème moyen
 function calculerMontant2() {
-    const montant1 = parseFloat(document.getElementById('montant-paiement-1').value) || 0;
+    const input = document.getElementById('montant-paiement-1');
+    const erreur = document.getElementById('montant-paiement-1-erreur');
+    let montant1 = parseFloat(input.value) || 0;
 
     // Base = reste après cartes cadeaux, ou montant partiel si en mode partiel
     const typePaiement = document.getElementById('validation-type-paiement').value;
@@ -2126,6 +2559,18 @@ function calculerMontant2() {
         baseTotal = parseFloat(document.getElementById('validation-montant').value) || 0;
     } else {
         baseTotal = getResteApresCartes();
+    }
+
+    // Plafonner : le 1er moyen ne peut pas dépasser le total (strict)
+    if (montant1 > baseTotal) {
+        montant1 = baseTotal;
+        input.value = montant1;
+        if (erreur) {
+            erreur.textContent = 'Le montant du 1er moyen ne peut pas être supérieur au total (' + baseTotal.toLocaleString('fr-FR') + ' CFA).';
+            erreur.style.display = 'block';
+        }
+    } else {
+        if (erreur) erreur.style.display = 'none';
     }
 
     const montant2 = Math.max(0, baseTotal - montant1);
@@ -2298,9 +2743,9 @@ function validerRdvUnique() {
         } else {
             montantRestant = getResteApresCartes();
         }
-        if (montant1 >= montantRestant) {
+        if (montant1 > montantRestant) {
             hidePageLoader();
-            showError('Le 1er montant doit être inférieur au total. Utilisez le paiement simple si vous payez tout avec un seul moyen.');
+            showError('Le 1er montant ne peut pas être supérieur au total.');
             return;
         }
 
@@ -2408,8 +2853,8 @@ function validerRdvGroupe() {
                 montantRestant = getResteApresCartes();
             }
 
-            if (montant1 >= montantRestant) {
-                showError('Le 1er montant doit être inférieur au total. Utilisez le paiement simple si vous payez tout avec un seul moyen.');
+            if (montant1 > montantRestant) {
+                showError('Le 1er montant ne peut pas être supérieur au total.');
                 return;
             }
 
@@ -2538,10 +2983,8 @@ document.getElementById('rdv-client-search').addEventListener('input', function(
                         document.getElementById('rdv-client-search').value = client.prenom + ' ' + client.nom;
                         resultsDiv.innerHTML = '';
                         {% if institut.code == 'klinic' %}
-                        // Charger les forfaits du client
-                        chargerForfaitsClient(client.id);
-                        // Recalculer le total pour afficher la proposition de forfait
-                        setTimeout(() => calculerTotal(), 500);
+                        // Charger les forfaits du client et recalculer une fois chargés
+                        chargerForfaitsClient(client.id, () => calculerTotal());
                         {% endif %}
                     };
                     resultsDiv.appendChild(item);
@@ -2561,10 +3004,13 @@ document.getElementById('rdv-client-search').addEventListener('input', function(
 // ============================
 
 function ouvrirModalNouveauClient() {
+    if (!window._creerClientPour) window._creerClientPour = 'rdv';
     document.getElementById('nouveau-client-prenom').value = '';
     document.getElementById('nouveau-client-nom').value = '';
     document.getElementById('nouveau-client-telephone').value = '';
     document.getElementById('nouveau-client-email').value = '';
+    document.getElementById('nouveau-client-date-naissance').value = '';
+    document.getElementById('nouveau-client-notes').value = '';
     document.getElementById('nouveau-client-error').style.display = 'none';
     document.getElementById('modal-nouveau-client').style.display = 'flex';
     document.getElementById('nouveau-client-prenom').focus();
@@ -2572,6 +3018,28 @@ function ouvrirModalNouveauClient() {
 
 function fermerModalNouveauClient() {
     document.getElementById('modal-nouveau-client').style.display = 'none';
+}
+
+// Appelée après toute création/sélection de client depuis le modal de création rapide.
+// Met à jour le bon champ client selon le modal source (rdv ou reservation).
+function _synchroClientCree(clientId, fullName) {
+    const pour = window._creerClientPour || 'rdv';
+    window._creerClientPour = null;
+
+    if (pour === 'reservation') {
+        document.getElementById('res-client-id').value = clientId;
+        document.getElementById('res-client-search').value = fullName;
+        document.getElementById('res-client-results').innerHTML = '';
+        {% if institut.code == 'klinic' %}
+        chargerForfaitsClientReservation(clientId);
+        {% endif %}
+    } else {
+        document.getElementById('rdv-client').value = clientId;
+        document.getElementById('rdv-client-search').value = fullName;
+        {% if institut.code == 'klinic' %}
+        chargerForfaitsClient(clientId, () => calculerTotal());
+        {% endif %}
+    }
 }
 
 function creerNouveauClient() {
@@ -2591,10 +3059,14 @@ function creerNouveauClient() {
     showPageLoader('Création du client...');
 
     const formData = new FormData();
+    const dateNaissance = document.getElementById('nouveau-client-date-naissance').value;
+    const notes = document.getElementById('nouveau-client-notes').value.trim();
     formData.append('prenom', prenom);
     formData.append('nom', nom);
     formData.append('telephone', telephone);
     if (email) formData.append('email', email);
+    if (dateNaissance) formData.append('date_naissance', dateNaissance);
+    if (notes) formData.append('notes', notes);
 
     fetch('/api/clients/creer/', {
         method: 'POST',
@@ -2607,17 +3079,9 @@ function creerNouveauClient() {
     .then(data => {
         hidePageLoader();
         if (data.success) {
-            // Remplir automatiquement le champ client
-            document.getElementById('rdv-client').value = data.client_id;
-            document.getElementById('rdv-client-search').value = prenom + ' ' + nom;
-
             showSuccess(data.message);
             fermerModalNouveauClient();
-
-            {% if institut.code == 'klinic' %}
-            // Charger les forfaits du client (pour Klinic)
-            chargerForfaitsClient(data.client_id);
-            {% endif %}
+            _synchroClientCree(data.client_id, prenom + ' ' + nom);
         } else if (data.name_duplicate && data.existing_client) {
             // Doublon potentiel par nom+prénom
             if (confirm(data.message + '\n\nVoulez-vous quand même créer ce client ?')) {
@@ -2630,13 +3094,9 @@ function creerNouveauClient() {
                 .then(r => r.json())
                 .then(data2 => {
                     if (data2.success) {
-                        document.getElementById('rdv-client').value = data2.client_id;
-                        document.getElementById('rdv-client-search').value = prenom + ' ' + nom;
                         showSuccess(data2.message);
                         fermerModalNouveauClient();
-                        {% if institut.code == 'klinic' %}
-                        chargerForfaitsClient(data2.client_id);
-                        {% endif %}
+                        _synchroClientCree(data2.client_id, prenom + ' ' + nom);
                     } else {
                         errorDiv.textContent = data2.message;
                         errorDiv.style.display = 'block';
@@ -2644,23 +3104,15 @@ function creerNouveauClient() {
                 });
             } else {
                 // Utiliser le client existant
-                document.getElementById('rdv-client').value = data.existing_client.id;
-                document.getElementById('rdv-client-search').value = data.existing_client.full_name;
                 fermerModalNouveauClient();
-                {% if institut.code == 'klinic' %}
-                chargerForfaitsClient(data.existing_client.id);
-                {% endif %}
+                _synchroClientCree(data.existing_client.id, data.existing_client.full_name);
             }
         } else if (data.duplicate && data.existing_client) {
             // Client existant trouvé (même téléphone) - proposer de l'utiliser
             showWarning(data.message);
             if (confirm('Voulez-vous utiliser ce client existant ?')) {
-                document.getElementById('rdv-client').value = data.existing_client.id;
-                document.getElementById('rdv-client-search').value = data.existing_client.full_name;
                 fermerModalNouveauClient();
-                {% if institut.code == 'klinic' %}
-                chargerForfaitsClient(data.existing_client.id);
-                {% endif %}
+                _synchroClientCree(data.existing_client.id, data.existing_client.full_name);
             }
         } else {
             errorDiv.textContent = data.message;
@@ -2702,6 +3154,13 @@ function ouvrirModalReservation(employeId, heure) {
     }
     resBlocs = [];
     resBlocCount = 0;
+    // Reset section durée
+    const sectionDuree = document.getElementById('res-section-duree');
+    if (sectionDuree) sectionDuree.style.display = 'none';
+    const checkDuree = document.getElementById('res-personnaliser-duree');
+    if (checkDuree) checkDuree.checked = false;
+    const inputsDuree = document.getElementById('res-duree-inputs');
+    if (inputsDuree) inputsDuree.style.display = 'none';
     document.getElementById('modal-reservation').style.display = 'flex';
     ajouterBlocPrestationReservation(employeId, heure);
 }
@@ -2814,6 +3273,7 @@ function selectionnerPrestationReservation(index) {
     mettreAJourHeureFin(index);
     calculerSousTotalBlocReservation(index);
     calculerTotalReservation();
+    mettreAJourSectionDuree();
 }
 
 function ajusterOptionReservation(blocIndex, optionId, delta) {
@@ -2870,9 +3330,81 @@ function mettreAJourRecapReservation(total) {
     document.getElementById('res-recap-lignes').innerHTML = lignesHtml;
     document.getElementById('res-total-display').textContent = (total || 0) + ' CFA';
     recapDiv.style.display = 'block';
+    mettreAJourSectionDuree();
+}
+
+function mettreAJourSectionDuree() {
+    const blocsActifs = resBlocs.filter(b => document.getElementById(`res-bloc-${b.index}`));
+    const sectionDuree = document.getElementById('res-section-duree');
+    if (!sectionDuree) return;
+
+    if (blocsActifs.length < 1) {
+        sectionDuree.style.display = 'none';
+        return;
+    }
+
+    // Calculer la durée catalogue (somme des prestations)
+    let dureeTotaleMin = 0;
+    blocsActifs.forEach(bloc => {
+        const prestSel = document.getElementById(`res-prestation-${bloc.index}`);
+        const selOpt = prestSel && prestSel.selectedIndex > 0 ? prestSel.options[prestSel.selectedIndex] : null;
+        if (selOpt && selOpt.dataset.duree) {
+            // dataset.duree est en heures (ex: 1.5 = 1h30)
+            dureeTotaleMin += Math.round(parseFloat(selOpt.dataset.duree) * 60) || 0;
+        }
+    });
+
+    const h = Math.floor(dureeTotaleMin / 60);
+    const m = dureeTotaleMin % 60;
+    const displayDuree = h > 0 ? (m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`) : `${m} min`;
+    document.getElementById('res-duree-catalogue').textContent = displayDuree || '-';
+
+    sectionDuree.style.display = 'block';
+}
+
+function toggleDureePersonnalisee() {
+    const checked = document.getElementById('res-personnaliser-duree').checked;
+    const inputs = document.getElementById('res-duree-inputs');
+    inputs.style.display = checked ? 'flex' : 'none';
+    if (checked) {
+        mettreAJourDureePersonnalisee();
+    } else {
+        // Décochée → rétablir la durée catalogue pour chaque bloc
+        const blocsActifs = resBlocs.filter(b => document.getElementById(`res-bloc-${b.index}`));
+        blocsActifs.forEach(b => mettreAJourHeureFin(b.index));
+    }
+}
+
+function mettreAJourDureePersonnalisee() {
+    const h = parseInt(document.getElementById('res-duree-heures').value) || 0;
+    const m = parseInt(document.getElementById('res-duree-minutes').value) || 0;
+    const total = h * 60 + m;
+    document.getElementById('res-duree-perso-display').textContent = total > 0
+        ? (h > 0 ? (m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`) : `${m} min`)
+        : '0 min';
+    // Pour une seule prestation : la durée du groupe = durée de cette prestation
+    // → recalculer heureFin et relancer la vérification de conflit
+    const blocsActifs = resBlocs.filter(b => document.getElementById(`res-bloc-${b.index}`));
+    if (blocsActifs.length === 1 && total > 0) {
+        const bloc = blocsActifs[0];
+        const heureEl = document.getElementById(`res-heure-${bloc.index}`);
+        if (heureEl && heureEl.value) {
+            const [bh, bm] = heureEl.value.split(':').map(Number);
+            const finMin = bh * 60 + bm + total;
+            const heureFin = `${String(Math.floor(finMin / 60)).padStart(2,'0')}:${String(finMin % 60).padStart(2,'0')}`;
+            const affEl = document.getElementById(`res-heure-fin-${bloc.index}`);
+            if (affEl) {
+                affEl.textContent = `${heureEl.value} → ${heureFin}`;
+                affEl.style.color = '#c9a86a';
+            }
+            bloc.heureFin = heureFin;
+            verifierConflitBloc(bloc.index);
+        }
+    }
 }
 
 function ouvrirModalNouveauClientDepuisReservation() {
+    window._creerClientPour = 'reservation';
     ouvrirModalNouveauClient();
 }
 
@@ -2926,11 +3458,21 @@ function creerRdvGroupe() {
         return;
     }
 
+    // Durée personnalisée si cochée
+    let dureePersonnalisee = null;
+    const checkDuree = document.getElementById('res-personnaliser-duree');
+    if (checkDuree && checkDuree.checked) {
+        const h = parseInt(document.getElementById('res-duree-heures').value) || 0;
+        const m = parseInt(document.getElementById('res-duree-minutes').value) || 0;
+        const total = h * 60 + m;
+        if (total > 0) dureePersonnalisee = total;
+    }
+
     showPageLoader('Création des rendez-vous...');
     fetch(`/agenda/{{ institut.code }}/api/rdv/creer-groupe/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-        body: JSON.stringify({ client_id: parseInt(clientId), date: date, prestations: prestations })
+        body: JSON.stringify({ client_id: parseInt(clientId), date: date, prestations: prestations, duree_personnalisee: dureePersonnalisee })
     })
     .then(r => r.json())
     .then(data => {
@@ -3023,15 +3565,18 @@ function mettreAJourHeureFin(blocIndex) {
     verifierConflitBloc(blocIndex);
 }
 
-// "+" Ajouter une prestation → pré-remplit l'heure avec la fin du dernier bloc
+// "+" Ajouter une prestation → pré-remplit l'heure ET l'employé depuis le dernier bloc
 function ajouterPrestationSuivante() {
     const blocsActifs = resBlocs.filter(b => document.getElementById(`res-bloc-${b.index}`));
-    let prochainHeure = null;
+    let prochainHeure    = null;
+    let dernierEmployeId = null;
     if (blocsActifs.length > 0) {
         const last = blocsActifs[blocsActifs.length - 1];
-        prochainHeure = last.heureFin || null;
+        prochainHeure    = last.heureFin || null;
+        const sel        = document.getElementById(`res-employe-${last.index}`);
+        dernierEmployeId = sel?.value || null;
     }
-    ajouterBlocPrestationReservation(null, prochainHeure);
+    ajouterBlocPrestationReservation(dernierEmployeId, prochainHeure);
 }
 
 // Calcule et affiche "HH:MM → HH:MM" dans le modal "ajouter prestation"
@@ -3046,18 +3591,68 @@ function mettreAJourHeureFin_Ajout() {
     const duree  = selOpt && selOpt.value && selOpt.dataset.duree ? parseFloat(selOpt.dataset.duree) : null;
 
     if (heure && duree !== null) {
-        const [h, m]   = heure.split(':').map(Number);
-        const finMin   = h * 60 + m + Math.round(duree * 60);
-        const heureFin = `${String(Math.floor(finMin / 60)).padStart(2,'0')}:${String(finMin % 60).padStart(2,'0')}`;
-        affEl.textContent = `${heure} → ${heureFin}`;
-        affEl.style.color = '#c9a86a';
+        const [h, m]        = heure.split(':').map(Number);
+        const dureeMin      = Math.round(duree * 60);
+        const finMin        = h * 60 + m + dureeMin;
+        const heureFin      = `${String(Math.floor(finMin / 60)).padStart(2,'0')}:${String(finMin % 60).padStart(2,'0')}`;
+        affEl.textContent   = `${heure} → ${heureFin}`;
+        affEl.style.color   = '#c9a86a';
         affEl.dataset.heureFin = heureFin;
+        // Mettre à jour la durée catalogue
+        const dureeEl = document.getElementById('ajout-duree-catalogue');
+        if (dureeEl) {
+            const dh = Math.floor(dureeMin / 60), dm = dureeMin % 60;
+            dureeEl.textContent = dh > 0 ? (dm > 0 ? `${dh}h${String(dm).padStart(2,'0')}` : `${dh}h`) : `${dm} min`;
+        }
+        // Pour prestation solo : pré-remplir les selects avec la durée catalogue
+        const isSolo = document.getElementById('modal-ajouter-prestation')?.dataset.isSolo === '1';
+        if (isSolo) {
+            const hInp = document.getElementById('ajout-duree-heures');
+            const mInp = document.getElementById('ajout-duree-minutes');
+            if (hInp && mInp) {
+                hInp.value = Math.floor(dureeMin / 60);
+                // Arrondir les minutes au multiple de 15 le plus proche (0, 15, 30, 45)
+                mInp.value = Math.round((dureeMin % 60) / 15) * 15 % 60;
+                mettreAJourDureeAjout();
+            }
+        }
     } else {
         affEl.textContent = heure ? `${heure} → ?` : '';
         affEl.style.color = '#aaa';
         affEl.dataset.heureFin = '';
+        const dureeEl = document.getElementById('ajout-duree-catalogue');
+        if (dureeEl) dureeEl.textContent = '—';
     }
     verifierConflitAjout();
+}
+
+function toggleDureeAjout() {
+    const checked = document.getElementById('ajout-personnaliser-duree').checked;
+    const inputs  = document.getElementById('ajout-duree-inputs');
+    inputs.style.display = checked ? 'flex' : 'none';
+    if (checked) mettreAJourDureeAjout();
+    else mettreAJourHeureFin_Ajout(); // Rétablir la durée catalogue si on décoche
+}
+
+function mettreAJourDureeAjout() {
+    const h     = parseInt(document.getElementById('ajout-duree-heures').value)   || 0;
+    const m     = parseInt(document.getElementById('ajout-duree-minutes').value)  || 0;
+    const total = h * 60 + m;
+    const el    = document.getElementById('ajout-duree-perso-display');
+    if (el) el.textContent = total > 0
+        ? (h > 0 ? (m > 0 ? `${h}h${String(m).padStart(2,'0')}` : `${h}h`) : `${m} min`)
+        : '0 min';
+    // Recalculer heure_fin avec la durée personnalisée et re-vérifier le conflit
+    const heureEl = document.getElementById('ajout-heure');
+    const affEl   = document.getElementById('ajout-heure-fin-display');
+    if (total > 0 && heureEl && affEl && heureEl.value) {
+        const [hH, mH] = heureEl.value.split(':').map(Number);
+        const finMin   = hH * 60 + mH + total;
+        const heureFin = `${String(Math.floor(finMin / 60)).padStart(2,'0')}:${String(finMin % 60).padStart(2,'0')}`;
+        affEl.textContent      = `${heureEl.value} → ${heureFin}`;
+        affEl.dataset.heureFin = heureFin;
+        verifierConflitAjout();
+    }
 }
 
 // Vérifie en temps réel si la modification d'un RDV crée un conflit de planning
@@ -3134,6 +3729,27 @@ function verifierConflitBloc(blocIndex) {
 }
 
 // Vérifie en temps réel si la nouvelle prestation crée un conflit (modal ajouter prestation)
+function mettreAJourUiSelonEmployeAjout() {
+    const employeSelect = document.getElementById('ajout-employe-id');
+    const originalId    = employeSelect?.dataset.originalEmployeId || '';
+    const selectedId    = employeSelect?.value || '';
+    const isDifferent   = originalId && selectedId && String(selectedId) !== String(originalId);
+
+    const noteEl      = document.getElementById('ajout-groupe-note');
+    const dureeSection = document.getElementById('ajout-section-duree');
+
+    if (isDifferent) {
+        if (noteEl)       noteEl.style.display       = 'none';
+        if (dureeSection) dureeSection.style.display = 'none';
+    } else {
+        // Remettre la note visible seulement si elle avait du contenu
+        if (noteEl && noteEl.innerHTML.trim()) noteEl.style.display = 'block';
+        if (dureeSection) dureeSection.style.display = 'block';
+    }
+
+    verifierConflitAjout();
+}
+
 function verifierConflitAjout() {
     const conflitEl  = document.getElementById('ajout-conflit');
     if (!conflitEl) return;
@@ -3172,15 +3788,78 @@ function verifierConflitAjout() {
 
 function ouvrirModalAjouterPrestation(rdv) {
     document.getElementById('ajout-rdv-id').value = rdv.id;
-    document.getElementById('ajout-employe-id').value = rdv.employe_id || '';
     document.getElementById('ajout-date-value').value = rdv.date || '';
     document.getElementById('ajout-client-nom').textContent = rdv.client;
-    document.getElementById('ajout-employe-nom').textContent = rdv.employe;
+    // Pré-sélectionner l'employé dans le dropdown
+    const employeSelect = document.getElementById('ajout-employe-id');
+    if (employeSelect && rdv.employe_id) {
+        employeSelect.value = String(rdv.employe_id);
+        employeSelect.dataset.originalEmployeId = String(rdv.employe_id);
+    }
     document.getElementById('ajout-date').textContent = rdv.date;
-    // Pré-remplir l'heure avec heure_fin du RDV (début de la prestation suivante)
-    document.getElementById('ajout-heure').innerHTML = genererOptionsHoraires(rdv.heure_fin || '');
+
+    // Titre et note contextuelle selon groupe ou standalone
+    const titreEl = document.getElementById('ajout-modal-titre');
+    const noteEl  = document.getElementById('ajout-groupe-note');
+    if (rdv.groupe_id) {
+        // Ajout à un groupe existant
+        const nbPrestations = getRdvsGroupe(rdv.groupe_id).length;
+        if (titreEl) titreEl.textContent = '➕ Ajouter au groupe';
+        noteEl.innerHTML = `📦 Ce groupe contient déjà <strong>${nbPrestations} prestation(s)</strong>. La nouvelle sera ajoutée au même groupe. Choisissez librement son heure.`;
+        noteEl.style.display = 'block';
+    } else {
+        // RDV seul → va créer un groupe
+        if (titreEl) titreEl.textContent = '➕ Créer un groupe de prestations';
+        noteEl.innerHTML = `ℹ️ Vous créez un groupe avec <strong>${rdv.prestation || 'ce RDV'}</strong>. Choisissez librement l'heure de la nouvelle prestation — elle n'a pas à être juste après.`;
+        noteEl.style.display = 'block';
+    }
+
+    // Pré-remplir l'heure avec la fin effective du groupe (ou heure_fin individuelle)
+    let heurePrefillAjout = rdv.heure_fin || '';
+    if (rdv.groupe_duree_personnalisee && rdv.heure_debut) {
+        const [hA, mA] = rdv.heure_debut.split(':').map(Number);
+        const finMinA = hA * 60 + mA + rdv.groupe_duree_personnalisee;
+        heurePrefillAjout = `${String(Math.floor(finMinA / 60)).padStart(2,'0')}:${String(finMinA % 60).padStart(2,'0')}`;
+    }
+    document.getElementById('ajout-heure').innerHTML = genererOptionsHoraires(heurePrefillAjout);
     document.getElementById('ajout-conflit').style.display = 'none';
     document.getElementById('ajout-conflit').dataset.conflit = '';
+    // Réinitialiser la section durée (toujours visible)
+    const sectionDureeAjout = document.getElementById('ajout-section-duree');
+    if (sectionDureeAjout) sectionDureeAjout.style.display = 'block';
+    const cbDureeAjout = document.getElementById('ajout-personnaliser-duree');
+    const inputsDureeAjout = document.getElementById('ajout-duree-inputs');
+    // Marquer le modal solo/groupe pour mettreAJourHeureFin_Ajout
+    const modalAjout = document.getElementById('modal-ajouter-prestation');
+    if (modalAjout) modalAjout.dataset.isSolo = rdv.groupe_id ? '0' : '1';
+    if (rdv.groupe_id) {
+        // Groupe : checkbox optionnelle, inputs cachés par défaut
+        if (cbDureeAjout) cbDureeAjout.checked = false;
+        if (inputsDureeAjout) inputsDureeAjout.style.display = 'none';
+    } else {
+        // Solo : inputs toujours visibles, checkbox cochée
+        if (cbDureeAjout) cbDureeAjout.checked = true;
+        if (inputsDureeAjout) inputsDureeAjout.style.display = 'flex';
+    }
+    // Adapter le libellé selon solo ou groupe
+    const labelDureeAjout = document.querySelector('label[for="ajout-personnaliser-duree"]');
+    if (labelDureeAjout) {
+        labelDureeAjout.textContent = rdv.groupe_id
+            ? 'Définir une durée totale pour le groupe'
+            : 'Personnaliser la durée de la prestation';
+    }
+    const hAjout = document.getElementById('ajout-duree-heures');
+    const mAjout = document.getElementById('ajout-duree-minutes');
+    if (hAjout) hAjout.value = 0;
+    if (mAjout) mAjout.value = 0;
+    // Pré-remplir si le groupe a déjà une durée personnalisée
+    if (rdv.groupe_duree_personnalisee && cbDureeAjout && inputsDureeAjout) {
+        cbDureeAjout.checked = true;
+        inputsDureeAjout.style.display = 'flex';
+        if (hAjout) hAjout.value = Math.floor(rdv.groupe_duree_personnalisee / 60);
+        if (mAjout) mAjout.value = rdv.groupe_duree_personnalisee % 60;
+        mettreAJourDureeAjout();
+    }
     // Réinitialiser
     document.getElementById('ajout-famille').value = '';
     document.getElementById('ajout-prestation').innerHTML = '<option value="">-- Prestation --</option>';
@@ -3279,11 +3958,23 @@ function soumettreAjouterPrestation() {
 
     const seanceForfaitId = document.getElementById('ajout-seance-forfait-id')?.value || '';
 
+    const employe_id = parseInt(document.getElementById('ajout-employe-id')?.value) || null;
+
+    // Durée personnalisée du groupe
+    let dureePersoPropAjout = null;
+    const cbDureeAjoutSub = document.getElementById('ajout-personnaliser-duree');
+    if (cbDureeAjoutSub && cbDureeAjoutSub.checked) {
+        const hh = parseInt(document.getElementById('ajout-duree-heures').value) || 0;
+        const mm = parseInt(document.getElementById('ajout-duree-minutes').value) || 0;
+        const total = hh * 60 + mm;
+        if (total > 0) dureePersoPropAjout = total;
+    }
+
     showPageLoader('Ajout en cours...');
     fetch(`/agenda/{{ institut.code }}/api/rdv/${rdvId}/ajouter-prestation/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-        body: JSON.stringify({ prestation_id: parseInt(prestId), heure_debut: heure, prix_base: seanceForfaitId ? 0 : prixBase, options: optionsList, seance_forfait_id: seanceForfaitId || null })
+        body: JSON.stringify({ prestation_id: parseInt(prestId), heure_debut: heure, prix_base: seanceForfaitId ? 0 : prixBase, options: optionsList, seance_forfait_id: seanceForfaitId || null, employe_id: employe_id, duree_personnalisee: dureePersoPropAjout })
     })
     .then(r => r.json())
     .then(data => {
@@ -3353,7 +4044,7 @@ function proposerVenteForfait(prestationId, prestationNom, prix, nbSeances) {
 }
 
 // Charger les forfaits actifs d'un client
-function chargerForfaitsClient(clientId) {
+function chargerForfaitsClient(clientId, onLoaded) {
     const container = document.getElementById('forfaits-client-container');
     const list = document.getElementById('forfaits-client-list');
 
@@ -3399,10 +4090,12 @@ function chargerForfaitsClient(clientId) {
             } else {
                 container.style.display = 'none';
             }
+            if (onLoaded) onLoaded();
         })
         .catch(error => {
             console.error('Erreur chargement forfaits client:', error);
             container.style.display = 'none';
+            if (onLoaded) onLoaded();
         });
 }
 
@@ -3761,7 +4454,9 @@ function toggleDoublePaiementForfait() {
 }
 
 function calculerMontant2Forfait() {
-    const montant1 = parseFloat(document.getElementById('forfait-montant-paiement-1').value) || 0;
+    const input = document.getElementById('forfait-montant-paiement-1');
+    const erreur = document.getElementById('forfait-montant-paiement-1-erreur');
+    let montant1 = parseFloat(input.value) || 0;
 
     // En mode partiel, utiliser le montant partiel comme base, sinon le reste après cartes
     const typePaiement = document.querySelector('input[name="forfait_type_paiement"]:checked').value;
@@ -3770,6 +4465,18 @@ function calculerMontant2Forfait() {
         baseTotal = parseFloat(document.getElementById('forfait-montant').value) || 0;
     } else {
         baseTotal = getForfaitResteApresCartes();
+    }
+
+    // Plafonner : le 1er moyen ne peut pas dépasser le total (strict)
+    if (montant1 > baseTotal) {
+        montant1 = baseTotal;
+        input.value = montant1;
+        if (erreur) {
+            erreur.textContent = 'Le montant du 1er moyen ne peut pas être supérieur au total (' + baseTotal.toLocaleString('fr-FR') + ' CFA).';
+            erreur.style.display = 'block';
+        }
+    } else {
+        if (erreur) erreur.style.display = 'none';
     }
 
     const montant2 = Math.max(0, baseTotal - montant1);
@@ -3854,8 +4561,8 @@ function acheterForfait() {
             ? (parseFloat(document.getElementById('forfait-montant').value) || 0)
             : (forfaitPrixActuel || 0);
 
-        if (montant1 >= baseTotal) {
-            showError('Le 1er montant doit être inférieur au total. Utilisez le paiement simple si vous payez tout avec un seul moyen.');
+        if (montant1 > baseTotal) {
+            showError('Le 1er montant ne peut pas être supérieur au total.');
             return;
         }
 
@@ -4031,10 +4738,15 @@ function chargerForfaitsClientReservation(clientId) {
                         </div>`;
                     list.appendChild(div);
                 });
-                mettreAJourBoutonsForFaitReservation(0);
             } else {
                 section.style.display = 'none';
             }
+            // Rafraîchir les badges forfait de tous les blocs actifs
+            resBlocs.forEach(b => {
+                if (document.getElementById(`res-bloc-${b.index}`)) {
+                    mettreAJourBoutonsForFaitReservation(b.index);
+                }
+            });
         })
         .catch(() => { section.style.display = 'none'; });
 }
