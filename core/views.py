@@ -959,26 +959,26 @@ def api_carte_cadeau_whatsapp(request, carte_id, destinataire):
     if destinataire == 'beneficiaire':
         client = carte.beneficiaire
         message = (
-            f"Bonjour {client.prenom} 😊\n\n"
+            f"Bonjour {client.prenom},\n\n"
             f"Vous avez reçu une carte cadeau de {carte.montant_initial:,} FCFA "
             f"au {carte.institut_achat.nom} !\n\n"
-            f"🎁 Code : *{carte.code}*\n"
-            f"💰 Solde : {carte.solde:,} FCFA\n"
+            f"Code : *{carte.code}*\n"
+            f"Solde : {carte.solde:,} FCFA\n"
         )
     else:
         client = carte.acheteur
         message = (
-            f"Bonjour {client.prenom} 😊\n\n"
+            f"Bonjour {client.prenom},\n\n"
             f"Votre carte cadeau de {carte.montant_initial:,} FCFA "
             f"au {carte.institut_achat.nom} a bien été créée !\n\n"
-            f"🎁 Code : *{carte.code}*\n"
-            f"👤 Bénéficiaire : {carte.beneficiaire.get_full_name()}\n"
+            f"Code : *{carte.code}*\n"
+            f"Bénéficiaire : {carte.beneficiaire.get_full_name()}\n"
         )
 
     if carte.date_expiration:
-        message += f"📅 Valable jusqu'au : {carte.date_expiration.strftime('%d/%m/%Y')}\n"
+        message += f"Valable jusqu'au : {carte.date_expiration.strftime('%d/%m/%Y')}\n"
 
-    message += f"\nÀ très bientôt ! 💖"
+    message += f"\nÀ très bientôt !"
 
     lien = generer_lien_whatsapp(client.telephone, message)
     if not lien:

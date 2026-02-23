@@ -43,5 +43,9 @@ def generer_lien_whatsapp(telephone, message):
     if not numero:
         return None
 
-    message_encode = quote(message, safe='')
+    # Les caractères non-ASCII (emoji, accents) sont laissés bruts dans l'URL.
+    # WhatsApp et les navigateurs modernes les gèrent nativement.
+    # Encoder uniquement les caractères ASCII spéciaux (espace, &, =, +, etc.)
+    safe_chars = ''.join(dict.fromkeys(c for c in message if ord(c) > 127))
+    message_encode = quote(message, safe=safe_chars)
     return f'https://wa.me/{numero}?text={message_encode}'

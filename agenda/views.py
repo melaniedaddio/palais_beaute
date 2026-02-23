@@ -2262,12 +2262,14 @@ def page_rappels(request, institut_code):
                     'rdv': rdv,
                     'prestations_groupe': prestations_groupe,
                     'nb_prestations': len(rdvs_du_groupe),
+                    'rappel_envoye': rdv.rappel_envoye,
                 })
             else:
                 items_employe.append({
                     'rdv': rdv,
                     'prestations_groupe': None,
                     'nb_prestations': 1,
+                    'rappel_envoye': rdv.rappel_envoye,
                 })
 
         if items_employe:
@@ -2309,12 +2311,13 @@ def api_rdv_whatsapp_rappel(request, institut_code, rdv_id):
         prestations_str = rdv.prestation.nom
 
     message = (
-        f"Bonjour {prenom} \U0001f60a\n\n"
+        f"Bonjour {prenom},\n\n"
         f"Nous vous rappelons votre rendez-vous demain au {institut.nom} :\n\n"
-        f"\U0001f550 Heure : *{heure}*\n"
-        f"\U0001f485 Prestation(s) : {prestations_str}\n\n"
+        f"- Heure : {heure}\n"
+        f"- Prestation(s) : {prestations_str}\n\n"
+        f"Nous avons hâte de vous accueillir.\n\n"
         f"En cas d'empêchement, merci de nous prévenir à l'avance.\n"
-        f"À demain ! \U0001f496"
+        f"À demain !"
     )
 
     lien = generer_lien_whatsapp(telephone, message)
@@ -2323,5 +2326,8 @@ def api_rdv_whatsapp_rappel(request, institut_code, rdv_id):
             'success': False,
             'message': f'Numéro de téléphone invalide pour {rdv.client.get_full_name()}'
         })
+
+    rdv.rappel_envoye = True
+    rdv.save(update_fields=['rappel_envoye'])
 
     return JsonResponse({'success': True, 'lien': lien})

@@ -3,6 +3,7 @@
 {% block title %}Rappels du lendemain - {{ institut.nom }}{% endblock %}
 
 {% block extra_css %}
+<style>
 .rappels-header {
     display: flex;
     justify-content: space-between;
@@ -25,23 +26,6 @@
     border-radius: 10px;
     margin-bottom: 12px;
     border-left: 4px solid var(--primary);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.employe-title-label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-}
-
-.employe-title-label input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--primary);
-    cursor: pointer;
 }
 
 .rdv-card {
@@ -55,26 +39,6 @@
     align-items: center;
     gap: 15px;
     flex-wrap: wrap;
-    transition: border-color 0.15s, background 0.15s;
-    cursor: pointer;
-}
-
-.rdv-card.selectionne {
-    border-color: #25D366;
-    background: #f0fff4;
-}
-
-.rdv-checkbox-wrapper {
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.rdv-checkbox-wrapper input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    accent-color: #25D366;
-    cursor: pointer;
 }
 
 .rdv-info {
@@ -113,6 +77,7 @@
     padding: 10px 18px;
     font-size: 14px;
     font-weight: 600;
+    font-family: inherit;
     cursor: pointer;
     white-space: nowrap;
     transition: background 0.2s;
@@ -121,6 +86,45 @@
 
 .btn-whatsapp:hover {
     background: #128C7E;
+}
+
+.rappel-envoye-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.badge-envoye {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #a5d6a7;
+    border-radius: 8px;
+    padding: 5px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.btn-renvoyer {
+    background: none;
+    color: #128C7E;
+    border: 1px solid #128C7E;
+    border-radius: 10px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s, color 0.2s;
+}
+
+.btn-renvoyer:hover {
+    background: #128C7E;
+    color: white;
 }
 
 .empty-state {
@@ -133,90 +137,7 @@
     font-size: 48px;
     margin-bottom: 15px;
 }
-
-/* Barre d'actions flottante en bas */
-.barre-actions {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: white;
-    border-top: 2px solid #25D366;
-    padding: 14px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
-    z-index: 100;
-    transform: translateY(100%);
-    transition: transform 0.25s ease;
-}
-
-.barre-actions.visible {
-    transform: translateY(0);
-}
-
-.barre-actions-info {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-dark);
-}
-
-.barre-actions-info span {
-    color: #25D366;
-}
-
-.barre-actions-btns {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.btn-tout-selectionner {
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 14px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-dark);
-    cursor: pointer;
-    transition: background 0.15s;
-}
-
-.btn-tout-selectionner:hover {
-    background: var(--bg-section);
-}
-
-.btn-envoyer-selection {
-    background: #25D366;
-    color: white;
-    border: none;
-    border-radius: 10px;
-    padding: 10px 20px;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.2s;
-}
-
-.btn-envoyer-selection:hover {
-    background: #128C7E;
-}
-
-.btn-envoyer-selection:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-/* Marge en bas pour que la barre n'écrase pas le contenu */
-body {
-    padding-bottom: 80px;
-}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -232,21 +153,12 @@ body {
 
 {% if rdvs_par_employe %}
     {% for employe, items in rdvs_par_employe.items %}
-    <div class="employe-section" data-employe-id="{{ employe.id }}">
+    <div class="employe-section">
         <div class="employe-title">
-            <label class="employe-title-label" onclick="event.stopPropagation()">
-                <input type="checkbox" class="cb-employe" data-employe-id="{{ employe.id }}"
-                       onchange="toggleEmploye(this, {{ employe.id }})">
-                {{ employe.nom }} — {{ items|length }} RDV
-            </label>
+            {{ employe.nom }} — {{ items|length }} RDV
         </div>
         {% for item in items %}
-        <div class="rdv-card" onclick="toggleCarte(this)" data-rdv-id="{{ item.rdv.id }}">
-            <div class="rdv-checkbox-wrapper" onclick="event.stopPropagation()">
-                <input type="checkbox" class="rdv-checkbox" data-rdv-id="{{ item.rdv.id }}"
-                       data-employe-id="{{ employe.id }}"
-                       onchange="onCheckboxChange(this)">
-            </div>
+        <div class="rdv-card">
             <div class="rdv-info">
                 <div class="rdv-heure">{{ item.rdv.heure_debut|time:"H\hi" }}</div>
                 <div class="rdv-client">{{ item.rdv.client.get_full_name }}</div>
@@ -260,9 +172,18 @@ body {
                 {% endif %}
                 <div class="rdv-tel">📞 {{ item.rdv.client.telephone }}</div>
             </div>
-            <button class="btn-whatsapp" onclick="event.stopPropagation(); envoyerRappel({{ item.rdv.id }})">
-                📱 WhatsApp
-            </button>
+            {% if item.rappel_envoye %}
+            <div class="rappel-envoye-badge" id="rappel-zone-{{ item.rdv.id }}">
+                <span class="badge-envoye">&#10003; Rappel envoyé</span>
+                <button class="btn-renvoyer" onclick="envoyerRappel({{ item.rdv.id }})">Renvoyer</button>
+            </div>
+            {% else %}
+            <div id="rappel-zone-{{ item.rdv.id }}">
+                <button class="btn-whatsapp" onclick="envoyerRappel({{ item.rdv.id }})">
+                    WhatsApp
+                </button>
+            </div>
+            {% endif %}
         </div>
         {% endfor %}
     </div>
@@ -274,190 +195,33 @@ body {
         <p>Pas de rendez-vous prévu pour {{ demain|date:"d/m/Y" }}.</p>
     </div>
 {% endif %}
-
-<!-- Panneau liens WhatsApp générés -->
-<div id="panelLiens" style="display:none;background:#f0fff4;border:2px solid #25D366;border-radius:14px;padding:18px 20px;margin-bottom:90px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-        <h3 style="margin:0;color:#128C7E;font-size:17px;">📱 Liens WhatsApp prêts</h3>
-        <button onclick="document.getElementById('panelLiens').style.display='none'"
-                style="background:none;border:1px solid #ccc;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px;color:#555;">
-            ✕ Fermer
-        </button>
-    </div>
-    <p style="font-size:13px;color:#555;margin:0 0 12px;">Cliquez sur chaque bouton pour ouvrir WhatsApp :</p>
-    <div id="panelLiensContent"></div>
-</div>
-
-<!-- Barre d'actions flottante -->
-<div class="barre-actions" id="barreActions">
-    <div class="barre-actions-info">
-        <span id="compteurSelection">0</span> sélectionné(s)
-    </div>
-    <div class="barre-actions-btns">
-        <button class="btn-tout-selectionner" id="btnToutSelectionner" onclick="toutSelectionner()">
-            Tout sélectionner
-        </button>
-        <button class="btn-envoyer-selection" id="btnEnvoyerSelection" onclick="envoyerSelection()">
-            📱 Envoyer la sélection
-        </button>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 const INSTITUT_CODE = '{{ institut.code }}';
 
-// ─── Sélection individuelle via clic sur la carte ───────────────────────────
-function toggleCarte(carte) {
-    const cb = carte.querySelector('.rdv-checkbox');
-    cb.checked = !cb.checked;
-    onCheckboxChange(cb);
-}
-
-function onCheckboxChange(cb) {
-    const carte = cb.closest('.rdv-card');
-    carte.classList.toggle('selectionne', cb.checked);
-    syncCbEmploye(cb.dataset.employeId);
-    mettreAJourBarre();
-}
-
-// ─── Sélection par employé ───────────────────────────────────────────────────
-function toggleEmploye(cbEmploye, employeId) {
-    const cases = document.querySelectorAll(`.rdv-checkbox[data-employe-id="${employeId}"]`);
-    cases.forEach(cb => {
-        cb.checked = cbEmploye.checked;
-        cb.closest('.rdv-card').classList.toggle('selectionne', cbEmploye.checked);
-    });
-    mettreAJourBarre();
-}
-
-function syncCbEmploye(employeId) {
-    const cases = document.querySelectorAll(`.rdv-checkbox[data-employe-id="${employeId}"]`);
-    const cbEmploye = document.querySelector(`.cb-employe[data-employe-id="${employeId}"]`);
-    if (!cbEmploye) return;
-    const total = cases.length;
-    const coches = Array.from(cases).filter(c => c.checked).length;
-    cbEmploye.checked = coches === total;
-    cbEmploye.indeterminate = coches > 0 && coches < total;
-}
-
-// ─── Tout sélectionner / désélectionner ─────────────────────────────────────
-let toutCoche = false;
-function toutSelectionner() {
-    toutCoche = !toutCoche;
-    document.querySelectorAll('.rdv-checkbox').forEach(cb => {
-        cb.checked = toutCoche;
-        cb.closest('.rdv-card').classList.toggle('selectionne', toutCoche);
-    });
-    document.querySelectorAll('.cb-employe').forEach(cb => {
-        cb.checked = toutCoche;
-        cb.indeterminate = false;
-    });
-    document.getElementById('btnToutSelectionner').textContent = toutCoche ? 'Tout désélectionner' : 'Tout sélectionner';
-    mettreAJourBarre();
-}
-
-// ─── Mise à jour de la barre d'actions ──────────────────────────────────────
-function mettreAJourBarre() {
-    const nb = document.querySelectorAll('.rdv-checkbox:checked').length;
-    document.getElementById('compteurSelection').textContent = nb;
-    const barre = document.getElementById('barreActions');
-    barre.classList.toggle('visible', nb > 0);
-
-    // Sync bouton "tout sélectionner"
-    const total = document.querySelectorAll('.rdv-checkbox').length;
-    if (nb === 0) {
-        toutCoche = false;
-        document.getElementById('btnToutSelectionner').textContent = 'Tout sélectionner';
-    } else if (nb === total) {
-        toutCoche = true;
-        document.getElementById('btnToutSelectionner').textContent = 'Tout désélectionner';
-    }
-}
-
-// ─── Envoi individuel ────────────────────────────────────────────────────────
 async function envoyerRappel(rdvId) {
     try {
         const resp = await fetch(`/agenda/${INSTITUT_CODE}/api/rdv/${rdvId}/whatsapp-rappel/`);
         const data = await resp.json();
         if (data.success) {
             window.open(data.lien, '_blank');
+            // Mettre à jour visuellement la zone du rappel
+            const zone = document.getElementById(`rappel-zone-${rdvId}`);
+            if (zone) {
+                zone.className = 'rappel-envoye-badge';
+                zone.innerHTML = `
+                    <span class="badge-envoye">&#10003; Rappel envoyé</span>
+                    <button class="btn-renvoyer" onclick="envoyerRappel(${rdvId})">Renvoyer</button>
+                `;
+            }
         } else {
             alert('Impossible de générer le lien WhatsApp : ' + (data.message || 'Erreur inconnue'));
         }
     } catch (err) {
         alert('Erreur réseau');
     }
-}
-
-// ─── Envoi groupé ────────────────────────────────────────────────────────────
-async function envoyerSelection() {
-    const cases = document.querySelectorAll('.rdv-checkbox:checked');
-    if (cases.length === 0) return;
-
-    const btn = document.getElementById('btnEnvoyerSelection');
-    btn.disabled = true;
-    btn.textContent = '⏳ Génération des liens…';
-
-    const rdvIds = Array.from(cases).map(cb => parseInt(cb.dataset.rdvId));
-
-    // Récupérer tous les liens en parallèle
-    const resultats = await Promise.allSettled(
-        rdvIds.map(id => fetch(`/agenda/${INSTITUT_CODE}/api/rdv/${id}/whatsapp-rappel/`).then(r => r.json()))
-    );
-
-    btn.disabled = false;
-    btn.textContent = '📱 Envoyer la sélection';
-
-    // Construire la liste des liens réussis et des échecs
-    const liens = [];
-    const echecs = [];
-    resultats.forEach((res, i) => {
-        const carte = document.querySelector(`.rdv-card[data-rdv-id="${rdvIds[i]}"]`);
-        const client = carte?.querySelector('.rdv-client')?.textContent?.trim() || '?';
-        const heure  = carte?.querySelector('.rdv-heure')?.textContent?.trim()  || '?';
-        if (res.status === 'fulfilled' && res.value.success) {
-            liens.push({ lien: res.value.lien, client, heure });
-        } else {
-            echecs.push({ client, heure, msg: res.value?.message || 'Erreur réseau' });
-        }
-    });
-
-    if (liens.length === 0) {
-        alert('Aucun lien WhatsApp n\'a pu être généré.\n' + echecs.map(e => `• ${e.client} : ${e.msg}`).join('\n'));
-        return;
-    }
-
-    // Afficher les liens dans le panneau — chaque bouton est cliqué manuellement
-    // (évite le bloqueur de popups du navigateur)
-    const container = document.getElementById('panelLiensContent');
-    container.innerHTML = '';
-    liens.forEach(item => {
-        const div = document.createElement('div');
-        div.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:white;border-radius:10px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.07);';
-        div.innerHTML = `
-            <div>
-                <strong style="color:var(--text-dark);">${item.client}</strong>
-                <div style="font-size:12px;color:#666;">${item.heure}</div>
-            </div>
-            <a href="${item.lien}" target="_blank" rel="noopener"
-               style="background:#25D366;color:white;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;">
-                📱 Ouvrir WhatsApp
-            </a>`;
-        container.appendChild(div);
-    });
-
-    if (echecs.length > 0) {
-        const divErr = document.createElement('div');
-        divErr.style.cssText = 'margin-top:10px;padding:10px 14px;background:#fff5f5;border:1px solid #f5c6cb;border-radius:8px;font-size:12px;color:#721c24;';
-        divErr.innerHTML = '<strong>⚠️ Échecs :</strong><br>' + echecs.map(e => `• ${e.client} : ${e.msg}`).join('<br>');
-        container.appendChild(divErr);
-    }
-
-    const panel = document.getElementById('panelLiens');
-    panel.style.display = 'block';
-    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 </script>
 {% endblock %}

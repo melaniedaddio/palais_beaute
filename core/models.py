@@ -532,6 +532,9 @@ class RendezVous(models.Model):
         help_text="Numéro de la séance dans le forfait (ex: 3 sur 6)"
     )
 
+    # Rappel WhatsApp
+    rappel_envoye = models.BooleanField(default=False)
+
     class Meta:
         verbose_name = "Rendez-vous"
         verbose_name_plural = "Rendez-vous"
