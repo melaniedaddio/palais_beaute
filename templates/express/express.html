@@ -156,16 +156,16 @@
             <!-- Paiement -->
             <div id="section-type-paiement" class="form-group">
                 <label>Type de paiement</label>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                <div class="paiement-options">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
                         <input type="radio" name="type_paiement" value="complet" checked onchange="updatePaiement()">
                         <span>Complet</span>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
                         <input type="radio" name="type_paiement" value="partiel" onchange="updatePaiement()">
                         <span>Partiel</span>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
                         <input type="radio" name="type_paiement" value="differe" onchange="updatePaiement()">
                         <span>Différé</span>
                     </label>
@@ -187,24 +187,24 @@
 
             <div id="section-moyen-paiement" class="form-group">
                 <label id="label-moyen-paiement-1-express">Moyen de paiement</label>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                <div class="paiement-options">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
                         <input type="radio" name="moyen_paiement_1" value="especes" checked>
                         <span>Espèces</span>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
                         <input type="radio" name="moyen_paiement_1" value="carte">
                         <span>Carte bancaire</span>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
                         <input type="radio" name="moyen_paiement_1" value="cheque">
                         <span>Chèque</span>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
                         <input type="radio" name="moyen_paiement_1" value="om">
                         <span>Orange Money</span>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
                         <input type="radio" name="moyen_paiement_1" value="wave">
                         <span>Wave</span>
                     </label>
@@ -221,24 +221,24 @@
             <!-- Moyen de paiement 2 (si double paiement) -->
             <div id="section-moyen-paiement-2-express" class="form-group" style="display: none;">
                 <label>2ème moyen de paiement</label>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                <div class="paiement-options">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
                         <input type="radio" name="moyen_paiement_2" value="especes">
                         <span>Espèces</span>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
                         <input type="radio" name="moyen_paiement_2" value="carte" checked>
                         <span>Carte bancaire</span>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
                         <input type="radio" name="moyen_paiement_2" value="cheque">
                         <span>Chèque</span>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
                         <input type="radio" name="moyen_paiement_2" value="om">
                         <span>Orange Money</span>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
                         <input type="radio" name="moyen_paiement_2" value="wave">
                         <span>Wave</span>
                     </label>
@@ -651,12 +651,12 @@ function chargerCartesCadeaux(clientId) {
             let html = '';
             data.cartes.forEach(c => {
                 html += `<div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: white; border-radius: 6px; margin-bottom: 6px; font-size: 13px;">
-                    <input type="checkbox" class="carte-cadeau-check" data-carte-id="${c.id}" data-solde="${c.solde}" onchange="recalculerCartesCadeaux()" style="width: auto;">
+                    <input type="checkbox" class="carte-cadeau-check" data-carte-id="${c.id}" data-solde="${c.solde}" onchange="recalculerCartesCadeaux(false, true)" style="width: auto;">
                     <div style="flex: 1;">
                         <strong>${c.code}</strong>
                         <div style="color: #888; font-size: 12px;">Solde : ${parseInt(c.solde).toLocaleString('fr-FR')} CFA</div>
                     </div>
-                    <input type="number" class="carte-cadeau-montant" data-carte-id="${c.id}" min="0" max="${c.solde}" placeholder="Montant" style="width: 120px; padding: 4px 8px; font-size: 13px;" disabled onchange="recalculerCartesCadeaux()">
+                    <input type="number" class="carte-cadeau-montant" data-carte-id="${c.id}" min="0" max="${c.solde}" placeholder="Montant" style="width: 120px; padding: 4px 8px; font-size: 13px;" disabled oninput="recalculerCartesCadeaux(false, false)" onchange="recalculerCartesCadeaux(false, false)">
                 </div>`;
             });
             liste.innerHTML = html;
@@ -669,7 +669,7 @@ function chargerCartesCadeaux(clientId) {
 }
 
 // Recalculer le total des cartes cadeaux sélectionnées
-function recalculerCartesCadeaux(forceRecalcul = false) {
+function recalculerCartesCadeaux(forceRecalcul = false, fromCheckbox = false) {
     const checks = document.querySelectorAll('.carte-cadeau-check');
     let totalCartes = 0;
     const prixTotal = window.prestationsSelectionnees.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
@@ -681,16 +681,20 @@ function recalculerCartesCadeaux(forceRecalcul = false) {
 
         if (check.checked) {
             montantInput.disabled = false;
-            // Auto-remplir si vide, 0, ou forceRecalcul (quand le total change)
             const montantActuel = parseInt(montantInput.value) || 0;
-            if (!montantInput.value || montantActuel === 0 || forceRecalcul) {
-                // Auto-remplir avec le min entre solde et prix restant
+            // Auto-remplir seulement quand on coche la carte ou forceRecalcul (pas quand l'utilisateur tape)
+            if ((fromCheckbox && (!montantInput.value || montantActuel === 0)) || forceRecalcul) {
                 const resteAPayer = Math.max(0, prixTotal - totalCartes);
                 montantInput.value = Math.min(solde, resteAPayer);
             }
-            // S'assurer que le montant ne dépasse pas le solde ou le reste à payer
-            const montantFinal = Math.min(parseInt(montantInput.value) || 0, solde, prixTotal - totalCartes);
-            montantInput.value = Math.max(0, montantFinal);
+            // Bloquer la saisie au-delà du solde (si le champ n'est pas vide)
+            if (montantInput.value !== '') {
+                const resteAPayer = Math.max(0, prixTotal - totalCartes);
+                const maxAllowed = Math.min(solde, resteAPayer);
+                const val = parseInt(montantInput.value) || 0;
+                if (val > maxAllowed) montantInput.value = maxAllowed;
+                if (val < 0) montantInput.value = 0;
+            }
             totalCartes += parseInt(montantInput.value) || 0;
         } else {
             montantInput.disabled = true;
@@ -1176,6 +1180,28 @@ function creerNouveauClient() {
     .table td:nth-child(3) {
         display: none;
     }
+}
+
+.paiement-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.paiement-options label {
+    display: flex !important;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: #f9f9f9;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px !important;
+    font-weight: normal !important;
+    white-space: nowrap;
+    margin-bottom: 0 !important;
+    width: auto !important;
+    color: #333;
 }
 </style>
 {% endblock %}
