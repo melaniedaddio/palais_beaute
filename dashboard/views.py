@@ -8,7 +8,8 @@ from calendar import monthrange
 from core.decorators import role_required
 from core.models import (
     Institut, Client, RendezVous, Paiement, Credit, PaiementCredit,
-    ClotureCaisse, Employe, CarteCadeau, UtilisationCarteCadeau, ForfaitClient
+    ClotureCaisse, Employe, CarteCadeau, UtilisationCarteCadeau, ForfaitClient,
+    Depense, Produit,
 )
 import json
 
@@ -529,6 +530,31 @@ def index(request):
         'clotures_periode': clotures_periode,
         'total_ecart_periode': total_ecart_periode,
     }
+
+    # ── DÉBIT : Dépenses de la période ──
+    depenses_qs = Depense.objects.filter(date__gte=date_debut, date__lte=date_fin)
+    total_depenses = depenses_qs.aggregate(s=Sum('montant'))['s'] or 0
+
+    depenses_par_cat = list(
+        depenses_qs.values('categorie__nom').annotate(total=Sum('montant')).order_by('-total')[:6]
+    )
+
+    benefice = ca_total - total_depenses
+    taux_charges = round(total_depenses / ca_total * 100, 1) if ca_total else 0
+
+    # Alertes stock bas
+    nb_alertes_stock = Produit.objects.filter(actif=True).count()
+    # On utilise l'annotation pour éviter un loop Python — filtrage simple
+    from django.db.models import F
+    nb_alertes_stock = Produit.objects.filter(actif=True, stock_actuel__lte=F('stock_minimum')).count()
+
+    context.update({
+        'total_depenses': total_depenses,
+        'depenses_par_cat': depenses_par_cat,
+        'benefice': benefice,
+        'taux_charges': taux_charges,
+        'nb_alertes_stock': nb_alertes_stock,
+    })
 
     return render(request, 'dashboard/dashboard.html', context)
 

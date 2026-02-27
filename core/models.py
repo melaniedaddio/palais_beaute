@@ -77,22 +77,667 @@ class Utilisateur(models.Model):
         return check_password(raw_pin, self.pin)
 
 
+class CategorieEmploye(models.Model):
+    """Catégorie d'employé personnalisable (Manager, Esthéticienne, Vigile, etc.)."""
+    nom = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+    couleur = models.CharField(max_length=7, default='#3498db')  # Code hex
+    ordre_affichage = models.IntegerField(default=0)
+    actif = models.BooleanField(default=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Catégorie d'employé"
+        verbose_name_plural = "Catégories d'employés"
+        ordering = ['ordre_affichage', 'nom']
+
+    def __str__(self):
+        return self.nom
+
+
 class Employe(models.Model):
     """
     Employé d'un institut qui réalise les prestations.
+    institut=NULL pour les employés "Autres" (vigiles, ménage, etc.)
     """
+    RANG_CHOICES = [
+        ('superieur', 'Supérieur'),
+        ('manager', 'Manager'),
+        ('employe', 'Employé'),
+    ]
+
+    # Champs existants
     nom = models.CharField(max_length=100)
-    institut = models.ForeignKey(Institut, on_delete=models.CASCADE, related_name='employes')
+    institut = models.ForeignKey(
+        Institut,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='employes'
+    )
     actif = models.BooleanField(default=True)
-    ordre_affichage = models.IntegerField(default=0)  # Pour l'ordre dans l'agenda
+    ordre_affichage = models.IntegerField(default=0)
+
+    # Nouveaux champs
+    prenom = models.CharField(max_length=100, blank=True, default='')
+    telephone = models.CharField(max_length=20, blank=True, null=True)
+    categorie = models.ForeignKey(
+        CategorieEmploye,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='employes'
+    )
+    rang = models.CharField(max_length=20, choices=RANG_CHOICES, default='employe')
+    salaire_base = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Salaire mensuel de base en CFA"
+    )
+    date_embauche = models.DateField(null=True, blank=True)
+    est_dans_agenda = models.BooleanField(
+        default=True,
+        help_text="False pour vigiles, ménage, etc."
+    )
 
     class Meta:
         verbose_name = "Employé"
         verbose_name_plural = "Employés"
-        ordering = ['institut', 'ordre_affichage', 'nom']
+        ordering = ['ordre_affichage', 'nom']
 
     def __str__(self):
-        return f"{self.nom} ({self.institut.nom})"
+        if self.institut:
+            return f"{self.nom} ({self.institut.nom})"
+        return f"{self.nom} (Autres)"
+
+    def get_full_name(self):
+        if self.prenom:
+            return f"{self.prenom} {self.nom}"
+        return self.nom
+
+    def est_rattache_institut(self):
+        return self.institut is not None
+
+
+# ============================================================
+# MODÈLES PRÉSENCES
+# ============================================================
+
+class TypeAbsence(models.Model):
+    """Types d'absences (congé payé, maladie, etc.)."""
+    nom = models.CharField(max_length=100, unique=True)
+    est_payee = models.BooleanField(default=False)
+    description = models.TextField(blank=True, null=True)
+    actif = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Type d'absence"
+        verbose_name_plural = "Types d'absence"
+        ordering = ['nom']
+
+    def __str__(self):
+        return self.nom
+
+
+class Presence(models.Model):
+    """Pointage journalier d'un employé."""
+    STATUT_CHOICES = [
+        ('present', 'Présent'),
+        ('retard', 'Retard'),
+        ('absent', 'Absent'),
+    ]
+
+    employe = models.ForeignKey(Employe, on_delete=models.CASCADE, related_name='presences')
+    date = models.DateField()
+    statut_arrivee = models.CharField(max_length=20, choices=STATUT_CHOICES, default='present')
+    heure_arrivee = models.TimeField(null=True, blank=True)
+    statut_depart = models.CharField(max_length=20, choices=STATUT_CHOICES, null=True, blank=True)
+    heure_depart = models.TimeField(null=True, blank=True)
+    saisi_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True, blank=True)
+    date_saisie = models.DateTimeField(auto_now_add=True)
+    commentaire = models.TextField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ['employe', 'date']
+        ordering = ['-date', 'employe']
+        verbose_name = "Présence"
+        verbose_name_plural = "Présences"
+
+    def __str__(self):
+        return f"{self.employe.get_full_name()} - {self.date} ({self.statut_arrivee})"
+
+    def est_journee_complete(self):
+        return self.statut_arrivee == 'present' and self.statut_depart == 'present'
+
+
+class Absence(models.Model):
+    """Absence d'un employé sur une période."""
+    employe = models.ForeignKey(Employe, on_delete=models.CASCADE, related_name='absences')
+    type_absence = models.ForeignKey(TypeAbsence, on_delete=models.PROTECT)
+    date_debut = models.DateField()
+    date_fin = models.DateField()
+    justificatif_recu = models.BooleanField(default=False)
+    commentaire = models.TextField(blank=True, null=True)
+    validee_par = models.ForeignKey(
+        'Utilisateur', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='absences_validees'
+    )
+    cree_par = models.ForeignKey(
+        'Utilisateur', on_delete=models.SET_NULL,
+        null=True, related_name='absences_creees'
+    )
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Absence"
+        verbose_name_plural = "Absences"
+        ordering = ['-date_debut']
+
+    def __str__(self):
+        return f"{self.employe.get_full_name()} - {self.type_absence.nom} ({self.date_debut}→{self.date_fin})"
+
+    def nombre_jours(self):
+        return (self.date_fin - self.date_debut).days + 1
+
+    def est_payee(self):
+        if 'maladie' in self.type_absence.nom.lower():
+            return self.justificatif_recu
+        return self.type_absence.est_payee
+
+
+class Avertissement(models.Model):
+    """Avertissement pour retards ou absences répétés."""
+    TYPE_CHOICES = [
+        ('retard', 'Retards répétés'),
+        ('absence', 'Absences répétées'),
+        ('autre', 'Autre'),
+    ]
+
+    employe = models.ForeignKey(Employe, on_delete=models.CASCADE, related_name='avertissements')
+    type_avertissement = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    date = models.DateField(auto_now_add=True)
+    mois_concerne = models.DateField()
+    nombre_retards = models.IntegerField(default=0)
+    commentaire = models.TextField(blank=True, null=True)
+    mise_a_pied = models.BooleanField(default=False)
+    jours_mise_a_pied = models.IntegerField(default=0)
+    date_debut_mise_a_pied = models.DateField(null=True, blank=True)
+    date_fin_mise_a_pied = models.DateField(null=True, blank=True)
+    cree_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Avertissement"
+        verbose_name_plural = "Avertissements"
+        ordering = ['-date_creation']
+
+    def __str__(self):
+        return f"{self.employe.get_full_name()} - {self.get_type_avertissement_display()} ({self.mois_concerne.strftime('%B %Y')})"
+
+
+# ============================================================
+# MODÈLES DÉPENSES
+# ============================================================
+
+class CategoriDepense(models.Model):
+    """Catégorie de dépense (Loyer, Électricité, Achats, etc.)."""
+    nom = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+
+    class Meta:
+        verbose_name = "Catégorie dépense"
+        verbose_name_plural = "Catégories dépenses"
+        ordering = ['nom']
+
+    def __str__(self):
+        return self.nom
+
+
+class Depense(models.Model):
+    """Dépense enregistrée pour un institut."""
+    MODE_PAIEMENT_CHOICES = [
+        ('especes', 'Espèces'),
+        ('virement', 'Virement'),
+        ('cheque', 'Chèque'),
+        ('carte', 'Carte bancaire'),
+        ('om', 'Orange Money'),
+        ('wave', 'Wave'),
+        ('autre', 'Autre'),
+    ]
+
+    categorie = models.ForeignKey(
+        CategoriDepense, on_delete=models.PROTECT, related_name='depenses'
+    )
+    institut = models.ForeignKey(
+        'Institut', on_delete=models.SET_NULL, null=True, blank=True, related_name='depenses'
+    )
+    montant = models.IntegerField(validators=[MinValueValidator(0)])
+    date = models.DateField()
+    description = models.TextField(blank=True, null=True)
+    beneficiaire = models.CharField(max_length=200, blank=True, default='')
+    mode_paiement = models.CharField(max_length=20, choices=MODE_PAIEMENT_CHOICES, default='especes')
+    cree_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Dépense"
+        verbose_name_plural = "Dépenses"
+        ordering = ['-date', '-date_creation']
+
+    def __str__(self):
+        return f"{self.categorie.nom} — {self.montant} CFA ({self.date})"
+
+
+class DepenseRecurrente(models.Model):
+    """Dépense récurrente avec rappel mensuel."""
+    FREQUENCE_CHOICES = [
+        ('mensuel', 'Mensuel'),
+        ('trimestriel', 'Trimestriel'),
+        ('annuel', 'Annuel'),
+    ]
+    MODE_PAIEMENT_CHOICES = Depense.MODE_PAIEMENT_CHOICES
+
+    nom = models.CharField(max_length=200)
+    categorie = models.ForeignKey(CategoriDepense, on_delete=models.PROTECT, related_name='recurrentes')
+    institut = models.ForeignKey('Institut', on_delete=models.SET_NULL, null=True, blank=True, related_name='depenses_recurrentes')
+    montant = models.IntegerField(validators=[MinValueValidator(0)])
+    beneficiaire = models.CharField(max_length=200, blank=True, default='')
+    mode_paiement = models.CharField(max_length=20, choices=MODE_PAIEMENT_CHOICES, default='especes')
+    frequence = models.CharField(max_length=20, choices=FREQUENCE_CHOICES, default='mensuel')
+    jour_du_mois = models.IntegerField(default=1, validators=[MinValueValidator(1)])
+    actif = models.BooleanField(default=True)
+    cree_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Dépense récurrente"
+        verbose_name_plural = "Dépenses récurrentes"
+        ordering = ['nom']
+
+    def __str__(self):
+        return f"{self.nom} — {self.montant} CFA ({self.get_frequence_display()})"
+
+
+class ValidationDepenseRecurrente(models.Model):
+    """Validation mensuelle d'une dépense récurrente."""
+    STATUT_CHOICES = [
+        ('en_attente', 'En attente'),
+        ('valide', 'Validé'),
+        ('ignore', 'Ignoré'),
+    ]
+    depense_recurrente = models.ForeignKey(DepenseRecurrente, on_delete=models.CASCADE, related_name='validations')
+    mois = models.DateField(help_text="Premier jour du mois")
+    statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='en_attente')
+    depense = models.ForeignKey(Depense, on_delete=models.SET_NULL, null=True, blank=True)
+    date_validation = models.DateTimeField(null=True, blank=True)
+    valide_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Validation dépense récurrente"
+        unique_together = ['depense_recurrente', 'mois']
+        ordering = ['-mois']
+
+    def __str__(self):
+        return f"{self.depense_recurrente.nom} — {self.mois} — {self.get_statut_display()}"
+
+
+# ============================================================
+# MODÈLES STOCKS
+# ============================================================
+
+class CategorieProduit(models.Model):
+    """Catégorie de produit (Soins visage, Corps, Consommables, etc.)."""
+    nom = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+
+    class Meta:
+        verbose_name = "Catégorie produit"
+        verbose_name_plural = "Catégories produits"
+        ordering = ['nom']
+
+    def __str__(self):
+        return self.nom
+
+
+class UniteMesure(models.Model):
+    """Unité de mesure (unité, flacon, tube, kg, ml, etc.)."""
+    nom = models.CharField(max_length=50, unique=True)
+    abrv = models.CharField(max_length=10, blank=True, default='')
+
+    class Meta:
+        verbose_name = "Unité de mesure"
+        verbose_name_plural = "Unités de mesure"
+        ordering = ['nom']
+
+    def __str__(self):
+        return self.nom
+
+
+class Fournisseur(models.Model):
+    """Fournisseur de produits."""
+    nom = models.CharField(max_length=200)
+    telephone = models.CharField(max_length=20, blank=True, default='')
+    email = models.EmailField(blank=True, default='')
+    actif = models.BooleanField(default=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Fournisseur"
+        verbose_name_plural = "Fournisseurs"
+        ordering = ['nom']
+
+    def __str__(self):
+        return self.nom
+
+
+class Produit(models.Model):
+    """Produit en stock (consommables, fournitures, etc.)."""
+    nom = models.CharField(max_length=200)
+    reference = models.CharField(max_length=100, blank=True, default='')
+    categorie = models.ForeignKey(
+        CategorieProduit, on_delete=models.PROTECT,
+        null=True, blank=True, related_name='produits'
+    )
+    unite = models.ForeignKey(
+        UniteMesure, on_delete=models.PROTECT,
+        null=True, blank=True, related_name='produits'
+    )
+    fournisseur = models.ForeignKey(
+        Fournisseur, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='produits'
+    )
+    prix_achat = models.IntegerField(default=0, validators=[MinValueValidator(0)])
+    prix_vente = models.IntegerField(default=0, validators=[MinValueValidator(0)], help_text="0 si non vendu aux clients")
+    stock_actuel = models.IntegerField(default=0)
+    stock_minimum = models.IntegerField(default=0, validators=[MinValueValidator(0)])
+    actif = models.BooleanField(default=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Produit"
+        verbose_name_plural = "Produits"
+        ordering = ['categorie__nom', 'nom']
+
+    def __str__(self):
+        return self.nom
+
+    @property
+    def en_alerte(self):
+        return self.stock_actuel <= self.stock_minimum
+
+    @property
+    def valeur_stock(self):
+        return self.stock_actuel * self.prix_achat
+
+
+class MouvementStock(models.Model):
+    """Mouvement de stock (entrée, sortie, inventaire, perte)."""
+    TYPE_CHOICES = [
+        ('entree', 'Entrée'),
+        ('sortie', 'Sortie'),
+        ('inventaire', 'Inventaire'),
+        ('perte', 'Perte/Casse'),
+    ]
+
+    produit = models.ForeignKey(Produit, on_delete=models.CASCADE, related_name='mouvements')
+    type_mouvement = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    quantite = models.IntegerField()
+    quantite_avant = models.IntegerField(default=0)
+    quantite_apres = models.IntegerField(default=0)
+    prix_unitaire = models.IntegerField(default=0, validators=[MinValueValidator(0)])
+    commentaire = models.TextField(blank=True, null=True)
+    cree_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Mouvement de stock"
+        verbose_name_plural = "Mouvements de stock"
+        ordering = ['-date_creation']
+
+    def __str__(self):
+        return f"{self.get_type_mouvement_display()} {self.quantite} x {self.produit.nom}"
+
+
+class Inventaire(models.Model):
+    """Inventaire périodique du stock."""
+    STATUT_CHOICES = [
+        ('en_cours', 'En cours'),
+        ('termine', 'Terminé'),
+        ('annule', 'Annulé'),
+    ]
+    date = models.DateField()
+    statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='en_cours')
+    commentaire = models.TextField(blank=True, null=True)
+    effectue_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+    date_cloture = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Inventaire"
+        verbose_name_plural = "Inventaires"
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"Inventaire du {self.date} — {self.get_statut_display()}"
+
+    @property
+    def valeur_theorique(self):
+        return sum(l.quantite_theorique * l.produit.prix_achat for l in self.lignes.all())
+
+    @property
+    def valeur_reelle(self):
+        return sum(l.quantite_reelle * l.produit.prix_achat for l in self.lignes.all())
+
+    @property
+    def ecart_valeur(self):
+        return self.valeur_reelle - self.valeur_theorique
+
+    @property
+    def nb_ecarts(self):
+        return self.lignes.exclude(ecart=0).count()
+
+
+class LigneInventaire(models.Model):
+    """Ligne d'inventaire pour un produit."""
+    inventaire = models.ForeignKey(Inventaire, on_delete=models.CASCADE, related_name='lignes')
+    produit = models.ForeignKey(Produit, on_delete=models.CASCADE)
+    quantite_theorique = models.IntegerField(default=0)
+    quantite_reelle = models.IntegerField(default=0)
+    ecart = models.IntegerField(default=0)
+    commentaire = models.TextField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ['inventaire', 'produit']
+        ordering = ['produit__categorie__nom', 'produit__nom']
+
+    def __str__(self):
+        return f"{self.produit.nom} — théo:{self.quantite_theorique} réel:{self.quantite_reelle}"
+
+    def calculer_ecart(self):
+        self.ecart = self.quantite_reelle - self.quantite_theorique
+
+
+# ============================================================
+# MODÈLES SALAIRES
+# ============================================================
+
+class TypePrime(models.Model):
+    """Types de primes personnalisables."""
+    nom = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+    actif = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Type de prime"
+        verbose_name_plural = "Types de prime"
+        ordering = ['nom']
+
+    def __str__(self):
+        return self.nom
+
+
+class Prime(models.Model):
+    """Prime attribuée à un employé pour un mois donné."""
+    employe = models.ForeignKey(Employe, on_delete=models.CASCADE, related_name='primes')
+    type_prime = models.ForeignKey(TypePrime, on_delete=models.PROTECT)
+    mois = models.DateField(help_text="Premier jour du mois")
+    montant = models.IntegerField(validators=[MinValueValidator(0)])
+    commentaire = models.TextField(blank=True, null=True)
+    cree_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Prime"
+        verbose_name_plural = "Primes"
+        ordering = ['-mois', 'employe']
+
+    def __str__(self):
+        return f"{self.employe.get_full_name()} - {self.type_prime.nom} ({self.mois.strftime('%B %Y')}) : {self.montant} CFA"
+
+
+class Avance(models.Model):
+    """Avance sur salaire avec remboursement mensuel."""
+    STATUT_CHOICES = [
+        ('en_cours', 'En cours'),
+        ('rembourse', 'Remboursé'),
+        ('annule', 'Annulé'),
+    ]
+
+    employe = models.ForeignKey(Employe, on_delete=models.CASCADE, related_name='avances')
+    date = models.DateField()
+    montant = models.IntegerField(validators=[MinValueValidator(0)])
+    nombre_mois_remboursement = models.IntegerField(default=1, validators=[MinValueValidator(1)])
+    montant_mensuel = models.IntegerField(validators=[MinValueValidator(0)], default=0)
+    montant_rembourse = models.IntegerField(default=0)
+    statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='en_cours')
+    commentaire = models.TextField(blank=True, null=True)
+    cree_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Avance"
+        verbose_name_plural = "Avances"
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"{self.employe.get_full_name()} - {self.montant} CFA ({self.date})"
+
+    def reste_a_rembourser(self):
+        return self.montant - self.montant_rembourse
+
+    def save(self, *args, **kwargs):
+        if not self.montant_mensuel and self.montant and self.nombre_mois_remboursement:
+            self.montant_mensuel = self.montant // self.nombre_mois_remboursement
+        if self.montant_rembourse >= self.montant:
+            self.statut = 'rembourse'
+        super().save(*args, **kwargs)
+
+
+class CalculSalaire(models.Model):
+    """Calcul de salaire mensuel pour un employé."""
+    STATUT_CHOICES = [
+        ('brouillon', 'Brouillon'),
+        ('valide', 'Validé'),
+        ('paye', 'Payé'),
+    ]
+
+    employe = models.ForeignKey(Employe, on_delete=models.CASCADE, related_name='salaires')
+    mois = models.DateField(help_text="Premier jour du mois")
+
+    salaire_base = models.IntegerField(default=0)
+    jours_travailles = models.IntegerField(default=0)
+    jours_absence_non_payee = models.IntegerField(default=0)
+    montant_retenue_absences = models.IntegerField(default=0)
+    total_primes = models.IntegerField(default=0)
+    total_avances_deduites = models.IntegerField(default=0)
+    net_a_payer = models.IntegerField(default=0)
+
+    details_primes = models.JSONField(default=list, blank=True)
+    details_absences = models.JSONField(default=list, blank=True)
+    details_avances = models.JSONField(default=list, blank=True)
+
+    statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='brouillon')
+    valide_par = models.ForeignKey(
+        'Utilisateur', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='salaires_valides'
+    )
+    date_validation = models.DateTimeField(null=True, blank=True)
+    date_paiement = models.DateTimeField(null=True, blank=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['employe', 'mois']
+        ordering = ['-mois', 'employe']
+        verbose_name = "Calcul de salaire"
+        verbose_name_plural = "Calculs de salaires"
+
+    def __str__(self):
+        return f"{self.employe.get_full_name()} - {self.mois.strftime('%B %Y')} : {self.net_a_payer} CFA"
+
+    def calculer(self):
+        """Recalcule le salaire net : Base + Primes - Absences - Avances."""
+        from datetime import timedelta
+
+        self.salaire_base = self.employe.salaire_base
+        debut_mois = self.mois
+        fin_mois = (debut_mois.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+        # Présences
+        presences = Presence.objects.filter(
+            employe=self.employe, date__range=[debut_mois, fin_mois]
+        )
+        self.jours_travailles = presences.filter(
+            statut_arrivee__in=['present', 'retard']
+        ).count()
+
+        # Absences non payées
+        absences = Absence.objects.filter(
+            employe=self.employe,
+            date_debut__lte=fin_mois,
+            date_fin__gte=debut_mois
+        )
+        jours_non_payes = 0
+        details_abs = []
+        for absence in absences:
+            if not absence.est_payee():
+                debut = max(absence.date_debut, debut_mois)
+                fin = min(absence.date_fin, fin_mois)
+                jours = (fin - debut).days + 1
+                jours_non_payes += jours
+                details_abs.append({'type': absence.type_absence.nom, 'jours': jours})
+
+        self.jours_absence_non_payee = jours_non_payes
+        self.details_absences = details_abs
+        self.montant_retenue_absences = (self.salaire_base // 30) * jours_non_payes if self.salaire_base else 0
+
+        # Primes du mois
+        primes = Prime.objects.filter(employe=self.employe, mois=self.mois)
+        self.total_primes = sum(p.montant for p in primes)
+        self.details_primes = [{'type': p.type_prime.nom, 'montant': p.montant} for p in primes]
+
+        # Avances en cours
+        avances = Avance.objects.filter(employe=self.employe, statut='en_cours')
+        total_avances = 0
+        details_av = []
+        for avance in avances:
+            montant = min(avance.montant_mensuel, avance.reste_a_rembourser())
+            total_avances += montant
+            details_av.append({
+                'date': str(avance.date),
+                'montant_deduit': montant,
+                'reste': avance.reste_a_rembourser() - montant
+            })
+        self.total_avances_deduites = total_avances
+        self.details_avances = details_av
+
+        # Net à payer
+        self.net_a_payer = max(0,
+            self.salaire_base + self.total_primes
+            - self.montant_retenue_absences
+            - self.total_avances_deduites
+        )
+        self.save()
+        return self.net_a_payer
 
 
 class Client(models.Model):
@@ -1423,3 +2068,101 @@ class ModificationLog(models.Model):
 
     def __str__(self):
         return f"{self.get_type_modification_display()} - {self.utilisateur} - {self.date}"
+
+
+# ─────────────────────────── VENTES PRODUITS ───────────────────────────
+
+class VenteProduit(models.Model):
+    """Vente de produits à un client."""
+    MODE_CHOICES = [
+        ('especes', 'Espèces'),
+        ('wave', 'Wave'),
+        ('om', 'Orange Money'),
+        ('carte', 'Carte bancaire'),
+    ]
+
+    date = models.DateTimeField(auto_now_add=True)
+    institut = models.ForeignKey(Institut, on_delete=models.CASCADE, related_name='ventes_produits')
+    client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, related_name='ventes_produits')
+    montant_total = models.IntegerField(default=0)
+    mode_paiement = models.CharField(max_length=20, choices=MODE_CHOICES)
+    effectue_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
+
+    class Meta:
+        verbose_name = "Vente produit"
+        verbose_name_plural = "Ventes produits"
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"Vente {self.id} — {self.montant_total} CFA — {self.date}"
+
+    def calculer_total(self):
+        self.montant_total = sum(l.sous_total for l in self.lignes.all())
+        self.save()
+        return self.montant_total
+
+
+class LigneVenteProduit(models.Model):
+    """Ligne d'une vente produit."""
+    vente = models.ForeignKey(VenteProduit, on_delete=models.CASCADE, related_name='lignes')
+    produit = models.ForeignKey('Produit', on_delete=models.PROTECT)
+    quantite = models.IntegerField(validators=[MinValueValidator(1)])
+    prix_unitaire = models.IntegerField(validators=[MinValueValidator(0)])
+    sous_total = models.IntegerField(validators=[MinValueValidator(0)])
+
+    def save(self, *args, **kwargs):
+        self.sous_total = self.prix_unitaire * self.quantite
+        super().save(*args, **kwargs)
+
+
+# ─────────────────────────── RÉCONCILIATION CAISSE ───────────────────────────
+
+class ReconciliationCaisse(models.Model):
+    """Réconciliation journalière recettes attendues vs caisse réelle."""
+    date = models.DateField()
+    institut = models.ForeignKey(Institut, on_delete=models.CASCADE, related_name='reconciliations')
+
+    # Recettes calculées
+    recettes_rdv = models.IntegerField(default=0)
+    recettes_ventes = models.IntegerField(default=0)
+    recettes_attendues = models.IntegerField(default=0)
+
+    # Caisse réelle saisie
+    caisse_especes = models.IntegerField(default=0)
+    caisse_wave = models.IntegerField(default=0)
+    caisse_om = models.IntegerField(default=0)
+    caisse_carte = models.IntegerField(default=0)
+    caisse_reelle = models.IntegerField(default=0)
+
+    ecart = models.IntegerField(default=0)
+    commentaire_ecart = models.TextField(blank=True, null=True)
+
+    valide = models.BooleanField(default=False)
+    valide_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True, blank=True)
+    date_validation = models.DateTimeField(null=True, blank=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Réconciliation caisse"
+        verbose_name_plural = "Réconciliations caisse"
+        unique_together = ['date', 'institut']
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"Réconciliation {self.institut} — {self.date} — écart {self.ecart}"
+
+    def calculer(self):
+        from django.db.models import Sum
+        self.recettes_rdv = Paiement.objects.filter(
+            rendez_vous__employe__institut=self.institut,
+            date__date=self.date,
+        ).exclude(mode__in=['carte_cadeau', 'forfait', 'offert']).aggregate(s=Sum('montant'))['s'] or 0
+
+        self.recettes_ventes = VenteProduit.objects.filter(
+            institut=self.institut, date__date=self.date
+        ).aggregate(s=Sum('montant_total'))['s'] or 0
+
+        self.recettes_attendues = self.recettes_rdv + self.recettes_ventes
+        self.caisse_reelle = self.caisse_especes + self.caisse_wave + self.caisse_om + self.caisse_carte
+        self.ecart = self.caisse_reelle - self.recettes_attendues
+        self.save()

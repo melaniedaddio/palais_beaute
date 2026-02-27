@@ -1,0 +1,242 @@
+{% extends 'base.html' %}
+
+{% block title %}Réconciliation caisse{% endblock %}
+
+{% block extra_css %}
+<style>
+    .rec-container { max-width: 1100px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+
+    .filters-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+    .filters-bar input, .filters-bar select { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; }
+    .filters-bar button { padding: 8px 20px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+
+    .layout { display: grid; grid-template-columns: 1fr 340px; gap: 24px; align-items: start; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+    .card { background: white; border-radius: 16px; padding: 22px; box-shadow: 0 4px 15px rgba(212,175,122,.10); border: 1px solid var(--border); margin-bottom: 20px; }
+    .card h3 { font-size: 14px; font-weight: 700; color: var(--text-dark); margin: 0 0 16px; text-transform: uppercase; letter-spacing: .5px; }
+
+    .panel { border: 2px solid var(--border); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+    .panel-header { padding: 12px 16px; font-weight: 700; font-size: 14px; }
+    .panel-header.credit { background: #d4edda; color: #155724; }
+    .panel-header.debit { background: #f8d7da; color: #721c24; }
+    .panel-header.ecart-ok { background: #d4edda; color: #155724; }
+    .panel-header.ecart-ko { background: #f8d7da; color: #721c24; }
+    .panel-body { padding: 14px 16px; }
+
+    .row-data { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .row-data:last-child { border-bottom: none; }
+    .row-data strong { color: var(--text-dark); }
+
+    .ecart-val { font-size: 28px; font-weight: 700; text-align: center; padding: 12px 0; }
+    .ecart-pos { color: #27ae60; }
+    .ecart-neg { color: #e74c3c; }
+    .ecart-zero { color: #2980b9; }
+
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-weight: 600; font-size: 13px; color: var(--text-dark); margin-bottom: 5px; }
+    .form-group input, .form-group textarea { width: 100%; padding: 9px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; box-sizing: border-box; }
+
+    .btn-calc { width: 100%; padding: 12px; border: none; border-radius: 10px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; font-size: 15px; font-weight: 700; cursor: pointer; margin-bottom: 10px; }
+    .btn-valider { width: 100%; padding: 12px; border: none; border-radius: 10px; background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%); color: white; font-size: 15px; font-weight: 700; cursor: pointer; }
+    .btn-valider:disabled { background: #ccc; cursor: not-allowed; }
+
+    .badge-ok { display: inline-block; padding: 3px 10px; border-radius: 10px; background: #d4edda; color: #155724; font-size: 12px; font-weight: 600; }
+    .badge-ko { display: inline-block; padding: 3px 10px; border-radius: 10px; background: #f8d7da; color: #721c24; font-size: 12px; font-weight: 600; }
+    .badge-att { display: inline-block; padding: 3px 10px; border-radius: 10px; background: #fff3cd; color: #856404; font-size: 12px; font-weight: 600; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--bg-section); padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-dark); border-bottom: 2px solid var(--border); }
+    td { padding: 9px 12px; border-bottom: 1px solid var(--border); font-size: 12px; }
+    tr:last-child td { border-bottom: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rec-container">
+
+    <div class="page-header">
+        <h1>Réconciliation caisse</h1>
+    </div>
+
+    <form method="get" class="filters-bar">
+        <input type="date" name="date" value="{{ jour|date:'Y-m-d' }}">
+        <select name="institut">
+            {% for inst in instituts %}
+            <option value="{{ inst.code }}" {% if inst.code == institut_code %}selected{% endif %}>{{ inst.nom }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Afficher</button>
+    </form>
+
+    <div class="layout">
+        <!-- Colonne gauche : résultats -->
+        <div>
+            <div class="panel">
+                <div class="panel-header credit">💰 Recettes attendues — {{ jour|date:"d/m/Y" }}</div>
+                <div class="panel-body">
+                    <div class="row-data"><span>RDV / Prestations</span><strong id="recRdv">{{ reconciliation.recettes_rdv|floatformat:0 }} CFA</strong></div>
+                    <div class="row-data"><span>Ventes produits</span><strong id="recVentes">{{ reconciliation.recettes_ventes|floatformat:0 }} CFA</strong></div>
+                    <div class="row-data" style="font-weight:700;font-size:15px;"><span>Total attendu</span><strong id="recTotal">{{ reconciliation.recettes_attendues|floatformat:0 }} CFA</strong></div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header debit">🏦 Caisse réelle saisie</div>
+                <div class="panel-body">
+                    <div class="row-data"><span>Espèces</span><strong id="dispEspeces">{{ reconciliation.caisse_especes|floatformat:0 }} CFA</strong></div>
+                    <div class="row-data"><span>Wave</span><strong id="dispWave">{{ reconciliation.caisse_wave|floatformat:0 }} CFA</strong></div>
+                    <div class="row-data"><span>Orange Money</span><strong id="dispOm">{{ reconciliation.caisse_om|floatformat:0 }} CFA</strong></div>
+                    <div class="row-data"><span>Carte bancaire</span><strong id="dispCarte">{{ reconciliation.caisse_carte|floatformat:0 }} CFA</strong></div>
+                    <div class="row-data" style="font-weight:700;font-size:15px;"><span>Total réel</span><strong id="caisseTotal">{{ reconciliation.caisse_reelle|floatformat:0 }} CFA</strong></div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header {% if reconciliation.ecart == 0 %}ecart-ok{% else %}ecart-ko{% endif %}" id="ecartHeader">
+                    {% if reconciliation.ecart == 0 %}✅ Réconciliation parfaite{% elif reconciliation.ecart > 0 %}⬆️ Excédent{% else %}⬇️ Manque{% endif %}
+                </div>
+                <div class="panel-body">
+                    <div class="ecart-val {% if reconciliation.ecart > 0 %}ecart-pos{% elif reconciliation.ecart < 0 %}ecart-neg{% else %}ecart-zero{% endif %}" id="ecartVal">
+                        {{ reconciliation.ecart|floatformat:0 }} CFA
+                    </div>
+                    {% if reconciliation.commentaire_ecart %}
+                    <p style="font-size:13px;color:var(--text-light);font-style:italic;margin:8px 0 0;">{{ reconciliation.commentaire_ecart }}</p>
+                    {% endif %}
+                    {% if reconciliation.valide %}
+                    <div style="text-align:center;margin-top:10px;"><span class="badge-ok">✅ Validée par {{ reconciliation.valide_par }} le {{ reconciliation.date_validation|date:"d/m H:i" }}</span></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Colonne droite : saisie -->
+        <div>
+            {% if not reconciliation.valide %}
+            <div class="card">
+                <h3>Saisir la caisse réelle</h3>
+                <div class="form-group">
+                    <label>Espèces (CFA)</label>
+                    <input type="number" id="inEspeces" min="0" value="{{ reconciliation.caisse_especes }}">
+                </div>
+                <div class="form-group">
+                    <label>Wave (CFA)</label>
+                    <input type="number" id="inWave" min="0" value="{{ reconciliation.caisse_wave }}">
+                </div>
+                <div class="form-group">
+                    <label>Orange Money (CFA)</label>
+                    <input type="number" id="inOm" min="0" value="{{ reconciliation.caisse_om }}">
+                </div>
+                <div class="form-group">
+                    <label>Carte bancaire (CFA)</label>
+                    <input type="number" id="inCarte" min="0" value="{{ reconciliation.caisse_carte }}">
+                </div>
+                <div class="form-group">
+                    <label>Commentaire écart</label>
+                    <textarea id="inCommentaire" rows="2" placeholder="Explication si écart...">{{ reconciliation.commentaire_ecart|default:"" }}</textarea>
+                </div>
+                <button class="btn-calc" onclick="calculer()">Calculer l'écart</button>
+                <button class="btn-valider" id="btnValider" onclick="valider()">✅ Valider la réconciliation</button>
+            </div>
+            {% else %}
+            <div class="card">
+                <p style="color:#27ae60;font-weight:600;text-align:center;padding:20px 0;">Réconciliation déjà validée</p>
+            </div>
+            {% endif %}
+
+            <!-- Historique 30 jours -->
+            <div class="card">
+                <h3>Historique 30 jours</h3>
+                <table>
+                    <thead>
+                        <tr><th>Date</th><th>Attendu</th><th>Réel</th><th>Écart</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        {% for h in historique %}
+                        <tr>
+                            <td>{{ h.date|date:"d/m" }}</td>
+                            <td>{{ h.recettes_attendues|floatformat:0 }}</td>
+                            <td>{{ h.caisse_reelle|floatformat:0 }}</td>
+                            <td style="{% if h.ecart < 0 %}color:#e74c3c;{% elif h.ecart > 0 %}color:#27ae60;{% endif %}font-weight:600;">{{ h.ecart|floatformat:0 }}</td>
+                            <td>
+                                {% if h.valide %}<span class="badge-ok">✓</span>
+                                {% else %}<span class="badge-att">...</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" style="text-align:center;color:var(--text-light);font-style:italic;padding:20px;">Aucun historique</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+const INSTITUT_ID = {{ institut.id }};
+const JOUR = '{{ jour|date:"Y-m-d" }}';
+
+function fmt(n) { return parseInt(n || 0).toLocaleString('fr-FR') + ' CFA'; }
+
+async function calculer() {
+    const body = {
+        institut_id: INSTITUT_ID,
+        date: JOUR,
+        especes: document.getElementById('inEspeces').value || 0,
+        wave:    document.getElementById('inWave').value || 0,
+        om:      document.getElementById('inOm').value || 0,
+        carte:   document.getElementById('inCarte').value || 0,
+        commentaire: document.getElementById('inCommentaire').value,
+    };
+    try {
+        const resp = await fetch("{% url 'gestion:api_reconciliation_calculer' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            document.getElementById('recRdv').textContent = fmt(data.recettes_rdv);
+            document.getElementById('recVentes').textContent = fmt(data.recettes_ventes);
+            document.getElementById('recTotal').textContent = fmt(data.recettes_attendues);
+            document.getElementById('dispEspeces').textContent = fmt(body.especes);
+            document.getElementById('dispWave').textContent = fmt(body.wave);
+            document.getElementById('dispOm').textContent = fmt(body.om);
+            document.getElementById('dispCarte').textContent = fmt(body.carte);
+            document.getElementById('caisseTotal').textContent = fmt(data.caisse_reelle);
+            const ecart = data.ecart;
+            const ecartEl = document.getElementById('ecartVal');
+            ecartEl.textContent = fmt(ecart);
+            ecartEl.className = 'ecart-val ' + (ecart > 0 ? 'ecart-pos' : ecart < 0 ? 'ecart-neg' : 'ecart-zero');
+            const header = document.getElementById('ecartHeader');
+            if (ecart === 0) { header.className = 'panel-header ecart-ok'; header.textContent = '✅ Réconciliation parfaite'; }
+            else if (ecart > 0) { header.className = 'panel-header ecart-ok'; header.textContent = '⬆️ Excédent'; }
+            else { header.className = 'panel-header ecart-ko'; header.textContent = '⬇️ Manque'; }
+            showSuccess('Calcul mis à jour');
+        } else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+async function valider() {
+    if (!confirm('Valider définitivement la réconciliation du {{ jour|date:"d/m/Y" }} ?')) return;
+    document.getElementById('btnValider').disabled = true;
+    try {
+        const resp = await fetch("{% url 'gestion:api_reconciliation_valider' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({ institut_id: INSTITUT_ID, date: JOUR }),
+        });
+        const data = await resp.json();
+        if (data.success) { showSuccess(data.message); setTimeout(() => location.reload(), 900); }
+        else { showError(data.error); document.getElementById('btnValider').disabled = false; }
+    } catch(e) { showError('Erreur réseau'); document.getElementById('btnValider').disabled = false; }
+}
+</script>
+{% endblock %}

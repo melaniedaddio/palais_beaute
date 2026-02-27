@@ -45,6 +45,7 @@
         -webkit-overflow-scrolling: touch;
         scrollbar-width: none;
         margin-top: 15px;
+        flex-wrap: wrap;
     }
 
     .institut-tabs::-webkit-scrollbar {
@@ -75,6 +76,28 @@
         background: #e0e0e0;
     }
 
+    .institut-tab.tab-autres {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .institut-tab.tab-autres.active {
+        background: #f39c12;
+        color: white;
+    }
+
+    .institut-tab.tab-categories {
+        background: #e8daef;
+        color: #6c3483;
+        border: 1px dashed #9b59b6;
+    }
+
+    .institut-tab.tab-categories.active {
+        background: #9b59b6;
+        color: white;
+        border-color: transparent;
+    }
+
     .institut-section {
         display: none;
         background: white;
@@ -90,7 +113,7 @@
 
     .employes-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
         gap: 20px;
     }
 
@@ -118,13 +141,22 @@
         font-size: 18px;
         font-weight: 600;
         color: var(--text-dark);
+        margin-bottom: 6px;
+    }
+
+    .employe-categorie {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
         margin-bottom: 12px;
     }
 
     .employe-info {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
         margin-bottom: 15px;
         font-size: 13px;
         color: var(--text-light);
@@ -134,6 +166,13 @@
         display: flex;
         align-items: center;
         gap: 8px;
+    }
+
+    .employe-salaire {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--secondary);
+        margin-top: 4px;
     }
 
     .status-badge {
@@ -153,6 +192,16 @@
     .status-badge.inactif {
         background: #f8d7da;
         color: #721c24;
+    }
+
+    .rang-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 500;
+        background: var(--bg-section);
+        color: var(--text-light);
     }
 
     .employe-actions {
@@ -203,6 +252,55 @@
         font-style: italic;
     }
 
+    /* Catégories */
+    .categories-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 15px;
+        margin-top: 10px;
+    }
+
+    .categorie-card {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 16px 20px;
+        background: var(--bg-light);
+        border: 2px solid var(--border);
+        border-radius: 12px;
+    }
+
+    .categorie-color-dot {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .categorie-nom {
+        font-weight: 600;
+        color: var(--text-dark);
+        font-size: 14px;
+    }
+
+    .btn-icon {
+        background: none;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 4px 8px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.2s;
+    }
+    .btn-icon:hover { background: var(--bg-light); }
+    .btn-icon-danger:hover { background: #ffeaea; border-color: #e74c3c; }
+
+    .categorie-count {
+        font-size: 12px;
+        color: var(--text-light);
+        margin-top: 2px;
+    }
+
     /* Modal */
     .modal-backdrop {
         display: none;
@@ -225,7 +323,7 @@
         background: white;
         border-radius: 16px;
         padding: 30px;
-        max-width: 500px;
+        max-width: 560px;
         width: 90%;
         max-height: 90vh;
         overflow-y: auto;
@@ -272,14 +370,21 @@
     }
 
     .form-group {
-        margin-bottom: 20px;
+        margin-bottom: 18px;
     }
 
     .form-group label {
         display: block;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
         font-weight: 500;
         color: var(--text-dark);
+        font-size: 14px;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
     }
 
     .form-check {
@@ -290,9 +395,30 @@
     }
 
     .form-check input[type="checkbox"] {
-        width: 20px;
-        height: 20px;
+        width: 18px;
+        height: 18px;
         cursor: pointer;
+    }
+
+    .form-check label {
+        margin: 0;
+        font-size: 13px;
+        cursor: pointer;
+    }
+
+    .section-separator {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 20px 0;
+    }
+
+    .form-section-title {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: var(--text-light);
+        letter-spacing: 0.5px;
+        margin-bottom: 14px;
     }
 </style>
 {% endblock %}
@@ -311,38 +437,86 @@
         </div>
         <div class="institut-tabs">
             {% for institut, employes in employes_par_institut.items %}
-            <button class="institut-tab {% if forloop.first %}active{% endif %}" onclick="switchTab('{{ institut.code }}', this)">
+            <button class="institut-tab {% if forloop.first %}active{% endif %}"
+                    onclick="switchTab('{{ institut.code }}', this)">
                 {{ institut.nom }} ({{ employes|length }})
             </button>
             {% endfor %}
+            <button class="institut-tab tab-autres"
+                    onclick="switchTab('autres', this)">
+                ⭐ Autres ({{ employes_autres|length }})
+            </button>
+            <button class="institut-tab tab-categories"
+                    onclick="switchTab('categories', this)">
+                ⚙️ Catégories
+            </button>
         </div>
     </div>
 
+    <!-- Onglets instituts -->
     {% for institut, employes in employes_par_institut.items %}
     <div class="institut-section {% if forloop.first %}active{% endif %}" id="tab-{{ institut.code }}">
         {% if employes %}
         <div class="employes-grid">
             {% for employe in employes %}
-            <div class="employe-card">
-                <div class="employe-name">{{ employe.nom }}</div>
+            <div class="employe-card {% if not employe.actif %}inactive{% endif %}">
+                <div class="employe-name">{{ employe.get_full_name }}</div>
+
+                {% if employe.categorie %}
+                <span class="employe-categorie"
+                      style="background: {{ employe.categorie.couleur }}20; color: {{ employe.categorie.couleur }};">
+                    {{ employe.categorie.nom }}
+                </span>
+                {% endif %}
+
                 <div class="employe-info">
                     <div class="employe-info-item">
                         <span>📍</span>
                         <span>{{ employe.institut.nom }}</span>
                     </div>
+                    {% if employe.telephone %}
+                    <div class="employe-info-item">
+                        <span>📞</span>
+                        <span>{{ employe.telephone }}</span>
+                    </div>
+                    {% endif %}
+                    {% if employe.date_embauche %}
+                    <div class="employe-info-item">
+                        <span>📅</span>
+                        <span>Depuis {{ employe.date_embauche|date:"d/m/Y" }}</span>
+                    </div>
+                    {% endif %}
                 </div>
+
+                {% if employe.salaire_base %}
+                <div class="employe-salaire">{{ employe.salaire_base|floatformat:0 }} CFA / mois</div>
+                {% endif %}
+
+                <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+                    <span class="status-badge {% if employe.actif %}actif{% else %}inactif{% endif %}">
+                        {% if employe.actif %}Actif{% else %}Inactif{% endif %}
+                    </span>
+                    <span class="rang-badge">{{ employe.get_rang_display }}</span>
+                </div>
+
                 <div class="employe-actions">
                     <button class="btn-action btn-edit"
-                            data-id="{{ employe.id }}"
-                            data-nom="{{ employe.nom }}"
-                            data-institut="{{ employe.institut.code }}"
-                            onclick="openModal(this.dataset.id, this.dataset.nom, this.dataset.institut)">
+                            onclick="openModal(
+                                '{{ employe.id }}',
+                                '{{ employe.nom|escapejs }}',
+                                '{{ employe.prenom|escapejs }}',
+                                '{{ employe.telephone|default:''|escapejs }}',
+                                '{{ employe.institut.code|default:''|escapejs }}',
+                                '{{ employe.categorie.id|default:'' }}',
+                                '{{ employe.rang }}',
+                                '{{ employe.salaire_base }}',
+                                '{{ employe.date_embauche|default:''|date:'Y-m-d' }}',
+                                {{ employe.est_dans_agenda|yesno:'true,false' }}
+                            )">
                         ✏️ Modifier
                     </button>
                     <button class="btn-action btn-delete"
-                            data-id="{{ employe.id }}"
-                            data-nom="{{ employe.nom }}"
-                            onclick="supprimerEmploye(this.dataset.id, this.dataset.nom)">
+                            onclick="supprimerEmploye('{{ employe.id }}', '{{ employe.get_full_name|escapejs }}')">
                         🗑️ Supprimer
                     </button>
                 </div>
@@ -350,12 +524,144 @@
             {% endfor %}
         </div>
         {% else %}
-        <div class="empty-state">
-            Aucun employé pour cet institut
-        </div>
+        <div class="empty-state">Aucun employé pour cet institut</div>
         {% endif %}
     </div>
     {% endfor %}
+
+    <!-- Onglet Autres -->
+    <div class="institut-section" id="tab-autres">
+        <p style="color: var(--text-light); font-size:13px; margin-bottom:20px;">
+            Employés non rattachés à un institut : vigiles, filles de ménage, etc.
+        </p>
+        {% if employes_autres %}
+        <div class="employes-grid">
+            {% for employe in employes_autres %}
+            <div class="employe-card {% if not employe.actif %}inactive{% endif %}">
+                <div class="employe-name">{{ employe.get_full_name }}</div>
+
+                {% if employe.categorie %}
+                <span class="employe-categorie"
+                      style="background: {{ employe.categorie.couleur }}20; color: {{ employe.categorie.couleur }};">
+                    {{ employe.categorie.nom }}
+                </span>
+                {% endif %}
+
+                <div class="employe-info">
+                    {% if employe.telephone %}
+                    <div class="employe-info-item">
+                        <span>📞</span>
+                        <span>{{ employe.telephone }}</span>
+                    </div>
+                    {% endif %}
+                    {% if employe.date_embauche %}
+                    <div class="employe-info-item">
+                        <span>📅</span>
+                        <span>Depuis {{ employe.date_embauche|date:"d/m/Y" }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if employe.salaire_base %}
+                <div class="employe-salaire">{{ employe.salaire_base|floatformat:0 }} CFA / mois</div>
+                {% endif %}
+
+                <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+                    <span class="status-badge {% if employe.actif %}actif{% else %}inactif{% endif %}">
+                        {% if employe.actif %}Actif{% else %}Inactif{% endif %}
+                    </span>
+                </div>
+
+                <div class="employe-actions">
+                    <button class="btn-action btn-edit"
+                            onclick="openModal(
+                                '{{ employe.id }}',
+                                '{{ employe.nom|escapejs }}',
+                                '{{ employe.prenom|escapejs }}',
+                                '{{ employe.telephone|default:''|escapejs }}',
+                                '',
+                                '{{ employe.categorie.id|default:'' }}',
+                                '{{ employe.rang }}',
+                                '{{ employe.salaire_base }}',
+                                '{{ employe.date_embauche|default:''|date:'Y-m-d' }}',
+                                {{ employe.est_dans_agenda|yesno:'true,false' }}
+                            )">
+                        ✏️ Modifier
+                    </button>
+                    <button class="btn-action btn-delete"
+                            onclick="supprimerEmploye('{{ employe.id }}', '{{ employe.get_full_name|escapejs }}')">
+                        🗑️ Supprimer
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">Aucun employé dans la catégorie "Autres"</div>
+        {% endif %}
+    </div>
+
+    <!-- Onglet Catégories -->
+    <div class="institut-section" id="tab-categories">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <p style="color: var(--text-light); font-size:13px; margin:0;">
+                Catégories disponibles pour classer les employés.
+            </p>
+            <button class="btn-primary" onclick="openModalCategorie()">+ Ajouter une catégorie</button>
+        </div>
+        <div class="categories-grid">
+            {% for cat in categories %}
+            <div class="categorie-card" style="justify-content:space-between;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <div class="categorie-color-dot" style="background: {{ cat.couleur }};"></div>
+                    <div>
+                        <div class="categorie-nom">{{ cat.nom }}</div>
+                        <div class="categorie-count">{{ cat.employes.count }} employé{% if cat.employes.count > 1 %}s{% endif %}</div>
+                    </div>
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button class="btn-icon" title="Modifier" onclick="openModalCategorie({{ cat.id }}, '{{ cat.nom|escapejs }}', '{{ cat.couleur }}', {{ cat.ordre_affichage }})">✏️</button>
+                    <button class="btn-icon btn-icon-danger" title="Supprimer" onclick="supprimerCategorie({{ cat.id }}, '{{ cat.nom|escapejs }}')">🗑️</button>
+                </div>
+            </div>
+            {% empty %}
+            <div class="empty-state">Aucune catégorie — cliquez sur "+ Ajouter" pour commencer</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal Catégorie -->
+<div class="modal-backdrop" id="modalCategorieBackdrop" onclick="closeModalCategorieOnBackdrop(event)" style="display:none;">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2 class="modal-title" id="modalCategorieTitle">Ajouter une catégorie</h2>
+        </div>
+        <form id="formCategorie" onsubmit="submitFormCategorie(event)">
+            {% csrf_token %}
+            <input type="hidden" id="categorie_id" name="categorie_id">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="cat_nom">Nom *</label>
+                    <input type="text" class="form-control" id="cat_nom" name="nom" required placeholder="Ex : Esthéticienne senior">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="cat_couleur">Couleur</label>
+                        <input type="color" class="form-control" id="cat_couleur" name="couleur" value="#3498db" style="height:42px; padding:4px;">
+                    </div>
+                    <div class="form-group">
+                        <label for="cat_ordre">Ordre d'affichage</label>
+                        <input type="number" class="form-control" id="cat_ordre" name="ordre_affichage" value="0" min="0">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeModalCategorie()">Annuler</button>
+                <button type="submit" class="btn-primary" id="btnSubmitCategorie">Ajouter</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <!-- Modal Ajouter/Modifier -->
@@ -369,19 +675,76 @@
             <input type="hidden" id="employe_id" name="employe_id">
 
             <div class="modal-body">
+                <!-- Identité -->
+                <div class="form-section-title">Identité</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="prenom">Prénom *</label>
+                        <input type="text" class="form-control" id="prenom" name="prenom" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="nom">Nom</label>
+                        <input type="text" class="form-control" id="nom" name="nom">
+                    </div>
+                </div>
                 <div class="form-group">
-                    <label for="nom">Nom de l'employé *</label>
-                    <input type="text" class="form-control" id="nom" name="nom" required>
+                    <label for="telephone">Téléphone</label>
+                    <input type="text" class="form-control" id="telephone" name="telephone">
+                </div>
+
+                <hr class="section-separator">
+
+                <!-- Poste -->
+                <div class="form-section-title">Poste</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="categorie">Catégorie</label>
+                        <select class="form-control" id="categorie" name="categorie">
+                            <option value="">— Sans catégorie —</option>
+                            {% for cat in categories %}
+                            <option value="{{ cat.id }}">{{ cat.nom }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="rang">Rang</label>
+                        <select class="form-control" id="rang" name="rang">
+                            <option value="superieur">Supérieur</option>
+                            <option value="manager">Manager</option>
+                            <option value="employe" selected>Employé</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="form-group">
-                    <label for="institut">Institut *</label>
-                    <select class="form-control" id="institut" name="institut" required>
-                        <option value="">Sélectionnez un institut</option>
-                        {% for institut in instituts %}
-                        <option value="{{ institut.code }}">{{ institut.nom }}</option>
+                    <label for="institut">Institut</label>
+                    <select class="form-control" id="institut" name="institut">
+                        <option value="">— Autres (vigile, ménage, etc.) —</option>
+                        {% for inst in instituts %}
+                        <option value="{{ inst.code }}">{{ inst.nom }}</option>
                         {% endfor %}
                     </select>
+                </div>
+
+                <hr class="section-separator">
+
+                <!-- Salaire et dates -->
+                <div class="form-section-title">Rémunération</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="salaire_base">Salaire de base (CFA)</label>
+                        <input type="number" class="form-control" id="salaire_base" name="salaire_base"
+                               min="0" step="1000" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="date_embauche">Date d'embauche</label>
+                        <input type="date" class="form-control" id="date_embauche" name="date_embauche">
+                    </div>
+                </div>
+
+                <div class="form-check">
+                    <input type="checkbox" id="est_dans_agenda" name="est_dans_agenda" checked>
+                    <label for="est_dans_agenda">Apparaît dans l'agenda</label>
                 </div>
             </div>
 
@@ -403,7 +766,9 @@ function switchTab(code, btn) {
 
 let isEditMode = false;
 
-function openModal(id = null, nom = '', institut = '') {
+function openModal(id = null, nom = '', prenom = '', telephone = '', institut = '',
+                   categorie = '', rang = 'employe', salaire_base = 0,
+                   date_embauche = '', est_dans_agenda = true) {
     const modal = document.getElementById('modalBackdrop');
     const form = document.getElementById('formEmploye');
     const title = document.getElementById('modalTitle');
@@ -412,22 +777,28 @@ function openModal(id = null, nom = '', institut = '') {
     form.reset();
 
     if (id) {
-        // Mode édition
         isEditMode = true;
         title.textContent = 'Modifier l\'employé';
         btnSubmit.textContent = 'Modifier';
         document.getElementById('employe_id').value = id;
-        document.getElementById('nom').value = nom;
+        // Si prenom vide (ancien employé), migrer nom → prenom
+        document.getElementById('prenom').value = prenom || nom;
+        document.getElementById('nom').value = prenom ? nom : '';
+        document.getElementById('telephone').value = telephone;
         document.getElementById('institut').value = institut;
+        document.getElementById('categorie').value = categorie;
+        document.getElementById('rang').value = rang;
+        document.getElementById('salaire_base').value = salaire_base;
+        document.getElementById('date_embauche').value = date_embauche;
+        document.getElementById('est_dans_agenda').checked = est_dans_agenda;
     } else {
-        // Mode création
         isEditMode = false;
         title.textContent = 'Ajouter un employé';
         btnSubmit.textContent = 'Ajouter';
+        document.getElementById('est_dans_agenda').checked = true;
     }
 
     modal.classList.add('active');
-    // Supprimer le style inline pour laisser le CSS gérer
     modal.style.display = '';
 }
 
@@ -440,10 +811,7 @@ function closeModal() {
 }
 
 function closeModalOnBackdrop(event) {
-    // Fermer uniquement si on clique sur le backdrop (pas sur le contenu du modal)
-    if (event.target === event.currentTarget) {
-        closeModal();
-    }
+    if (event.target === event.currentTarget) closeModal();
 }
 
 async function submitForm(e) {
@@ -452,21 +820,15 @@ async function submitForm(e) {
     const formData = new FormData(e.target);
     const employeId = document.getElementById('employe_id').value;
 
-    let url, method;
+    let url;
     if (isEditMode && employeId) {
         url = `/api/employes/${employeId}/modifier/`;
-        method = 'POST';
     } else {
         url = '{% url "core:api_employe_creer" %}';
-        method = 'POST';
     }
 
     try {
-        const response = await fetch(url, {
-            method: method,
-            body: formData
-        });
-
+        const response = await fetch(url, { method: 'POST', body: formData });
         const data = await response.json();
 
         if (data.success) {
@@ -476,34 +838,23 @@ async function submitForm(e) {
             showError(data.message);
         }
     } catch (error) {
-        showError('Erreur: ' + error.message);
+        showError('Erreur : ' + error.message);
     }
 }
 
 async function supprimerEmploye(id, nom) {
-    console.log('supprimerEmploye appelée avec id:', id, 'nom:', nom);
-
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer l'employé "${nom}" ?\n\nCette action est irréversible.`)) {
-        console.log('Suppression annulée par l\'utilisateur');
-        return;
-    }
+    if (!confirm(`Supprimer "${nom}" ?\n\nCette action est irréversible.`)) return;
 
     try {
         const formData = new FormData();
         formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
 
-        const url = `/api/employes/${id}/supprimer/`;
-        console.log('Envoi requête vers:', url);
-
-        const response = await fetch(url, {
+        const response = await fetch(`/api/employes/${id}/supprimer/`, {
             method: 'POST',
             body: formData
         });
 
-        console.log('Réponse reçue, status:', response.status);
         const data = await response.json();
-        console.log('Données reçues:', data);
-
         if (data.success) {
             showSuccess(data.message);
             setTimeout(() => location.reload(), 1000);
@@ -511,12 +862,10 @@ async function supprimerEmploye(id, nom) {
             showError(data.message);
         }
     } catch (error) {
-        console.error('Erreur lors de la suppression:', error);
-        showError('Erreur: ' + error.message);
+        showError('Erreur : ' + error.message);
     }
 }
 
-// S'assurer que le modal est fermé au chargement de la page
 document.addEventListener('DOMContentLoaded', function() {
     const backdrop = document.getElementById('modalBackdrop');
     if (backdrop) {
@@ -525,11 +874,95 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Fermer modal avec Echap
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        closeModal();
-    }
+    if (e.key === 'Escape') { closeModal(); closeModalCategorie(); }
 });
+
+// ---- Catégories ----
+let isEditCategorie = false;
+
+function openModalCategorie(id = null, nom = '', couleur = '#3498db', ordre = 0) {
+    const backdrop = document.getElementById('modalCategorieBackdrop');
+    const title = document.getElementById('modalCategorieTitle');
+    const btnSubmit = document.getElementById('btnSubmitCategorie');
+    document.getElementById('formCategorie').reset();
+
+    if (id) {
+        isEditCategorie = true;
+        title.textContent = 'Modifier la catégorie';
+        btnSubmit.textContent = 'Modifier';
+        document.getElementById('categorie_id').value = id;
+        document.getElementById('cat_nom').value = nom;
+        document.getElementById('cat_couleur').value = couleur;
+        document.getElementById('cat_ordre').value = ordre;
+    } else {
+        isEditCategorie = false;
+        title.textContent = 'Ajouter une catégorie';
+        btnSubmit.textContent = 'Ajouter';
+        document.getElementById('categorie_id').value = '';
+        document.getElementById('cat_couleur').value = '#3498db';
+    }
+    backdrop.style.display = '';
+    backdrop.classList.add('active');
+}
+
+function closeModalCategorie() {
+    const backdrop = document.getElementById('modalCategorieBackdrop');
+    if (backdrop) { backdrop.classList.remove('active'); backdrop.style.display = 'none'; }
+}
+
+function closeModalCategorieOnBackdrop(event) {
+    if (event.target === event.currentTarget) closeModalCategorie();
+}
+
+async function submitFormCategorie(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const categorieId = document.getElementById('categorie_id').value;
+
+    let url;
+    if (isEditCategorie && categorieId) {
+        url = `/api/categories-employes/${categorieId}/modifier/`;
+    } else {
+        url = '{% url "core:api_categorie_employe_creer" %}';
+    }
+
+    try {
+        const response = await fetch(url, { method: 'POST', body: formData });
+        const data = await response.json();
+        if (data.success) {
+            showSuccess(data.message);
+            closeModalCategorie();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(data.message);
+        }
+    } catch (error) {
+        showError('Erreur : ' + error.message);
+    }
+}
+
+async function supprimerCategorie(id, nom) {
+    if (!confirm(`Supprimer la catégorie "${nom}" ?\n\nCette action est irréversible.`)) return;
+
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+    try {
+        const response = await fetch(`/api/categories-employes/${id}/supprimer/`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (data.success) {
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(data.message);
+        }
+    } catch (error) {
+        showError('Erreur : ' + error.message);
+    }
+}
 </script>
 {% endblock %}

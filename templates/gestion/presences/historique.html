@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+
+{% block title %}Historique des présences{% endblock %}
+
+{% block extra_css %}
+<style>
+    .histo-container { max-width: 1100px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+
+    .filters-bar {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .filters-bar select, .filters-bar input {
+        padding: 8px 14px;
+        border: 2px solid var(--border);
+        border-radius: 10px;
+        background: var(--bg-light);
+        font-size: 14px;
+        color: var(--text-dark);
+    }
+    .filters-bar button {
+        padding: 8px 20px;
+        border-radius: 10px;
+        border: none;
+        background: var(--primary);
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 28px;
+    }
+    .stat-card {
+        background: white;
+        border-radius: 14px;
+        padding: 18px 20px;
+        box-shadow: 0 2px 10px rgba(212,175,122,0.10);
+        border: 1px solid var(--border);
+    }
+    .stat-card .stat-name { font-size: 13px; color: var(--text-light); margin-bottom: 6px; }
+    .stat-card .stat-val { font-size: 26px; font-weight: 700; color: var(--text-dark); }
+    .stat-card .stat-sub { font-size: 12px; color: var(--text-light); margin-top: 4px; }
+    .stat-card.green .stat-val { color: #28a745; }
+    .stat-card.orange .stat-val { color: #f39c12; }
+    .stat-card.red .stat-val { color: #e74c3c; }
+
+    .card { background: white; border-radius: 16px; padding: 0; overflow: hidden; box-shadow: 0 4px 15px rgba(212,175,122,0.10); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--bg-section); padding: 12px 16px; text-align: left; font-weight: 600; font-size: 13px; color: var(--text-dark); border-bottom: 2px solid var(--border); }
+    td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-light); }
+
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .badge-success  { background: #d4edda; color: #155724; }
+    .badge-warning  { background: #fff3cd; color: #856404; }
+    .badge-danger   { background: #f8d7da; color: #721c24; }
+    .badge-secondary{ background: var(--bg-section); color: var(--text-light); }
+
+    .links-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .link-btn { padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); }
+    .link-btn:hover { background: var(--border); }
+    .link-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="histo-container">
+
+    <div class="page-header">
+        <h1>Historique des présences</h1>
+    </div>
+
+    <div class="links-bar">
+        <a href="{% url 'gestion:presences_pointage' %}" class="link-btn">Pointage du jour</a>
+        <a href="{% url 'gestion:presences_historique' %}" class="link-btn active">Historique</a>
+        <a href="{% url 'gestion:absences_liste' %}" class="link-btn">Absences</a>
+        <a href="{% url 'gestion:retards_suivi' %}" class="link-btn">Suivi retards</a>
+    </div>
+
+    <!-- Filtres -->
+    <form method="get" class="filters-bar">
+        <input type="month" name="mois" value="{{ mois|date:'Y-m' }}" title="Mois">
+        {% if is_patron %}
+        <select name="institut">
+            <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
+            {% for inst in instituts %}
+            <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
+            {% endfor %}
+            <option value="autres" {% if institut_code == 'autres' %}selected{% endif %}>Autres</option>
+        </select>
+        {% endif %}
+        <button type="submit">Filtrer</button>
+    </form>
+
+    <!-- Stats résumé -->
+    <div class="stats-grid">
+        {% for s in stats_employes %}
+        <div class="stat-card">
+            <div class="stat-name">{{ s.employe.get_full_name }}</div>
+            <div class="stat-val {% if s.nb_absent > 3 %}red{% elif s.nb_retard > 3 %}orange{% else %}green{% endif %}">
+                {{ s.nb_present }} j.
+            </div>
+            <div class="stat-sub">
+                {% if s.nb_retard > 0 %}<span style="color:#f39c12;">{{ s.nb_retard }} retard(s)</span>{% endif %}
+                {% if s.nb_retard > 0 and s.nb_absent > 0 %} · {% endif %}
+                {% if s.nb_absent > 0 %}<span style="color:#e74c3c;">{{ s.nb_absent }} absent(s)</span>{% endif %}
+                {% if s.nb_retard == 0 and s.nb_absent == 0 %}Aucune anomalie{% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div style="color:var(--text-light);font-style:italic;">Aucun employé</div>
+        {% endfor %}
+    </div>
+
+    <!-- Tableau détaillé -->
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Employé</th>
+                    {% if is_patron %}<th>Institut</th>{% endif %}
+                    <th>Arrivée</th>
+                    <th>Départ</th>
+                    <th>Heure arrivée</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in presences %}
+                <tr>
+                    <td>{{ p.date|date:"d/m/Y" }}</td>
+                    <td>
+                        <strong>{{ p.employe.get_full_name }}</strong>
+                        {% if p.employe.categorie %}
+                        <br><small style="color:{{ p.employe.categorie.couleur }};">{{ p.employe.categorie.nom }}</small>
+                        {% endif %}
+                    </td>
+                    {% if is_patron %}
+                    <td>{{ p.employe.institut.nom|default:"Autres" }}</td>
+                    {% endif %}
+                    <td>
+                        {% if p.statut_arrivee == 'present' %}
+                            <span class="badge badge-success">Présent</span>
+                        {% elif p.statut_arrivee == 'retard' %}
+                            <span class="badge badge-warning">Retard</span>
+                        {% elif p.statut_arrivee == 'absent' %}
+                            <span class="badge badge-danger">Absent</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if p.statut_depart == 'present' %}
+                            <span class="badge badge-success">Présent</span>
+                        {% elif p.statut_depart == 'absent' %}
+                            <span class="badge badge-danger">Absent</span>
+                        {% else %}
+                            <span class="badge badge-secondary">—</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ p.heure_arrivee|time:"H:i"|default:"—" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{% if is_patron %}6{% else %}5{% endif %}" style="text-align:center;color:var(--text-light);font-style:italic;padding:40px;">
+                        Aucun pointage enregistré sur cette période
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,281 @@
+{% extends 'base.html' %}
+
+{% block title %}Ventes produits{% endblock %}
+
+{% block extra_css %}
+<style>
+    .vente-container { max-width: 1200px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+
+    .layout { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: start; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+    .card { background: white; border-radius: 16px; padding: 22px; box-shadow: 0 4px 15px rgba(212,175,122,.10); border: 1px solid var(--border); }
+    .card h3 { font-size: 14px; font-weight: 700; color: var(--text-dark); margin: 0 0 16px; text-transform: uppercase; letter-spacing: .5px; }
+
+    /* Filtre institut */
+    .filters-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+    .filters-bar select { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; }
+
+    /* Grille produits */
+    .produits-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+    .produit-card { border: 2px solid var(--border); border-radius: 12px; padding: 14px; cursor: pointer; transition: all .2s; text-align: center; background: var(--bg-light); }
+    .produit-card:hover { border-color: var(--primary); background: white; transform: translateY(-2px); }
+    .produit-card.zero { opacity: .45; cursor: not-allowed; }
+    .produit-card .p-nom { font-weight: 700; font-size: 13px; color: var(--text-dark); margin-bottom: 4px; }
+    .produit-card .p-prix { font-size: 15px; font-weight: 700; color: var(--primary-dark); }
+    .produit-card .p-stock { font-size: 11px; color: var(--text-light); margin-top: 3px; }
+    .produit-card .p-cat { font-size: 10px; color: var(--text-light); margin-bottom: 6px; }
+
+    /* Recherche produits */
+    .search-bar { display: flex; gap: 8px; margin-bottom: 14px; }
+    .search-bar input { flex: 1; padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; }
+
+    /* Panier */
+    .panier-empty { text-align: center; color: var(--text-light); font-style: italic; font-size: 13px; padding: 30px 0; }
+    .panier-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; gap: 8px; }
+    .panier-item:last-child { border-bottom: none; }
+    .panier-nom { flex: 1; font-weight: 600; color: var(--text-dark); }
+    .panier-qty { display: flex; align-items: center; gap: 6px; }
+    .qty-btn { width: 26px; height: 26px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-section); cursor: pointer; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .qty-val { width: 28px; text-align: center; font-weight: 700; }
+    .panier-prix { font-weight: 700; color: var(--primary-dark); white-space: nowrap; }
+    .panier-del { background: none; border: none; cursor: pointer; color: #e74c3c; font-size: 16px; padding: 0 4px; }
+
+    .panier-total { display: flex; justify-content: space-between; padding: 12px 0 0; font-size: 18px; font-weight: 700; color: var(--text-dark); margin-top: 8px; border-top: 2px solid var(--border); }
+
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-weight: 600; font-size: 13px; color: var(--text-dark); margin-bottom: 5px; }
+    .form-group select, .form-group input { width: 100%; padding: 9px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; box-sizing: border-box; }
+
+    .btn-vendre { width: 100%; padding: 14px; border: none; border-radius: 12px; background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%); color: white; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 8px; }
+    .btn-vendre:disabled { background: #ccc; cursor: not-allowed; }
+
+    .stat-banner { background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%); color: white; border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+    .stat-banner .label { font-size: 13px; opacity: .85; }
+    .stat-banner .val { font-size: 22px; font-weight: 700; }
+
+    .nav-links { display: flex; gap: 10px; margin-bottom: 20px; }
+    .nav-link { padding: 8px 18px; border-radius: 10px; border: 2px solid var(--border); background: var(--bg-light); font-size: 13px; font-weight: 600; color: var(--text-dark); text-decoration: none; }
+    .nav-link.active { background: var(--primary); color: white; border-color: var(--primary); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="vente-container">
+
+    <div class="page-header">
+        <h1>Ventes produits</h1>
+    </div>
+
+    <div class="nav-links">
+        <a href="{% url 'gestion:ventes_caisse' %}{% if institut_code %}?institut={{ institut_code }}{% endif %}" class="nav-link active">Caisse</a>
+        <a href="{% url 'gestion:ventes_historique' %}{% if institut_code %}?institut={{ institut_code }}{% endif %}" class="nav-link">Historique</a>
+    </div>
+
+    {% if can_edit %}
+    <form method="get" class="filters-bar">
+        <select name="institut" onchange="this.form.submit()">
+            {% for inst in instituts %}
+            <option value="{{ inst.code }}" {% if inst.code == institut_code %}selected{% endif %}>{{ inst.nom }}</option>
+            {% endfor %}
+        </select>
+    </form>
+    {% endif %}
+
+    <div class="stat-banner">
+        <div>
+            <div class="label">Ventes aujourd'hui</div>
+            <div class="val">{{ ventes_jour|floatformat:0 }} CFA</div>
+        </div>
+        <div style="font-size:32px;opacity:.3;">🛒</div>
+    </div>
+
+    <div class="layout">
+        <!-- Produits -->
+        <div class="card">
+            <h3>Produits disponibles</h3>
+            <div class="search-bar">
+                <input type="text" id="searchProduit" placeholder="Rechercher un produit..." oninput="filtrerProduits(this.value)">
+            </div>
+            {% if produits %}
+            <div class="produits-grid" id="produitGrid">
+                {% for p in produits %}
+                <div class="produit-card {% if p.stock_actuel == 0 %}zero{% endif %}"
+                     data-id="{{ p.id }}"
+                     data-nom="{{ p.nom }}"
+                     data-prix="{{ p.prix_vente }}"
+                     data-stock="{{ p.stock_actuel }}"
+                     data-cat="{{ p.categorie.nom|default:'' }}"
+                     onclick="ajouterAuPanier(this)">
+                    <div class="p-cat">{{ p.categorie.nom|default:"—" }}</div>
+                    <div class="p-nom">{{ p.nom }}</div>
+                    <div class="p-prix">{{ p.prix_vente|floatformat:0 }} CFA</div>
+                    <div class="p-stock">Stock : {{ p.stock_actuel }}{% if p.unite %} {{ p.unite.abreviation }}{% endif %}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color:var(--text-light);font-style:italic;font-size:13px;">Aucun produit avec prix de vente défini. Configurez les prix dans <a href="{% url 'gestion:stocks_produits' %}">Stocks</a>.</p>
+            {% endif %}
+        </div>
+
+        <!-- Panier -->
+        <div>
+            <div class="card">
+                <h3>Panier</h3>
+                <div id="panierItems">
+                    <div class="panier-empty" id="panierEmpty">Le panier est vide</div>
+                </div>
+                <div class="panier-total" id="panierTotal" style="display:none;">
+                    <span>Total</span>
+                    <span id="totalVal">0 CFA</span>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:16px;">
+                <h3>Finaliser</h3>
+                <div class="form-group">
+                    <label>Client (optionnel)</label>
+                    <select id="clientSelect">
+                        <option value="">— Anonyme —</option>
+                        {% for c in clients %}
+                        <option value="{{ c.id }}">{{ c.prenom }} {{ c.nom }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Mode de paiement *</label>
+                    <select id="modePaiement">
+                        <option value="especes">Espèces</option>
+                        <option value="wave">Wave</option>
+                        <option value="om">Orange Money</option>
+                        <option value="carte">Carte bancaire</option>
+                    </select>
+                </div>
+                <button class="btn-vendre" id="btnVendre" onclick="finaliserVente()" disabled>
+                    Enregistrer la vente
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+const INSTITUT_ID = {{ institut.id }};
+let panier = {};
+
+function ajouterAuPanier(el) {
+    if (el.classList.contains('zero')) return;
+    const id = el.dataset.id;
+    const stock = parseInt(el.dataset.stock);
+    if (!panier[id]) {
+        panier[id] = { id, nom: el.dataset.nom, prix: parseInt(el.dataset.prix), qty: 0, stock };
+    }
+    if (panier[id].qty >= stock) { showError('Stock insuffisant'); return; }
+    panier[id].qty++;
+    renderPanier();
+}
+
+function changerQty(id, delta) {
+    if (!panier[id]) return;
+    panier[id].qty += delta;
+    if (panier[id].qty <= 0) delete panier[id];
+    else if (panier[id].qty > panier[id].stock) { panier[id].qty = panier[id].stock; showError('Stock insuffisant'); }
+    renderPanier();
+}
+
+function retirerDuPanier(id) {
+    delete panier[id];
+    renderPanier();
+}
+
+function renderPanier() {
+    const container = document.getElementById('panierItems');
+    const empty = document.getElementById('panierEmpty');
+    const totalDiv = document.getElementById('panierTotal');
+    const totalVal = document.getElementById('totalVal');
+    const btnVendre = document.getElementById('btnVendre');
+
+    const items = Object.values(panier);
+    if (!items.length) {
+        empty.style.display = '';
+        totalDiv.style.display = 'none';
+        btnVendre.disabled = true;
+        // Effacer les items précédents (sauf panierEmpty)
+        Array.from(container.children).forEach(c => { if (c.id !== 'panierEmpty') c.remove(); });
+        return;
+    }
+    empty.style.display = 'none';
+    totalDiv.style.display = '';
+    btnVendre.disabled = false;
+
+    // Effacer les items précédents
+    Array.from(container.children).forEach(c => { if (c.id !== 'panierEmpty') c.remove(); });
+
+    let total = 0;
+    items.forEach(item => {
+        const sous = item.prix * item.qty;
+        total += sous;
+        const div = document.createElement('div');
+        div.className = 'panier-item';
+        div.innerHTML = `
+            <span class="panier-nom">${item.nom}</span>
+            <div class="panier-qty">
+                <button class="qty-btn" onclick="changerQty('${item.id}', -1)">−</button>
+                <span class="qty-val">${item.qty}</span>
+                <button class="qty-btn" onclick="changerQty('${item.id}', 1)">+</button>
+            </div>
+            <span class="panier-prix">${sous.toLocaleString('fr-FR')} CFA</span>
+            <button class="panier-del" onclick="retirerDuPanier('${item.id}')">✕</button>
+        `;
+        container.insertBefore(div, document.getElementById('panierEmpty'));
+    });
+    totalVal.textContent = total.toLocaleString('fr-FR') + ' CFA';
+}
+
+async function finaliserVente() {
+    const items = Object.values(panier);
+    if (!items.length) return;
+    document.getElementById('btnVendre').disabled = true;
+    try {
+        const resp = await fetch("{% url 'gestion:api_vendre' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({
+                institut_id: INSTITUT_ID,
+                client_id: document.getElementById('clientSelect').value || null,
+                mode_paiement: document.getElementById('modePaiement').value,
+                items: items.map(i => ({ produit_id: i.id, quantite: i.qty })),
+            }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            panier = {};
+            renderPanier();
+            setTimeout(() => location.reload(), 1200);
+        } else {
+            showError(data.error);
+            document.getElementById('btnVendre').disabled = false;
+        }
+    } catch (e) {
+        showError('Erreur réseau');
+        document.getElementById('btnVendre').disabled = false;
+    }
+}
+
+function filtrerProduits(q) {
+    q = q.toLowerCase();
+    document.querySelectorAll('.produit-card').forEach(el => {
+        const match = el.dataset.nom.toLowerCase().includes(q) || el.dataset.cat.toLowerCase().includes(q);
+        el.style.display = match ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

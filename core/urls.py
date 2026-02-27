@@ -23,6 +23,11 @@ urlpatterns = [
     path('api/employes/<int:pk>/modifier/', views.api_employe_modifier, name='api_employe_modifier'),
     path('api/employes/<int:pk>/supprimer/', views.api_employe_supprimer, name='api_employe_supprimer'),
 
+    # Catégories employés (patron uniquement)
+    path('api/categories-employes/creer/', views.api_categorie_employe_creer, name='api_categorie_employe_creer'),
+    path('api/categories-employes/<int:pk>/modifier/', views.api_categorie_employe_modifier, name='api_categorie_employe_modifier'),
+    path('api/categories-employes/<int:pk>/supprimer/', views.api_categorie_employe_supprimer, name='api_categorie_employe_supprimer'),
+
     # Cartes cadeaux
     path('cartes-cadeaux/', views.cartes_cadeaux_list, name='cartes_cadeaux_list'),
     path('cartes-cadeaux/<int:carte_id>/imprimer/', views.imprimer_carte_cadeau, name='imprimer_carte_cadeau'),

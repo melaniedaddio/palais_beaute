@@ -1,0 +1,353 @@
+{% extends 'base.html' %}
+
+{% block title %}Bilan mensuel{% endblock %}
+
+{% block extra_css %}
+<style>
+    .bilan-container { max-width: 1100px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+
+    .filters-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+    .filters-bar input, .filters-bar select { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; }
+    .filters-bar button { padding: 8px 20px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+
+    /* KPI */
+    .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 28px; }
+    @media (max-width: 700px) { .kpi-grid { grid-template-columns: 1fr; } }
+    .kpi-card { border-radius: 16px; padding: 22px 24px; color: white; position: relative; overflow: hidden; }
+    .kpi-card.recettes  { background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%); }
+    .kpi-card.depenses  { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); }
+    .kpi-card.bpos { background: linear-gradient(135deg, #2980b9 0%, #1a5276 100%); }
+    .kpi-card.bneg { background: linear-gradient(135deg, #7f8c8d 0%, #555 100%); }
+    .kpi-label { font-size: 13px; opacity: .85; margin-bottom: 6px; }
+    .kpi-val   { font-size: 30px; font-weight: 700; }
+    .kpi-sub   { font-size: 12px; opacity: .75; margin-top: 4px; }
+    .kpi-icon  { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-size: 42px; opacity: .2; }
+
+    /* 2-col */
+    .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+
+    .card { background: white; border-radius: 16px; padding: 22px; box-shadow: 0 4px 15px rgba(212,175,122,.10); border: 1px solid var(--border); }
+    .card h3 { font-size: 14px; font-weight: 700; color: var(--text-dark); margin: 0 0 16px; text-transform: uppercase; letter-spacing: .5px; }
+
+    .detail-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-val { font-weight: 700; }
+    .detail-val.green { color: #27ae60; }
+    .detail-val.red   { color: #e74c3c; }
+
+    .bar-wrap { margin: 4px 0 10px; }
+    .bar-bg   { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width .4s; }
+    .bar-fill.green { background: #27ae60; }
+    .bar-fill.red   { background: #e74c3c; }
+
+    /* ── Graphique évolution ── */
+    .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+    .chart-header h3 { margin: 0; }
+    .period-btns { display: flex; gap: 6px; }
+    .period-btn { padding: 5px 14px; border-radius: 8px; border: 2px solid var(--border); background: var(--bg-light); font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-dark); }
+    .period-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    .chart-wrap { position: relative; }
+    .chart-svg-area { width: 100%; overflow: visible; display: block; }
+
+    /* tooltip */
+    .chart-tooltip {
+        position: fixed; pointer-events: none; display: none;
+        background: rgba(20,20,20,.92); color: white;
+        border-radius: 10px; padding: 10px 14px; font-size: 12px; line-height: 1.6;
+        box-shadow: 0 4px 16px rgba(0,0,0,.3); z-index: 9999; min-width: 160px;
+    }
+    .chart-tooltip .tt-title { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+    .chart-tooltip .tt-rec  { color: #4ece7a; }
+    .chart-tooltip .tt-dep  { color: #f1918a; }
+    .chart-tooltip .tt-ben  { color: #7ec8f0; }
+
+    .chart-legend { display: flex; gap: 18px; margin-top: 14px; font-size: 12px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 5px; vertical-align: middle; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="bilan-container">
+
+    <div class="page-header">
+        <h1>Bilan mensuel — {{ mois|date:"F Y" }}</h1>
+    </div>
+
+    <form method="get" class="filters-bar" id="mainForm">
+        <input type="month" name="mois" value="{{ mois|date:'Y-m' }}">
+        <select name="institut">
+            <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
+            {% for inst in instituts %}
+            <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
+            {% endfor %}
+        </select>
+        <input type="hidden" name="nb_mois" id="nbMoisHidden" value="{{ nb_mois }}">
+        <button type="submit">Afficher</button>
+    </form>
+
+    <!-- KPI -->
+    <div class="kpi-grid">
+        <div class="kpi-card recettes">
+            <div class="kpi-label">Recettes</div>
+            <div class="kpi-val">{{ total_recettes|floatformat:0 }} <small>CFA</small></div>
+            <div class="kpi-sub">Paiements encaissés (hors forfait/offert)</div>
+            <div class="kpi-icon">💰</div>
+        </div>
+        <div class="kpi-card depenses">
+            <div class="kpi-label">Dépenses</div>
+            <div class="kpi-val">{{ total_depenses|floatformat:0 }} <small>CFA</small></div>
+            <div class="kpi-sub">Taux de charges : {{ taux_charges }}%</div>
+            <div class="kpi-icon">💸</div>
+        </div>
+        <div class="kpi-card {% if benefice >= 0 %}bpos{% else %}bneg{% endif %}">
+            <div class="kpi-label">Bénéfice net</div>
+            <div class="kpi-val">{{ benefice|floatformat:0 }} <small>CFA</small></div>
+            <div class="kpi-sub">{% if benefice >= 0 %}Résultat positif{% else %}Résultat déficitaire{% endif %}</div>
+            <div class="kpi-icon">{% if benefice >= 0 %}📈{% else %}📉{% endif %}</div>
+        </div>
+    </div>
+
+    <!-- Détails -->
+    <div class="layout">
+        <div class="card">
+            <h3>Recettes par mode de paiement</h3>
+            {% if recettes_par_mode %}
+                {% for mode, montant in recettes_par_mode.items %}
+                <div class="detail-row">
+                    <span>
+                        {% if mode == 'especes' %}Espèces
+                        {% elif mode == 'wave' %}Wave
+                        {% elif mode == 'om' %}Orange Money
+                        {% elif mode == 'virement' %}Virement
+                        {% elif mode == 'carte' %}Carte bancaire
+                        {% elif mode == 'cheque' %}Chèque
+                        {% elif mode == 'carte_cadeau' %}Carte cadeau
+                        {% else %}{{ mode }}{% endif %}
+                    </span>
+                    <span class="detail-val green">{{ montant|floatformat:0 }} CFA</span>
+                </div>
+                {% if total_recettes > 0 %}
+                <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill green" style="width:{% widthratio montant total_recettes 100 %}%"></div></div></div>
+                {% endif %}
+                {% endfor %}
+            {% else %}
+                <p style="color:var(--text-light);font-style:italic;font-size:13px;">Aucune recette ce mois</p>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h3>Dépenses par catégorie</h3>
+            {% if depenses_par_cat %}
+                {% for item in depenses_par_cat %}
+                <div class="detail-row">
+                    <span>{{ item.categorie__nom }}</span>
+                    <span class="detail-val red">{{ item.total|floatformat:0 }} CFA</span>
+                </div>
+                {% if total_depenses > 0 %}
+                <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill red" style="width:{% widthratio item.total total_depenses 100 %}%"></div></div></div>
+                {% endif %}
+                {% endfor %}
+            {% else %}
+                <p style="color:var(--text-light);font-style:italic;font-size:13px;">Aucune dépense ce mois</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Graphique évolution -->
+    <div class="card">
+        <div class="chart-header">
+            <h3>Évolution</h3>
+            <div class="period-btns">
+                <button type="button" class="period-btn {% if nb_mois == 3 %}active{% endif %}" onclick="setPeriod(3)">3 mois</button>
+                <button type="button" class="period-btn {% if nb_mois == 6 %}active{% endif %}" onclick="setPeriod(6)">6 mois</button>
+                <button type="button" class="period-btn {% if nb_mois == 12 %}active{% endif %}" onclick="setPeriod(12)">12 mois</button>
+            </div>
+        </div>
+        <div class="chart-wrap">
+            <svg id="chartSvg" class="chart-svg-area"></svg>
+        </div>
+        <div class="chart-legend">
+            <span><span class="legend-dot" style="background:#27ae60;"></span>Recettes</span>
+            <span><span class="legend-dot" style="background:#e74c3c;"></span>Dépenses</span>
+            <span><span class="legend-dot" style="background:#2980b9;"></span>Bénéfice</span>
+        </div>
+    </div>
+
+</div>
+
+<!-- Tooltip -->
+<div class="chart-tooltip" id="chartTooltip">
+    <div class="tt-title" id="ttTitle"></div>
+    <div class="tt-rec"  id="ttRec"></div>
+    <div class="tt-dep"  id="ttDep"></div>
+    <div class="tt-ben"  id="ttBen"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const EVOLUTION = {{ evolution_json|safe }};
+
+// ── Sélecteur de plage ──
+function setPeriod(n) {
+    document.getElementById('nbMoisHidden').value = n;
+    document.getElementById('mainForm').submit();
+}
+
+// ── Formatage ──
+function fmt(n) {
+    return n.toLocaleString('fr-FR') + ' CFA';
+}
+
+// ── Dessin du graphique SVG ──
+function drawChart() {
+    const data = EVOLUTION;
+    if (!data || !data.length) return;
+
+    const svg = document.getElementById('chartSvg');
+    const W = svg.parentElement.clientWidth || 700;
+    const H = 220;
+    const PAD = { top: 20, right: 16, bottom: 36, left: 60 };
+    const chartW = W - PAD.left - PAD.right;
+    const chartH = H - PAD.top - PAD.bottom;
+
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('width', W);
+    svg.setAttribute('height', H);
+    svg.innerHTML = '';
+
+    const ns = 'http://www.w3.org/2000/svg';
+
+    function el(tag, attrs) {
+        const e = document.createElementNS(ns, tag);
+        for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+        return e;
+    }
+
+    // Max value
+    const allVals = data.flatMap(d => [d.recettes, d.depenses, Math.abs(d.benefice)]);
+    const maxVal = Math.max(...allVals, 1);
+
+    function yScale(v) {
+        return PAD.top + chartH - (v / maxVal * chartH);
+    }
+
+    const n = data.length;
+    const barGroupW = chartW / n;
+    const barW = Math.max(6, barGroupW * 0.28);
+
+    // ── Grille horizontale ──
+    const gridLines = 4;
+    for (let i = 0; i <= gridLines; i++) {
+        const y = PAD.top + (chartH / gridLines) * i;
+        const val = Math.round(maxVal * (1 - i / gridLines));
+        svg.appendChild(el('line', { x1: PAD.left, y1: y, x2: PAD.left + chartW, y2: y, stroke: '#e8e0d5', 'stroke-width': 1 }));
+        const t = el('text', { x: PAD.left - 6, y: y + 4, 'text-anchor': 'end', 'font-size': 10, fill: '#999' });
+        t.textContent = (val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val);
+        svg.appendChild(t);
+    }
+
+    // ── Axe X ──
+    svg.appendChild(el('line', { x1: PAD.left, y1: PAD.top + chartH, x2: PAD.left + chartW, y2: PAD.top + chartH, stroke: '#ccc', 'stroke-width': 1 }));
+
+    // ── Ligne bénéfice ──
+    let linePath = '';
+    const dotPoints = [];
+    data.forEach((d, i) => {
+        const cx = PAD.left + barGroupW * i + barGroupW / 2;
+        const ben = d.benefice;
+        const cy = ben >= 0 ? yScale(ben) : yScale(0) + (yScale(0) - yScale(-ben));
+        const safeY = Math.min(Math.max(cy, PAD.top), PAD.top + chartH);
+        linePath += (i === 0 ? `M ${cx},${safeY}` : ` L ${cx},${safeY}`);
+        dotPoints.push({ cx, cy: safeY, d });
+    });
+
+    if (linePath) {
+        const path = el('path', { d: linePath, stroke: '#2980b9', 'stroke-width': 2.5, fill: 'none', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+        svg.appendChild(path);
+    }
+
+    // ── Barres + labels + zones hover ──
+    data.forEach((d, i) => {
+        const cx = PAD.left + barGroupW * i + barGroupW / 2;
+        const baseline = PAD.top + chartH;
+
+        // Barre recettes
+        const hRec = Math.max(2, d.recettes / maxVal * chartH);
+        const rectRec = el('rect', {
+            x: cx - barW - 2, y: baseline - hRec, width: barW, height: hRec,
+            fill: '#27ae60', rx: 3, opacity: 0.85
+        });
+        svg.appendChild(rectRec);
+
+        // Barre dépenses
+        const hDep = Math.max(2, d.depenses / maxVal * chartH);
+        const rectDep = el('rect', {
+            x: cx + 2, y: baseline - hDep, width: barW, height: hDep,
+            fill: '#e74c3c', rx: 3, opacity: 0.85
+        });
+        svg.appendChild(rectDep);
+
+        // Label mois
+        const lbl = el('text', {
+            x: cx, y: baseline + 14, 'text-anchor': 'middle',
+            'font-size': n <= 6 ? 11 : 9, fill: '#888'
+        });
+        lbl.textContent = d.label;
+        svg.appendChild(lbl);
+
+        // Zone hover transparente
+        const zone = el('rect', {
+            x: PAD.left + barGroupW * i, y: PAD.top,
+            width: barGroupW, height: chartH + 10,
+            fill: 'transparent', style: 'cursor:crosshair;'
+        });
+        zone.addEventListener('mouseenter', (e) => showTooltip(e, d));
+        zone.addEventListener('mousemove',  (e) => moveTooltip(e));
+        zone.addEventListener('mouseleave', hideTooltip);
+        svg.appendChild(zone);
+    });
+
+    // ── Points bénéfice ──
+    dotPoints.forEach(({ cx, cy, d }) => {
+        const dot = el('circle', { cx, cy, r: 4, fill: '#2980b9', stroke: 'white', 'stroke-width': 2 });
+        svg.appendChild(dot);
+    });
+}
+
+// ── Tooltip ──
+const tooltip = document.getElementById('chartTooltip');
+
+function showTooltip(e, d) {
+    document.getElementById('ttTitle').textContent = d.label;
+    document.getElementById('ttRec').textContent = '💰 Recettes : ' + fmt(d.recettes);
+    document.getElementById('ttDep').textContent = '💸 Dépenses : ' + fmt(d.depenses);
+    const b = d.benefice;
+    document.getElementById('ttBen').textContent = (b >= 0 ? '📈' : '📉') + ' Bénéfice : ' + fmt(b);
+    tooltip.style.display = 'block';
+    moveTooltip(e);
+}
+
+function moveTooltip(e) {
+    const x = e.clientX + 14;
+    const y = e.clientY - 10;
+    const tw = tooltip.offsetWidth;
+    const th = tooltip.offsetHeight;
+    tooltip.style.left = (x + tw > window.innerWidth ? x - tw - 28 : x) + 'px';
+    tooltip.style.top  = (y + th > window.innerHeight ? y - th : y) + 'px';
+}
+
+function hideTooltip() {
+    tooltip.style.display = 'none';
+}
+
+// ── Init + resize ──
+drawChart();
+window.addEventListener('resize', drawChart);
+</script>
+{% endblock %}

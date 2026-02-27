@@ -1,0 +1,264 @@
+{% extends 'base.html' %}
+
+{% block title %}Suivi des retards{% endblock %}
+
+{% block extra_css %}
+<style>
+    .retards-container { max-width: 1100px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+
+    .filters-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+    .filters-bar select, .filters-bar input { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; color: var(--text-dark); }
+    .filters-bar button { padding: 8px 20px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+
+    .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(212,175,122,0.10); border: 1px solid var(--border); margin-bottom: 24px; }
+    .card-header { padding: 16px 20px; font-weight: 700; font-size: 15px; color: var(--text-dark); border-bottom: 1px solid var(--border); background: var(--bg-section); }
+
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--bg-section); padding: 12px 16px; text-align: left; font-weight: 600; font-size: 13px; color: var(--text-dark); border-bottom: 2px solid var(--border); }
+    td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-light); }
+
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .badge-success  { background: #d4edda; color: #155724; }
+    .badge-warning  { background: #fff3cd; color: #856404; }
+    .badge-danger   { background: #f8d7da; color: #721c24; }
+    .badge-secondary{ background: var(--bg-section); color: var(--text-light); }
+    .badge-purple   { background: #e8daef; color: #6c3483; }
+
+    .nb-retards-big { font-size: 26px; font-weight: 700; color: #f39c12; }
+
+    .btn-sm { padding: 6px 14px; border-radius: 8px; border: none; font-weight: 600; font-size: 12px; cursor: pointer; }
+    .btn-warning { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+    .btn-warning:hover { background: #ffc107; color: white; }
+
+    /* Modal */
+    .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-backdrop.active { display: flex; }
+    .modal { background: white; border-radius: 20px; padding: 32px; width: 100%; max-width: 480px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+    .modal h2 { margin: 0 0 20px; font-size: 20px; color: var(--text-dark); }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-weight: 600; font-size: 13px; color: var(--text-dark); margin-bottom: 6px; }
+    .form-group select, .form-group input, .form-group textarea {
+        width: 100%; padding: 10px 14px; border: 2px solid var(--border); border-radius: 10px;
+        background: var(--bg-light); font-size: 14px; color: var(--text-dark); box-sizing: border-box;
+    }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .modal-footer { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+    .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; }
+    .btn-secondary { background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; }
+
+    .links-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .link-btn { padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); }
+    .link-btn:hover { background: var(--border); }
+    .link-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    .alert-retard { background: #fff8e1; border-left: 4px solid #f39c12; padding: 12px 16px; border-radius: 0 10px 10px 0; margin-bottom: 20px; font-size: 14px; color: #856404; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="retards-container">
+
+    <div class="page-header">
+        <h1>Suivi des retards</h1>
+    </div>
+
+    <div class="links-bar">
+        <a href="{% url 'gestion:presences_pointage' %}" class="link-btn">Pointage du jour</a>
+        <a href="{% url 'gestion:presences_historique' %}" class="link-btn">Historique</a>
+        <a href="{% url 'gestion:absences_liste' %}" class="link-btn">Absences</a>
+        <a href="{% url 'gestion:retards_suivi' %}" class="link-btn active">Suivi retards</a>
+    </div>
+
+    <!-- Filtres -->
+    <form method="get" class="filters-bar">
+        <input type="month" name="mois" value="{{ mois|date:'Y-m' }}">
+        {% if is_patron %}
+        <select name="institut">
+            <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
+            {% for inst in instituts %}
+            <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
+            {% endfor %}
+            <option value="autres" {% if institut_code == 'autres' %}selected{% endif %}>Autres</option>
+        </select>
+        {% endif %}
+        <button type="submit">Filtrer</button>
+    </form>
+
+    {% if retards_par_employe %}
+    <div class="alert-retard">
+        ⚠️ <strong>{{ retards_par_employe|length }} employé(s)</strong> ont eu des retards ce mois-ci.
+    </div>
+    {% endif %}
+
+    <!-- Retards du mois -->
+    <div class="card">
+        <div class="card-header">Retards — {{ mois|date:"F Y" }}</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Employé</th>
+                    <th style="text-align:center;">Nb retards</th>
+                    <th>Avertissement</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in retards_par_employe %}
+                <tr>
+                    <td>
+                        <strong>{{ item.employe.get_full_name }}</strong>
+                        {% if item.employe.categorie %}
+                        <br><small style="color:{{ item.employe.categorie.couleur }};">{{ item.employe.categorie.nom }}</small>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:center;">
+                        <span class="nb-retards-big">{{ item.nb_retards }}</span>
+                    </td>
+                    <td>
+                        {% if item.avertissement %}
+                            <span class="badge badge-danger">Avertissement émis</span>
+                            {% if item.avertissement.mise_a_pied %}
+                            <br><span class="badge badge-purple" style="margin-top:4px;">Mise à pied {{ item.avertissement.jours_mise_a_pied }}j</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge badge-secondary">Aucun</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not item.avertissement %}
+                        <button class="btn-sm btn-warning"
+                                onclick="ouvrirModalAvert({{ item.employe.id }}, '{{ item.employe.get_full_name|escapejs }}', {{ item.nb_retards }}, '{{ mois|date:'Y-m' }}')">
+                            ⚠️ Émettre avertissement
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" style="text-align:center;color:var(--text-light);font-style:italic;padding:40px;">
+                        Aucun retard enregistré pour ce mois
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Avertissements récents -->
+    {% if avertissements_recents %}
+    <div class="card">
+        <div class="card-header">Avertissements récents (3 derniers mois)</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Employé</th>
+                    <th>Mois concerné</th>
+                    <th>Type</th>
+                    <th>Nb retards</th>
+                    <th>Mise à pied</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for av in avertissements_recents %}
+                <tr>
+                    <td><strong>{{ av.employe.get_full_name }}</strong></td>
+                    <td>{{ av.mois_concerne|date:"F Y" }}</td>
+                    <td>{{ av.get_type_avertissement_display }}</td>
+                    <td>{{ av.nombre_retards }}</td>
+                    <td>
+                        {% if av.mise_a_pied %}
+                            <span class="badge badge-purple">{{ av.jours_mise_a_pied }} jours</span>
+                        {% else %}
+                            <span class="badge badge-secondary">Non</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Modal Avertissement -->
+<div class="modal-backdrop" id="modalAvert" style="display:none;" onclick="if(event.target===this)fermerModalAvert()">
+    <div class="modal">
+        <h2>Émettre un avertissement</h2>
+        <form id="formAvert" onsubmit="submitAvert(event)">
+            {% csrf_token %}
+            <input type="hidden" name="employe_id" id="avert_employe_id">
+            <input type="hidden" name="mois_concerne" id="avert_mois">
+            <input type="hidden" name="type_avertissement" value="retard">
+
+            <div class="form-group">
+                <label>Employé</label>
+                <input type="text" id="avert_employe_nom" readonly style="background:#f5f5f5;">
+            </div>
+            <div class="form-group">
+                <label>Nombre de retards</label>
+                <input type="number" name="nombre_retards" id="avert_nb_retards" min="0">
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+                <input type="checkbox" name="mise_a_pied" id="mise_a_pied_cb" style="width:auto;" onchange="toggleMiseAPied(this)">
+                <label for="mise_a_pied_cb" style="margin:0;font-weight:500;">Mise à pied</label>
+            </div>
+            <div class="form-group" id="jours_map_group" style="display:none;">
+                <label>Nombre de jours (3-7)</label>
+                <input type="number" name="jours_mise_a_pied" min="3" max="7" value="3">
+            </div>
+            <div class="form-group">
+                <label>Commentaire</label>
+                <textarea name="commentaire" placeholder="Motif de l'avertissement..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="fermerModalAvert()">Annuler</button>
+                <button type="submit" class="btn-primary">Émettre l'avertissement</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function ouvrirModalAvert(employeId, nom, nbRetards, mois) {
+    document.getElementById('avert_employe_id').value = employeId;
+    document.getElementById('avert_employe_nom').value = nom;
+    document.getElementById('avert_nb_retards').value = nbRetards;
+    document.getElementById('avert_mois').value = mois;
+    document.getElementById('modalAvert').style.display = 'flex';
+}
+function fermerModalAvert() {
+    document.getElementById('modalAvert').style.display = 'none';
+    document.getElementById('formAvert').reset();
+}
+function toggleMiseAPied(cb) {
+    document.getElementById('jours_map_group').style.display = cb.checked ? 'block' : 'none';
+}
+
+async function submitAvert(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    try {
+        const resp = await fetch("{% url 'gestion:api_avertissement_creer' %}", { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            fermerModalAvert();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(data.error || data.message);
+        }
+    } catch(err) {
+        showError('Erreur réseau');
+    }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fermerModalAvert(); });
+</script>
+{% endblock %}

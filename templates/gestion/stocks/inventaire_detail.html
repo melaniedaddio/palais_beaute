@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ titre }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .inv-container { max-width: 1100px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 20px; color: var(--text-dark); margin: 0; }
+    .page-header .meta { font-size: 13px; color: var(--text-light); }
+
+    .status-bar { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; background: white; border-radius: 12px; padding: 14px 20px; box-shadow: 0 2px 8px rgba(0,0,0,.07); border: 1px solid var(--border); flex-wrap: wrap; }
+    .stat-box { text-align: center; }
+    .stat-box .val { font-size: 22px; font-weight: 700; color: var(--text-dark); }
+    .stat-box .lbl { font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: .5px; }
+    .stat-sep { width: 1px; height: 40px; background: var(--border); }
+
+    .btn-primary { padding: 10px 22px; border: none; border-radius: 10px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; font-weight: 700; font-size: 14px; cursor: pointer; }
+    .btn-danger { padding: 10px 22px; border: none; border-radius: 10px; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; font-weight: 700; font-size: 14px; cursor: pointer; }
+    .btn-sm { padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; background: white; font-size: 12px; cursor: pointer; }
+
+    .cat-section { margin-bottom: 24px; }
+    .cat-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-dark); padding: 10px 0 6px; border-bottom: 2px solid var(--border); margin-bottom: 0; }
+
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.06); border: 1px solid var(--border); }
+    th { background: var(--bg-section); padding: 9px 14px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-dark); border-bottom: 1px solid var(--border); }
+    td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+
+    .ecart-pos { color: #27ae60; font-weight: 700; }
+    .ecart-neg { color: #e74c3c; font-weight: 700; }
+    .ecart-zero { color: var(--text-light); }
+
+    .qty-input { width: 80px; padding: 6px 10px; border: 2px solid var(--border); border-radius: 8px; font-size: 14px; text-align: center; }
+    .qty-input:focus { border-color: var(--primary); outline: none; }
+    .qty-saved { border-color: #27ae60 !important; }
+
+    .badge-termine { background: #d4edda; color: #155724; padding: 4px 12px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+    .badge-cours { background: #fff3cd; color: #856404; padding: 4px 12px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="inv-container">
+    <div class="page-header">
+        <div>
+            <h1>{{ titre }}</h1>
+            <div class="meta">
+                {% if inv.statut == 'en_cours' %}<span class="badge-cours">En cours</span>
+                {% else %}<span class="badge-termine">Terminé — clôturé le {{ inv.date_cloture|date:"d/m/Y H:i" }}</span>{% endif %}
+            </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+            <a href="{% url 'gestion:inventaire_liste' %}" class="btn-sm">← Retour</a>
+            {% if inv.statut == 'en_cours' %}
+            <button class="btn-danger" onclick="cloturer()">Clôturer l'inventaire</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="status-bar">
+        <div class="stat-box">
+            <div class="val" id="statTotal">{{ inv.lignes.count }}</div>
+            <div class="lbl">Produits</div>
+        </div>
+        <div class="stat-sep"></div>
+        <div class="stat-box">
+            <div class="val" id="statSaisis">—</div>
+            <div class="lbl">Saisis</div>
+        </div>
+        <div class="stat-sep"></div>
+        <div class="stat-box">
+            <div class="val ecart-neg" id="statEcarts">—</div>
+            <div class="lbl">Écarts</div>
+        </div>
+    </div>
+
+    <!-- Lignes par catégorie -->
+    {% for cat_nom, lignes in categories.items %}
+    <div class="cat-section">
+        <div class="cat-title">{{ cat_nom }}</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Produit</th>
+                    <th style="text-align:center;">Théorique</th>
+                    <th style="text-align:center;">Réel saisi</th>
+                    <th style="text-align:center;">Écart</th>
+                    <th>Note</th>
+                    {% if inv.statut == 'en_cours' %}<th></th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for ligne in lignes %}
+                <tr id="row-{{ ligne.id }}">
+                    <td><strong>{{ ligne.produit.nom }}</strong></td>
+                    <td style="text-align:center;">{{ ligne.quantite_theorique }}</td>
+                    <td style="text-align:center;">
+                        {% if inv.statut == 'en_cours' %}
+                        <input type="number" class="qty-input" id="qty-{{ ligne.id }}"
+                               value="{{ ligne.quantite_reelle }}" min="0"
+                               onchange="saisir({{ ligne.id }}, {{ inv.id }})">
+                        {% else %}
+                        {{ ligne.quantite_reelle }}
+                        {% endif %}
+                    </td>
+                    <td style="text-align:center;" id="ecart-{{ ligne.id }}">
+                        {% if ligne.ecart > 0 %}<span class="ecart-pos">+{{ ligne.ecart }}</span>
+                        {% elif ligne.ecart < 0 %}<span class="ecart-neg">{{ ligne.ecart }}</span>
+                        {% else %}<span class="ecart-zero">0</span>{% endif %}
+                    </td>
+                    <td>{{ ligne.commentaire|default:"" }}</td>
+                    {% if inv.statut == 'en_cours' %}
+                    <td>
+                        <button class="btn-sm" onclick="saisir({{ ligne.id }}, {{ inv.id }})">Sauver</button>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+
+async function saisir(ligneId, invId) {
+    const input = document.getElementById('qty-' + ligneId);
+    const qte = parseInt(input.value) || 0;
+    try {
+        const resp = await fetch(`/gestion/stocks/inventaire/${invId}/ligne/${ligneId}/saisir/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({ quantite_reelle: qte }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            input.classList.add('qty-saved');
+            setTimeout(() => input.classList.remove('qty-saved'), 1500);
+            const ecartEl = document.getElementById('ecart-' + ligneId);
+            const e = data.ecart;
+            if (e > 0) ecartEl.innerHTML = `<span class="ecart-pos">+${e}</span>`;
+            else if (e < 0) ecartEl.innerHTML = `<span class="ecart-neg">${e}</span>`;
+            else ecartEl.innerHTML = `<span class="ecart-zero">0</span>`;
+            updateStats();
+        } else {
+            showError(data.error);
+        }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+function updateStats() {
+    const inputs = document.querySelectorAll('.qty-input');
+    let saisis = 0, ecarts = 0;
+    inputs.forEach(inp => {
+        saisis++;
+        const ecartEl = document.getElementById('ecart-' + inp.id.replace('qty-', ''));
+        if (ecartEl && ecartEl.textContent.trim() !== '0') ecarts++;
+    });
+    document.getElementById('statSaisis').textContent = saisis;
+    document.getElementById('statEcarts').textContent = ecarts;
+}
+
+async function cloturer() {
+    if (!confirm('Clôturer cet inventaire ? Les écarts seront appliqués au stock.')) return;
+    const invId = {{ inv.id }};
+    try {
+        const resp = await fetch(`/gestion/stocks/inventaire/${invId}/cloturer/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({}),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 1000);
+        } else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+// Init stats
+document.addEventListener('DOMContentLoaded', updateStats);
+</script>
+{% endblock %}

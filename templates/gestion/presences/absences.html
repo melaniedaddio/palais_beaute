@@ -1,0 +1,240 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestion des absences{% endblock %}
+
+{% block extra_css %}
+<style>
+    .abs-container { max-width: 1100px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+
+    .filters-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+    .filters-bar select, .filters-bar input { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; color: var(--text-dark); }
+    .filters-bar button { padding: 8px 20px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+
+    .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; }
+
+    .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(212,175,122,0.10); border: 1px solid var(--border); margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--bg-section); padding: 12px 16px; text-align: left; font-weight: 600; font-size: 13px; color: var(--text-dark); border-bottom: 2px solid var(--border); }
+    td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-light); }
+
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .badge-success  { background: #d4edda; color: #155724; }
+    .badge-warning  { background: #fff3cd; color: #856404; }
+    .badge-danger   { background: #f8d7da; color: #721c24; }
+    .badge-secondary{ background: var(--bg-section); color: var(--text-light); }
+
+    /* Modal */
+    .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-backdrop.active { display: flex; }
+    .modal { background: white; border-radius: 20px; padding: 32px; width: 100%; max-width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+    .modal h2 { margin: 0 0 24px; font-size: 20px; color: var(--text-dark); }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-weight: 600; font-size: 13px; color: var(--text-dark); margin-bottom: 6px; }
+    .form-group select, .form-group input, .form-group textarea {
+        width: 100%; padding: 10px 14px; border: 2px solid var(--border); border-radius: 10px;
+        background: var(--bg-light); font-size: 14px; color: var(--text-dark); box-sizing: border-box;
+    }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .modal-footer { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+    .btn-secondary { background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; }
+
+    .links-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .link-btn { padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); }
+    .link-btn:hover { background: var(--border); }
+    .link-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    .btn-icon { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 13px; }
+    .btn-icon:hover { background: #ffeaea; border-color: #e74c3c; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="abs-container">
+
+    <div class="page-header">
+        <h1>Absences</h1>
+        <button class="btn-primary" onclick="openModalAbsence()">+ Enregistrer une absence</button>
+    </div>
+
+    <div class="links-bar">
+        <a href="{% url 'gestion:presences_pointage' %}" class="link-btn">Pointage du jour</a>
+        <a href="{% url 'gestion:presences_historique' %}" class="link-btn">Historique</a>
+        <a href="{% url 'gestion:absences_liste' %}" class="link-btn active">Absences</a>
+        <a href="{% url 'gestion:retards_suivi' %}" class="link-btn">Suivi retards</a>
+    </div>
+
+    <!-- Filtres -->
+    <form method="get" class="filters-bar">
+        <input type="month" name="mois" value="{{ mois|date:'Y-m' }}">
+        {% if is_patron %}
+        <select name="institut">
+            <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
+            {% for inst in instituts %}
+            <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
+            {% endfor %}
+            <option value="autres" {% if institut_code == 'autres' %}selected{% endif %}>Autres</option>
+        </select>
+        {% endif %}
+        <button type="submit">Filtrer</button>
+    </form>
+
+    <!-- Tableau absences -->
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Employé</th>
+                    {% if is_patron %}<th>Institut</th>{% endif %}
+                    <th>Type</th>
+                    <th>Du</th>
+                    <th>Au</th>
+                    <th>Jours</th>
+                    <th>Justificatif</th>
+                    <th>Payée</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for abs in absences %}
+                <tr>
+                    <td><strong>{{ abs.employe.get_full_name }}</strong></td>
+                    {% if is_patron %}<td>{{ abs.employe.institut.nom|default:"Autres" }}</td>{% endif %}
+                    <td>{{ abs.type_absence.nom }}</td>
+                    <td>{{ abs.date_debut|date:"d/m/Y" }}</td>
+                    <td>{{ abs.date_fin|date:"d/m/Y" }}</td>
+                    <td><strong>{{ abs.nombre_jours }}</strong></td>
+                    <td>
+                        {% if abs.justificatif_recu %}
+                            <span class="badge badge-success">Oui</span>
+                        {% else %}
+                            <span class="badge badge-secondary">Non</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if abs.est_payee %}
+                            <span class="badge badge-success">Payée</span>
+                        {% else %}
+                            <span class="badge badge-danger">Non payée</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn-icon" onclick="supprimerAbsence({{ abs.id }}, '{{ abs.employe.get_full_name|escapejs }}')" title="Supprimer">🗑️</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{% if is_patron %}9{% else %}8{% endif %}" style="text-align:center;color:var(--text-light);font-style:italic;padding:40px;">
+                        Aucune absence enregistrée pour cette période
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<!-- Modal Absence -->
+<div class="modal-backdrop" id="modalAbsence" style="display:none;" onclick="if(event.target===this)closeModalAbsence()">
+    <div class="modal">
+        <h2>Enregistrer une absence</h2>
+        <form id="formAbsence" onsubmit="submitAbsence(event)">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Employé *</label>
+                <select name="employe_id" required>
+                    <option value="">— Choisir —</option>
+                    {% for emp in employes %}
+                    <option value="{{ emp.id }}">{{ emp.get_full_name }}{% if emp.institut %} ({{ emp.institut.nom }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Type d'absence *</label>
+                <select name="type_absence_id" required>
+                    <option value="">— Choisir —</option>
+                    {% for t in types_absence %}
+                    <option value="{{ t.id }}">{{ t.nom }}{% if t.est_payee %} (payée){% else %} (non payée){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                    <label>Date de début *</label>
+                    <input type="date" name="date_debut" required>
+                </div>
+                <div class="form-group">
+                    <label>Date de fin *</label>
+                    <input type="date" name="date_fin" required>
+                </div>
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+                <input type="checkbox" name="justificatif_recu" id="justificatif" style="width:auto;">
+                <label for="justificatif" style="margin:0;font-weight:500;">Justificatif reçu</label>
+            </div>
+            <div class="form-group">
+                <label>Commentaire</label>
+                <textarea name="commentaire" placeholder="Optionnel..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeModalAbsence()">Annuler</button>
+                <button type="submit" class="btn-primary">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openModalAbsence() {
+    document.getElementById('modalAbsence').style.display = 'flex';
+}
+function closeModalAbsence() {
+    document.getElementById('modalAbsence').style.display = 'none';
+    document.getElementById('formAbsence').reset();
+}
+
+async function submitAbsence(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    try {
+        const resp = await fetch("{% url 'gestion:api_absence_creer' %}", { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            closeModalAbsence();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(data.error || data.message);
+        }
+    } catch(err) {
+        showError('Erreur réseau');
+    }
+}
+
+async function supprimerAbsence(id, nom) {
+    if (!confirm(`Supprimer l'absence de "${nom}" ?`)) return;
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    try {
+        const resp = await fetch(`/gestion/presences/api/absence/${id}/supprimer/`, { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(data.error);
+        }
+    } catch(err) {
+        showError('Erreur réseau');
+    }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalAbsence(); });
+</script>
+{% endblock %}

@@ -1,0 +1,388 @@
+{% extends 'base.html' %}
+
+{% block title %}Stocks{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stk-container { max-width: 1200px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+    .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; }
+
+    .links-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .link-btn { padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); }
+    .link-btn:hover { background: var(--border); }
+    .link-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    .filters-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+    .filters-bar select { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; }
+    .filters-bar button { padding: 8px 20px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+    .btn-alerte { background: #e74c3c !important; }
+    .btn-alerte-off { background: var(--bg-section) !important; color: var(--text-dark) !important; border: 1px solid var(--border) !important; }
+
+    .totaux-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .total-card { background: white; border-radius: 14px; padding: 16px 20px; box-shadow: 0 2px 10px rgba(212,175,122,0.10); border: 1px solid var(--border); }
+    .total-card .label { font-size: 12px; color: var(--text-light); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .total-card .val { font-size: 22px; font-weight: 700; color: var(--text-dark); }
+    .total-card.red .val { color: #e74c3c; }
+    .total-card.gold .val { color: var(--secondary); }
+
+    .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(212,175,122,0.10); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--bg-section); padding: 12px 14px; text-align: left; font-weight: 600; font-size: 13px; color: var(--text-dark); border-bottom: 2px solid var(--border); }
+    td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-light); }
+    .text-right { text-align: right; }
+
+    .stock-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+    .stock-ok  { background: #d4edda; color: #155724; }
+    .stock-bas { background: #fff3cd; color: #856404; }
+    .stock-zero { background: #f8d7da; color: #721c24; }
+
+    .btn-icon { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 13px; margin-left: 4px; }
+    .btn-icon:hover { background: var(--bg-section); }
+    .btn-mouv { background: var(--bg-section); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px; font-weight: 600; }
+    .btn-mouv:hover { background: var(--primary); color: white; border-color: var(--primary); }
+
+    /* Modal */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+    .modal { background: white; border-radius: 20px; padding: 32px; width: 100%; max-width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto; }
+    .modal h2 { margin: 0 0 22px; font-size: 20px; color: var(--text-dark); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-weight: 600; font-size: 13px; color: var(--text-dark); margin-bottom: 6px; }
+    .form-group select, .form-group input, .form-group textarea {
+        width: 100%; padding: 10px 14px; border: 2px solid var(--border); border-radius: 10px;
+        background: var(--bg-light); font-size: 14px; box-sizing: border-box;
+    }
+    .modal-footer { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+    .btn-secondary { background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; }
+
+    .alerte-row td { background: #fff8f8 !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="stk-container">
+
+    <div class="page-header">
+        <h1>Gestion des stocks</h1>
+        <button class="btn-primary" onclick="document.getElementById('modalProduit').style.display='flex'">+ Ajouter un produit</button>
+    </div>
+
+    <div class="links-bar">
+        <a href="{% url 'gestion:stocks_produits' %}" class="link-btn active">Produits</a>
+        <a href="{% url 'gestion:stocks_mouvements' %}" class="link-btn">Mouvements</a>
+        <a href="{% url 'gestion:stocks_parametres' %}" class="link-btn">Paramètres</a>
+    </div>
+
+    <form method="get" class="filters-bar">
+        <select name="categorie">
+            <option value="tous" {% if categorie_id == 'tous' %}selected{% endif %}>Toutes catégories</option>
+            {% for cat in categories %}
+            <option value="{{ cat.id }}" {% if categorie_id == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.nom }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Filtrer</button>
+        {% if filtre_alerte == '1' %}
+        <a href="?categorie={{ categorie_id }}" class="btn-alerte-off btn-icon" style="text-decoration:none;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;">✓ Alertes actives</a>
+        {% else %}
+        <a href="?categorie={{ categorie_id }}&alerte=1" class="btn-alerte btn-icon" style="text-decoration:none;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;color:white;">⚠ Stock bas ({{ nb_alertes }})</a>
+        {% endif %}
+    </form>
+
+    <div class="totaux-grid">
+        <div class="total-card">
+            <div class="label">Produits</div>
+            <div class="val">{{ nb_produits }}</div>
+        </div>
+        <div class="total-card red">
+            <div class="label">Alertes stock</div>
+            <div class="val">{{ nb_alertes }}</div>
+        </div>
+        <div class="total-card gold">
+            <div class="label">Valeur stock</div>
+            <div class="val">{{ valeur_totale|floatformat:0 }} <small style="font-size:13px;font-weight:400;">CFA</small></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Produit</th>
+                    <th>Catégorie</th>
+                    <th class="text-right">Stock</th>
+                    <th class="text-right">Min.</th>
+                    <th class="text-right">Prix achat</th>
+                    <th class="text-right">Valeur</th>
+                    <th>État</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in produits %}
+                <tr {% if p.en_alerte %}class="alerte-row"{% endif %}>
+                    <td>
+                        <strong>{{ p.nom }}</strong>
+                        {% if p.reference %}<br><small style="color:var(--text-light);">Réf : {{ p.reference }}</small>{% endif %}
+                        {% if p.fournisseur %}<br><small style="color:var(--text-light);">{{ p.fournisseur.nom }}</small>{% endif %}
+                    </td>
+                    <td>{{ p.categorie.nom|default:"—" }}</td>
+                    <td class="text-right">
+                        <strong>{{ p.stock_actuel }}</strong>
+                        {% if p.unite %} <small style="color:var(--text-light);">{{ p.unite.abrv|default:p.unite.nom }}</small>{% endif %}
+                    </td>
+                    <td class="text-right" style="color:var(--text-light);">{{ p.stock_minimum }}</td>
+                    <td class="text-right">{{ p.prix_achat|floatformat:0 }} CFA</td>
+                    <td class="text-right">{{ p.valeur_stock|floatformat:0 }} CFA</td>
+                    <td>
+                        {% if p.stock_actuel == 0 %}
+                        <span class="stock-badge stock-zero">⛔ Rupture</span>
+                        {% elif p.en_alerte %}
+                        <span class="stock-badge stock-bas">⚠ Bas</span>
+                        {% else %}
+                        <span class="stock-badge stock-ok">✓ OK</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn-mouv" onclick="ouvrirModalMouvement({{ p.id }}, '{{ p.nom|escapejs }}', {{ p.stock_actuel }}, {{ p.prix_achat }})">+ / −</button>
+                        <button class="btn-icon" onclick="ouvrirModalModifier({{ p.id }}, '{{ p.nom|escapejs }}', '{{ p.reference|escapejs }}', {{ p.categorie.id|default:'null' }}, {{ p.unite.id|default:'null' }}, {{ p.fournisseur.id|default:'null' }}, {{ p.prix_achat }}, {{ p.stock_minimum }})" title="Modifier">✏️</button>
+                        <button class="btn-icon" onclick="supprimerProduit({{ p.id }}, '{{ p.nom|escapejs }}')" title="Supprimer" style="border-color:#e74c3c;">🗑️</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" style="text-align:center;color:var(--text-light);font-style:italic;padding:40px;">Aucun produit</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<!-- Modal Ajouter/Modifier produit -->
+<div id="modalProduit" style="display:none;" class="modal-backdrop" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal">
+        <h2 id="modalProduitTitre">Ajouter un produit</h2>
+        <form id="formProduit" onsubmit="submitProduit(event)">
+            {% csrf_token %}
+            <input type="hidden" id="produit_id" name="produit_id" value="">
+            <div class="form-group">
+                <label>Nom du produit *</label>
+                <input type="text" name="nom" id="prod_nom" required placeholder="Ex : Crème hydratante">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Référence</label>
+                    <input type="text" name="reference" id="prod_ref" placeholder="Optionnel">
+                </div>
+                <div class="form-group">
+                    <label>Catégorie</label>
+                    <select name="categorie_id" id="prod_categorie">
+                        <option value="">— Aucune —</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}">{{ cat.nom }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Unité</label>
+                    <select name="unite_id" id="prod_unite">
+                        <option value="">— Aucune —</option>
+                        {% for u in unites %}
+                        <option value="{{ u.id }}">{{ u.nom }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Fournisseur</label>
+                    <select name="fournisseur_id" id="prod_fournisseur">
+                        <option value="">— Aucun —</option>
+                        {% for f in fournisseurs %}
+                        <option value="{{ f.id }}">{{ f.nom }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Prix d'achat (CFA)</label>
+                    <input type="number" name="prix_achat" id="prod_prix" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>Stock minimum</label>
+                    <input type="number" name="stock_minimum" id="prod_min" min="0" value="0">
+                </div>
+            </div>
+            <div class="form-group" id="groupStockInitial">
+                <label>Stock initial</label>
+                <input type="number" name="stock_actuel" id="prod_stock" min="0" value="0">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="document.getElementById('modalProduit').style.display='none'">Annuler</button>
+                <button type="submit" class="btn-primary" id="btnProduitSubmit">Ajouter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Mouvement de stock -->
+<div id="modalMouvement" style="display:none;" class="modal-backdrop" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal">
+        <h2 id="modalMouvTitre">Mouvement de stock</h2>
+        <form id="formMouvement" onsubmit="submitMouvement(event)">
+            {% csrf_token %}
+            <input type="hidden" id="mouv_produit_id" name="produit_id">
+            <div class="form-group">
+                <label>Produit</label>
+                <input type="text" id="mouv_produit_nom" readonly style="background:#f5f5f5;">
+            </div>
+            <div style="background:var(--bg-section);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:14px;">
+                Stock actuel : <strong id="mouv_stock_actuel">—</strong>
+            </div>
+            <div class="form-group">
+                <label>Type de mouvement *</label>
+                <select name="type_mouvement" id="mouv_type" required onchange="majLabelMouvement()">
+                    <option value="entree">📦 Entrée (livraison / achat)</option>
+                    <option value="sortie">➡️ Sortie (utilisation)</option>
+                    <option value="inventaire">🔄 Inventaire (recalage)</option>
+                    <option value="perte">⚠️ Perte / Casse</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label id="mouv_quantite_label">Quantité *</label>
+                <input type="number" name="quantite" id="mouv_quantite" min="1" required>
+            </div>
+            <div class="form-group" id="groupPrixUnitaire">
+                <label>Prix unitaire (CFA)</label>
+                <input type="number" name="prix_unitaire" id="mouv_prix" min="0" value="0">
+            </div>
+            <div class="form-group">
+                <label>Commentaire</label>
+                <input type="text" name="commentaire" placeholder="Optionnel...">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="document.getElementById('modalMouvement').style.display='none'">Annuler</button>
+                <button type="submit" class="btn-primary">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+let modeEdit = false;
+
+function ouvrirModalMouvement(id, nom, stock, prix) {
+    document.getElementById('mouv_produit_id').value = id;
+    document.getElementById('mouv_produit_nom').value = nom;
+    document.getElementById('mouv_stock_actuel').textContent = stock;
+    document.getElementById('mouv_prix').value = prix;
+    document.getElementById('mouv_quantite').value = '';
+    document.getElementById('mouv_type').value = 'entree';
+    majLabelMouvement();
+    document.getElementById('modalMouvement').style.display = 'flex';
+}
+
+function majLabelMouvement() {
+    const type = document.getElementById('mouv_type').value;
+    const labels = {
+        entree: 'Quantité reçue *',
+        sortie: 'Quantité utilisée *',
+        inventaire: 'Nouveau stock total *',
+        perte: 'Quantité perdue *'
+    };
+    document.getElementById('mouv_quantite_label').textContent = labels[type] || 'Quantité *';
+    document.getElementById('groupPrixUnitaire').style.display = type === 'entree' ? '' : 'none';
+}
+
+function ouvrirModalModifier(id, nom, ref, catId, uniteId, foId, prix, min) {
+    modeEdit = true;
+    document.getElementById('produit_id').value = id;
+    document.getElementById('prod_nom').value = nom;
+    document.getElementById('prod_ref').value = ref || '';
+    document.getElementById('prod_categorie').value = catId || '';
+    document.getElementById('prod_unite').value = uniteId || '';
+    document.getElementById('prod_fournisseur').value = foId || '';
+    document.getElementById('prod_prix').value = prix;
+    document.getElementById('prod_min').value = min;
+    document.getElementById('groupStockInitial').style.display = 'none';
+    document.getElementById('modalProduitTitre').textContent = 'Modifier le produit';
+    document.getElementById('btnProduitSubmit').textContent = 'Modifier';
+    document.getElementById('modalProduit').style.display = 'flex';
+}
+
+document.getElementById('modalProduit').addEventListener('click', function(e) {
+    if (e.target === this) this.style.display = 'none';
+});
+
+// Reset modal when opening for add
+document.querySelector('[onclick*="modalProduit"]').addEventListener('click', function() {
+    modeEdit = false;
+    document.getElementById('produit_id').value = '';
+    document.getElementById('formProduit').reset();
+    document.getElementById('groupStockInitial').style.display = '';
+    document.getElementById('modalProduitTitre').textContent = 'Ajouter un produit';
+    document.getElementById('btnProduitSubmit').textContent = 'Ajouter';
+});
+
+async function submitProduit(e) {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const produitId = document.getElementById('produit_id').value;
+    const url = produitId
+        ? `/gestion/stocks/api/produit/${produitId}/modifier/`
+        : "{% url 'gestion:api_produit_creer' %}";
+    try {
+        const resp = await fetch(url, { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            document.getElementById('modalProduit').style.display = 'none';
+            setTimeout(() => location.reload(), 900);
+        } else { showError(data.error); }
+    } catch(err) { showError('Erreur réseau'); }
+}
+
+async function submitMouvement(e) {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    try {
+        const resp = await fetch("{% url 'gestion:api_mouvement_creer' %}", { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            document.getElementById('modalMouvement').style.display = 'none';
+            setTimeout(() => location.reload(), 900);
+        } else { showError(data.error); }
+    } catch(err) { showError('Erreur réseau'); }
+}
+
+async function supprimerProduit(id, nom) {
+    if (!confirm(`Supprimer le produit "${nom}" ?`)) return;
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF);
+    try {
+        const resp = await fetch(`/gestion/stocks/api/produit/${id}/supprimer/`, { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) { showSuccess(data.message); setTimeout(() => location.reload(), 900); }
+        else showError(data.error);
+    } catch(err) { showError('Erreur réseau'); }
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        document.getElementById('modalProduit').style.display = 'none';
+        document.getElementById('modalMouvement').style.display = 'none';
+    }
+});
+
+// Init label
+majLabelMouvement();
+</script>
+{% endblock %}

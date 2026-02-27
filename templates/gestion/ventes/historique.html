@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+
+{% block title %}Historique ventes{% endblock %}
+
+{% block extra_css %}
+<style>
+    .vente-container { max-width: 1100px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+
+    .filters-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+    .filters-bar input, .filters-bar select { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; }
+    .filters-bar button { padding: 8px 20px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+
+    .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(212,175,122,.10); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--bg-section); padding: 12px 14px; text-align: left; font-weight: 600; font-size: 13px; color: var(--text-dark); border-bottom: 2px solid var(--border); }
+    td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-light); }
+
+    .total-banner { background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%); color: white; border-radius: 14px; padding: 16px 22px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+    .total-banner .label { font-size: 13px; opacity: .85; }
+    .total-banner .val { font-size: 26px; font-weight: 700; }
+
+    .badge-mode { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: var(--bg-section); color: var(--text-dark); }
+    .lignes-list { font-size: 12px; color: var(--text-light); }
+
+    .nav-links { display: flex; gap: 10px; margin-bottom: 20px; }
+    .nav-link { padding: 8px 18px; border-radius: 10px; border: 2px solid var(--border); background: var(--bg-light); font-size: 13px; font-weight: 600; color: var(--text-dark); text-decoration: none; }
+    .nav-link.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    .pagination { display: flex; justify-content: center; gap: 8px; padding: 16px; }
+    .pagination a, .pagination span { padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border); font-size: 13px; text-decoration: none; color: var(--text-dark); }
+    .pagination .current { background: var(--primary); color: white; border-color: var(--primary); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="vente-container">
+
+    <div class="page-header">
+        <h1>Historique des ventes produits</h1>
+    </div>
+
+    <div class="nav-links">
+        <a href="{% url 'gestion:ventes_caisse' %}{% if institut_code and institut_code != 'tous' %}?institut={{ institut_code }}{% endif %}" class="nav-link">Caisse</a>
+        <a href="{% url 'gestion:ventes_historique' %}" class="nav-link active">Historique</a>
+    </div>
+
+    <form method="get" class="filters-bar">
+        <input type="month" name="mois" value="{{ mois|date:'Y-m' }}">
+        <select name="institut">
+            <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
+            {% for inst in instituts %}
+            <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Filtrer</button>
+    </form>
+
+    {% if total > 0 %}
+    <div class="total-banner">
+        <div>
+            <div class="label">Total ventes — {{ mois|date:"F Y" }}</div>
+            <div class="val">{{ total|floatformat:0 }} CFA</div>
+        </div>
+        <div style="font-size:34px;opacity:.3;">🛒</div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Institut</th>
+                    <th>Client</th>
+                    <th>Produits</th>
+                    <th>Mode</th>
+                    <th style="text-align:right;">Montant</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for v in ventes %}
+                <tr>
+                    <td style="white-space:nowrap;color:var(--text-light);">{{ v.date|date:"d/m/Y H:i" }}</td>
+                    <td>{{ v.institut.nom }}</td>
+                    <td>{{ v.client.prenom|default:"" }} {{ v.client.nom|default:"Anonyme" }}</td>
+                    <td>
+                        <div class="lignes-list">
+                            {% for l in v.lignes.all %}
+                            {{ l.quantite }}× {{ l.produit.nom }}<br>
+                            {% endfor %}
+                        </div>
+                    </td>
+                    <td><span class="badge-mode">
+                        {% if v.mode_paiement == 'especes' %}Espèces
+                        {% elif v.mode_paiement == 'wave' %}Wave
+                        {% elif v.mode_paiement == 'om' %}Orange Money
+                        {% elif v.mode_paiement == 'carte' %}Carte
+                        {% else %}{{ v.mode_paiement }}{% endif %}
+                    </span></td>
+                    <td style="text-align:right;font-weight:700;color:#27ae60;">{{ v.montant_total|floatformat:0 }} CFA</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" style="text-align:center;color:var(--text-light);font-style:italic;padding:40px;">Aucune vente ce mois</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if ventes.has_other_pages %}
+        <div class="pagination">
+            {% if ventes.has_previous %}
+            <a href="?page={{ ventes.previous_page_number }}&mois={{ mois|date:'Y-m' }}&institut={{ institut_code }}">&laquo;</a>
+            {% endif %}
+            <span class="current">{{ ventes.number }} / {{ ventes.paginator.num_pages }}</span>
+            {% if ventes.has_next %}
+            <a href="?page={{ ventes.next_page_number }}&mois={{ mois|date:'Y-m' }}&institut={{ institut_code }}">&raquo;</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

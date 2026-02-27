@@ -9,7 +9,7 @@ from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.utils import timezone
-from .models import Utilisateur, Client, Employe, Institut, CarteCadeau, UtilisationCarteCadeau, ForfaitClient, RendezVous, Credit, Prestation, Paiement
+from .models import Utilisateur, Client, Employe, CategorieEmploye, Institut, CarteCadeau, UtilisationCarteCadeau, ForfaitClient, RendezVous, Credit, Prestation, Paiement
 from .decorators import role_required
 import re
 
@@ -544,19 +544,28 @@ def api_client_desactiver(request, pk):
 @role_required(['patron'])
 def employes_list(request):
     """Liste de tous les employés groupés par institut (patron uniquement)"""
-    # Récupérer tous les instituts
     instituts = Institut.objects.all().order_by('nom')
 
-    # Récupérer les employés groupés par institut
+    # Employés rattachés à un institut
     employes_par_institut = {}
     for institut in instituts:
         employes_par_institut[institut] = Employe.objects.filter(
             institut=institut
-        ).order_by('ordre_affichage', 'nom')
+        ).select_related('categorie').order_by('ordre_affichage', 'nom')
+
+    # Employés "Autres" (non rattachés à un institut)
+    employes_autres = Employe.objects.filter(
+        institut__isnull=True
+    ).select_related('categorie').order_by('ordre_affichage', 'nom')
+
+    # Catégories pour la gestion et le formulaire
+    categories = CategorieEmploye.objects.filter(actif=True).order_by('ordre_affichage', 'nom')
 
     return render(request, 'employes/liste.html', {
         'instituts': instituts,
-        'employes_par_institut': employes_par_institut
+        'employes_par_institut': employes_par_institut,
+        'employes_autres': employes_autres,
+        'categories': categories,
     })
 
 
@@ -568,45 +577,48 @@ def api_employe_creer(request):
         return JsonResponse({'success': False, 'message': 'Méthode non autorisée'}, status=405)
 
     try:
+        prenom = request.POST.get('prenom', '').strip()
+        if not prenom:
+            return JsonResponse({'success': False, 'message': 'Le prénom est requis'})
+
         nom = request.POST.get('nom', '').strip()
+
+        # Institut optionnel (NULL = "Autres")
         institut_code = request.POST.get('institut', '').strip()
+        institut = Institut.objects.filter(code=institut_code).first() if institut_code else None
+        telephone = request.POST.get('telephone', '').strip() or None
+        categorie_id = request.POST.get('categorie', '').strip()
+        categorie = CategorieEmploye.objects.filter(id=categorie_id).first() if categorie_id else None
+        rang = request.POST.get('rang', 'employe')
+        salaire_base = int(request.POST.get('salaire_base', 0) or 0)
+        date_embauche = request.POST.get('date_embauche', '').strip() or None
+        est_dans_agenda = request.POST.get('est_dans_agenda') == 'on'
 
-        if not all([nom, institut_code]):
-            return JsonResponse({
-                'success': False,
-                'message': 'Nom et institut sont requis'
-            })
-
-        institut = get_object_or_404(Institut, code=institut_code)
-
-        # Déterminer l'ordre d'affichage automatiquement (mettre à la fin)
+        # Ordre d'affichage automatique
         dernier = Employe.objects.filter(institut=institut).order_by('-ordre_affichage').first()
         ordre_affichage = (dernier.ordre_affichage + 1) if dernier else 1
 
         employe = Employe.objects.create(
             nom=nom,
+            prenom=prenom,
+            telephone=telephone,
             institut=institut,
-            ordre_affichage=int(ordre_affichage),
-            actif=True  # Toujours actif par défaut
+            categorie=categorie,
+            rang=rang,
+            salaire_base=salaire_base,
+            date_embauche=date_embauche,
+            est_dans_agenda=est_dans_agenda,
+            ordre_affichage=ordre_affichage,
+            actif=True,
         )
 
         return JsonResponse({
             'success': True,
-            'message': f'Employé {employe.nom} créé avec succès',
-            'employe': {
-                'id': employe.id,
-                'nom': employe.nom,
-                'institut': employe.institut.nom,
-                'ordre_affichage': employe.ordre_affichage,
-                'actif': employe.actif
-            }
+            'message': f'Employé {employe.get_full_name()} créé avec succès',
         })
 
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'message': str(e)
-        }, status=400)
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
 
 @login_required
@@ -619,39 +631,37 @@ def api_employe_modifier(request, pk):
     try:
         employe = get_object_or_404(Employe, pk=pk)
 
+        prenom = request.POST.get('prenom', '').strip()
+        if not prenom:
+            return JsonResponse({'success': False, 'message': 'Le prénom est requis'})
+
         nom = request.POST.get('nom', '').strip()
+
+        # Institut optionnel (NULL = "Autres")
         institut_code = request.POST.get('institut', '').strip()
+        institut = Institut.objects.filter(code=institut_code).first() if institut_code else None
 
-        if not all([nom, institut_code]):
-            return JsonResponse({
-                'success': False,
-                'message': 'Nom et institut sont requis'
-            })
-
-        institut = get_object_or_404(Institut, code=institut_code)
-
+        # Nouveaux champs
+        employe.prenom = prenom
         employe.nom = nom
+        employe.telephone = request.POST.get('telephone', '').strip() or None
         employe.institut = institut
-        # Conserver ordre_affichage et actif existants
+        categorie_id = request.POST.get('categorie', '').strip()
+        employe.categorie = CategorieEmploye.objects.filter(id=categorie_id).first() if categorie_id else None
+        employe.rang = request.POST.get('rang', 'employe')
+        employe.salaire_base = int(request.POST.get('salaire_base', 0) or 0)
+        date_embauche = request.POST.get('date_embauche', '').strip()
+        employe.date_embauche = date_embauche or None
+        employe.est_dans_agenda = request.POST.get('est_dans_agenda') == 'on'
         employe.save()
 
         return JsonResponse({
             'success': True,
-            'message': f'Employé {employe.nom} modifié avec succès',
-            'employe': {
-                'id': employe.id,
-                'nom': employe.nom,
-                'institut': employe.institut.nom,
-                'ordre_affichage': employe.ordre_affichage,
-                'actif': employe.actif
-            }
+            'message': f'Employé {employe.get_full_name()} modifié avec succès',
         })
 
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'message': str(e)
-        }, status=400)
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
 
 @login_required
@@ -685,6 +695,113 @@ def api_employe_supprimer(request, pk):
             'success': False,
             'message': str(e)
         }, status=400)
+
+
+# ============================
+# CATÉGORIES EMPLOYÉS
+# ============================
+
+@login_required
+@role_required(['patron', 'manager'])
+def api_categorie_employe_creer(request):
+    """API pour créer une catégorie d'employé"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Méthode non autorisée'}, status=405)
+
+    try:
+        nom = request.POST.get('nom', '').strip()
+        if not nom:
+            return JsonResponse({'success': False, 'message': 'Le nom est obligatoire'}, status=400)
+
+        if CategorieEmploye.objects.filter(nom=nom).exists():
+            return JsonResponse({'success': False, 'message': f'La catégorie "{nom}" existe déjà'}, status=400)
+
+        couleur = request.POST.get('couleur', '#3498db')
+        ordre = request.POST.get('ordre_affichage', 0)
+
+        categorie = CategorieEmploye.objects.create(
+            nom=nom,
+            couleur=couleur,
+            ordre_affichage=int(ordre) if ordre else 0,
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Catégorie "{nom}" créée avec succès',
+            'categorie': {
+                'id': categorie.id,
+                'nom': categorie.nom,
+                'couleur': categorie.couleur,
+                'ordre_affichage': categorie.ordre_affichage,
+            }
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+
+@login_required
+@role_required(['patron', 'manager'])
+def api_categorie_employe_modifier(request, pk):
+    """API pour modifier une catégorie d'employé"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Méthode non autorisée'}, status=405)
+
+    try:
+        categorie = get_object_or_404(CategorieEmploye, pk=pk)
+
+        nom = request.POST.get('nom', '').strip()
+        if not nom:
+            return JsonResponse({'success': False, 'message': 'Le nom est obligatoire'}, status=400)
+
+        if CategorieEmploye.objects.filter(nom=nom).exclude(pk=pk).exists():
+            return JsonResponse({'success': False, 'message': f'La catégorie "{nom}" existe déjà'}, status=400)
+
+        categorie.nom = nom
+        categorie.couleur = request.POST.get('couleur', categorie.couleur)
+        ordre = request.POST.get('ordre_affichage')
+        if ordre is not None:
+            categorie.ordre_affichage = int(ordre) if ordre else 0
+        categorie.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Catégorie "{nom}" modifiée avec succès'
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+
+@login_required
+@role_required(['patron', 'manager'])
+def api_categorie_employe_supprimer(request, pk):
+    """API pour supprimer une catégorie d'employé"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Méthode non autorisée'}, status=405)
+
+    try:
+        categorie = get_object_or_404(CategorieEmploye, pk=pk)
+
+        nb_employes = categorie.employes.count()
+        if nb_employes > 0:
+            noms = ', '.join(categorie.employes.values_list('nom', flat=True)[:3])
+            plus = f' et {nb_employes - 3} autre(s)' if nb_employes > 3 else ''
+            return JsonResponse({
+                'success': False,
+                'message': f'Impossible de supprimer la catégorie "{categorie.nom}" : elle est assignée à {nb_employes} employé(s) ({noms}{plus}). Retirez-leur cette catégorie d\'abord.'
+            }, status=400)
+
+        nom = categorie.nom
+        categorie.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Catégorie "{nom}" supprimée avec succès'
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
 
 # ============================

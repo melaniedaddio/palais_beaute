@@ -96,7 +96,7 @@
                     <th class="heure-col" style="position: sticky; left: 0; z-index: 12; background-color: #fff; min-width: 80px;">Heure</th>
                     {% for employe in employes %}
                     <th class="employe-col" style="min-width: 200px; text-align: center;">
-                        {{ employe.nom }}
+                        {{ employe.prenom|default:employe.nom }}
                     </th>
                     {% endfor %}
                 </tr>
@@ -136,7 +136,7 @@
                     <select id="rdv-employe" name="employe_id" class="form-control" onchange="verifierConflitModification()">
                         <option value="">-- Sélectionner un employé --</option>
                         {% for employe in employes %}
-                        <option value="{{ employe.id }}">{{ employe.nom }}</option>
+                        <option value="{{ employe.id }}">{{ employe.prenom|default:employe.nom }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -774,7 +774,7 @@
                     <span style="color:#888;font-size:11px;">Employé</span>
                     <select id="ajout-employe-id" class="form-control" style="font-size:13px;margin-top:2px;" onchange="mettreAJourUiSelonEmployeAjout()">
                         {% for employe in employes %}
-                        <option value="{{ employe.id }}">{{ employe.nom }}</option>
+                        <option value="{{ employe.id }}">{{ employe.prenom|default:employe.nom }}</option>
                         {% endfor %}
                     </select>
                 </div>

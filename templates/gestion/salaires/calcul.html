@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+
+{% block title %}Calcul des salaires{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sal-container { max-width: 1200px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+
+    .filters-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+    .filters-bar select, .filters-bar input { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; color: var(--text-dark); }
+    .filters-bar button { padding: 8px 20px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+
+    .totaux-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .total-card { background: white; border-radius: 14px; padding: 18px 20px; box-shadow: 0 2px 10px rgba(212,175,122,0.10); border: 1px solid var(--border); }
+    .total-card .label { font-size: 12px; color: var(--text-light); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .total-card .val { font-size: 24px; font-weight: 700; color: var(--text-dark); }
+    .total-card.gold .val { color: var(--secondary); }
+    .total-card.green .val { color: #28a745; }
+    .total-card.red .val { color: #e74c3c; }
+
+    .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(212,175,122,0.10); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--bg-section); padding: 12px 14px; text-align: left; font-weight: 600; font-size: 13px; color: var(--text-dark); border-bottom: 2px solid var(--border); }
+    td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-light); }
+    .text-right { text-align: right; }
+
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .badge-brouillon { background: var(--bg-section); color: var(--text-light); }
+    .badge-valide   { background: #d4edda; color: #155724; }
+    .badge-paye     { background: #cce5ff; color: #004085; }
+
+    .net-amount { font-size: 16px; font-weight: 700; color: var(--secondary); }
+    .detail-line { font-size: 12px; color: var(--text-light); }
+    .detail-green { color: #28a745; }
+    .detail-red   { color: #e74c3c; }
+
+    .btn-xs { padding: 4px 10px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .btn-validate { background: #d4edda; color: #155724; }
+    .btn-validate:hover { background: #28a745; color: white; }
+    .btn-pay { background: #cce5ff; color: #004085; }
+    .btn-pay:hover { background: #3498db; color: white; }
+    .btn-recalc { background: var(--bg-section); color: var(--text-light); border: 1px solid var(--border); }
+    .btn-recalc:hover { background: #e0e0e0; }
+
+    .links-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .link-btn { padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); }
+    .link-btn:hover { background: var(--border); }
+    .link-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sal-container">
+
+    <div class="page-header">
+        <h1>Calcul des salaires — {{ mois|date:"F Y" }}</h1>
+    </div>
+
+    <div class="links-bar">
+        <a href="{% url 'gestion:salaires_calcul' %}" class="link-btn active">Calcul mensuel</a>
+        <a href="{% url 'gestion:primes_liste' %}" class="link-btn">Primes</a>
+        <a href="{% url 'gestion:avances_liste' %}" class="link-btn">Avances</a>
+    </div>
+
+    <!-- Filtres -->
+    <form method="get" class="filters-bar">
+        <input type="month" name="mois" value="{{ mois|date:'Y-m' }}">
+        <select name="institut">
+            <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
+            {% for inst in instituts %}
+            <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
+            {% endfor %}
+            <option value="autres" {% if institut_code == 'autres' %}selected{% endif %}>Autres</option>
+        </select>
+        <button type="submit">Filtrer</button>
+    </form>
+
+    <!-- Totaux -->
+    <div class="totaux-grid">
+        <div class="total-card">
+            <div class="label">Employés</div>
+            <div class="val">{{ calculs|length }}</div>
+        </div>
+        <div class="total-card">
+            <div class="label">Total base</div>
+            <div class="val">{{ total_base|floatformat:0 }} <small style="font-size:13px;font-weight:400;">CFA</small></div>
+        </div>
+        <div class="total-card gold">
+            <div class="label">Total net à payer</div>
+            <div class="val">{{ total_net|floatformat:0 }} <small style="font-size:13px;font-weight:400;">CFA</small></div>
+        </div>
+    </div>
+
+    <!-- Tableau salaires -->
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Employé</th>
+                    <th class="text-right">Base</th>
+                    <th class="text-right">Primes</th>
+                    <th class="text-right">Retenues abs.</th>
+                    <th class="text-right">Avances</th>
+                    <th class="text-right">Net à payer</th>
+                    <th>Statut</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in calculs %}
+                <tr id="row-{{ c.id }}">
+                    <td>
+                        <strong>{{ c.employe.get_full_name }}</strong>
+                        {% if c.employe.categorie %}
+                        <br><small style="color:{{ c.employe.categorie.couleur }};">{{ c.employe.categorie.nom }}</small>
+                        {% endif %}
+                        {% if c.employe.institut %}
+                        <br><small style="color:var(--text-light);">{{ c.employe.institut.nom }}</small>
+                        {% endif %}
+                    </td>
+                    <td class="text-right">{{ c.salaire_base|floatformat:0 }}</td>
+                    <td class="text-right">
+                        {% if c.total_primes > 0 %}
+                        <span class="detail-green">+{{ c.total_primes|floatformat:0 }}</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="text-right">
+                        {% if c.montant_retenue_absences > 0 %}
+                        <span class="detail-red">-{{ c.montant_retenue_absences|floatformat:0 }}</span>
+                        <br><small class="detail-line">{{ c.jours_absence_non_payee }} j. non payé(s)</small>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="text-right">
+                        {% if c.total_avances_deduites > 0 %}
+                        <span class="detail-red">-{{ c.total_avances_deduites|floatformat:0 }}</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="text-right">
+                        <span class="net-amount">{{ c.net_a_payer|floatformat:0 }} CFA</span>
+                    </td>
+                    <td>
+                        <span class="badge badge-{{ c.statut }}">{{ c.get_statut_display }}</span>
+                    </td>
+                    <td>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                            {% if c.statut == 'brouillon' %}
+                            <button class="btn-xs btn-recalc" onclick="recalculer({{ c.id }}, {{ c.employe.id }}, '{{ mois|date:'Y-m' }}')">↺</button>
+                            <button class="btn-xs btn-validate" onclick="validerSalaire({{ c.id }}, 'valider')">Valider</button>
+                            {% elif c.statut == 'valide' %}
+                            <button class="btn-xs btn-pay" onclick="validerSalaire({{ c.id }}, 'payer')">Payé ✓</button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" style="text-align:center;color:var(--text-light);font-style:italic;padding:40px;">Aucun employé</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+const MOIS = '{{ mois|date:"Y-m" }}';
+
+async function recalculer(calculId, employeId, mois) {
+    try {
+        const resp = await fetch("{% url 'gestion:api_calculer_salaire' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({ employe_id: employeId, mois: mois })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess('Salaire recalculé');
+            setTimeout(() => location.reload(), 800);
+        } else {
+            showError(data.error);
+        }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+async function validerSalaire(calculId, action) {
+    const label = action === 'valider' ? 'valider ce salaire ?' : 'marquer ce salaire comme payé ?';
+    if (!confirm(`Confirmer : ${label}`)) return;
+
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', CSRF);
+    formData.append('action', action);
+
+    try {
+        const resp = await fetch(`/gestion/salaires/api/valider/${calculId}/`, { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 800);
+        } else {
+            showError(data.error);
+        }
+    } catch(e) { showError('Erreur réseau'); }
+}
+</script>
+{% endblock %}

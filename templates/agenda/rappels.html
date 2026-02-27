@@ -155,7 +155,7 @@
     {% for employe, items in rdvs_par_employe.items %}
     <div class="employe-section">
         <div class="employe-title">
-            {{ employe.nom }} — {{ items|length }} RDV
+            {{ employe.prenom|default:employe.nom }} — {{ items|length }} RDV
         </div>
         {% for item in items %}
         <div class="rdv-card">

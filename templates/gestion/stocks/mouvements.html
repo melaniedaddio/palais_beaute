@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+
+{% block title %}Mouvements de stock{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stk-container { max-width: 1100px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+
+    .links-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .link-btn { padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); }
+    .link-btn:hover { background: var(--border); }
+    .link-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    .filters-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+    .filters-bar select { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; }
+    .filters-bar button { padding: 8px 20px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+
+    .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(212,175,122,0.10); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--bg-section); padding: 12px 14px; text-align: left; font-weight: 600; font-size: 13px; color: var(--text-dark); border-bottom: 2px solid var(--border); }
+    td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-light); }
+
+    .badge-entree    { background: #d4edda; color: #155724; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-block; }
+    .badge-sortie    { background: #fff3cd; color: #856404; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-block; }
+    .badge-inventaire { background: #cce5ff; color: #004085; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-block; }
+    .badge-perte     { background: #f8d7da; color: #721c24; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-block; }
+
+    .qty-entree { color: #28a745; font-weight: 700; }
+    .qty-sortie { color: #e74c3c; font-weight: 700; }
+    .qty-perte  { color: #e74c3c; font-weight: 700; }
+    .qty-inventaire { color: #3498db; font-weight: 700; }
+
+    .pagination { display: flex; gap: 8px; justify-content: center; padding: 20px; flex-wrap: wrap; }
+    .pagination a, .pagination span { padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border); font-size: 13px; text-decoration: none; color: var(--text-dark); }
+    .pagination .current { background: var(--primary); color: white; border-color: var(--primary); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="stk-container">
+
+    <div class="page-header">
+        <h1>Mouvements de stock</h1>
+    </div>
+
+    <div class="links-bar">
+        <a href="{% url 'gestion:stocks_produits' %}" class="link-btn">Produits</a>
+        <a href="{% url 'gestion:stocks_mouvements' %}" class="link-btn active">Mouvements</a>
+        <a href="{% url 'gestion:stocks_parametres' %}" class="link-btn">Paramètres</a>
+    </div>
+
+    <form method="get" class="filters-bar">
+        <select name="produit">
+            <option value="tous" {% if produit_id == 'tous' %}selected{% endif %}>Tous les produits</option>
+            {% for p in produits %}
+            <option value="{{ p.id }}" {% if produit_id == p.id|stringformat:"s" %}selected{% endif %}>{{ p.nom }}</option>
+            {% endfor %}
+        </select>
+        <select name="type">
+            <option value="tous" {% if type_mouv == 'tous' %}selected{% endif %}>Tous les types</option>
+            <option value="entree"     {% if type_mouv == 'entree' %}selected{% endif %}>Entrée</option>
+            <option value="sortie"     {% if type_mouv == 'sortie' %}selected{% endif %}>Sortie</option>
+            <option value="inventaire" {% if type_mouv == 'inventaire' %}selected{% endif %}>Inventaire</option>
+            <option value="perte"      {% if type_mouv == 'perte' %}selected{% endif %}>Perte/Casse</option>
+        </select>
+        <button type="submit">Filtrer</button>
+    </form>
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Produit</th>
+                    <th>Type</th>
+                    <th>Qté</th>
+                    <th>Avant</th>
+                    <th>Après</th>
+                    <th>Prix unit.</th>
+                    <th>Saisi par</th>
+                    <th>Commentaire</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in mouvements %}
+                <tr>
+                    <td style="color:var(--text-light);white-space:nowrap;">{{ m.date_creation|date:"d/m/Y H:i" }}</td>
+                    <td><strong>{{ m.produit.nom }}</strong></td>
+                    <td><span class="badge-{{ m.type_mouvement }}">{{ m.get_type_mouvement_display }}</span></td>
+                    <td>
+                        {% if m.type_mouvement == 'entree' %}
+                        <span class="qty-entree">+{{ m.quantite }}</span>
+                        {% elif m.type_mouvement == 'inventaire' %}
+                        <span class="qty-inventaire">= {{ m.quantite_apres }}</span>
+                        {% else %}
+                        <span class="qty-sortie">-{{ m.quantite }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="color:var(--text-light);">{{ m.quantite_avant }}</td>
+                    <td><strong>{{ m.quantite_apres }}</strong></td>
+                    <td>{% if m.prix_unitaire %}{{ m.prix_unitaire|floatformat:0 }} CFA{% else %}—{% endif %}</td>
+                    <td style="color:var(--text-light);">{{ m.cree_par|default:"—" }}</td>
+                    <td style="color:var(--text-light);">{{ m.commentaire|default:"—" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="9" style="text-align:center;color:var(--text-light);font-style:italic;padding:40px;">Aucun mouvement</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if mouvements.has_other_pages %}
+    <div class="pagination">
+        {% if mouvements.has_previous %}
+        <a href="?page={{ mouvements.previous_page_number }}&produit={{ produit_id }}&type={{ type_mouv }}">&laquo;</a>
+        {% endif %}
+        {% for num in mouvements.paginator.page_range %}
+            {% if mouvements.number == num %}
+            <span class="current">{{ num }}</span>
+            {% elif num > mouvements.number|add:'-3' and num < mouvements.number|add:'3' %}
+            <a href="?page={{ num }}&produit={{ produit_id }}&type={{ type_mouv }}">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+        {% if mouvements.has_next %}
+        <a href="?page={{ mouvements.next_page_number }}&produit={{ produit_id }}&type={{ type_mouv }}">&raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

@@ -64,7 +64,7 @@ def index(request, institut_code):
                 'id': rdv.id,
                 'client': rdv.client.get_full_name(),
                 'client_id': rdv.client.id,
-                'employe': rdv.employe.nom,
+                'employe': rdv.employe.prenom or rdv.employe.nom,
                 'employe_id': rdv.employe.id,
                 'prestation': rdv.prestation.nom,
                 'heure_debut': rdv.heure_debut.strftime('%H:%M'),
@@ -546,7 +546,7 @@ def api_rdv_details(request, institut_code, rdv_id):
         'id': rdv.id,
         'client': rdv.client.get_full_name(),
         'client_id': rdv.client.id,
-        'employe': rdv.employe.nom,
+        'employe': rdv.employe.prenom or rdv.employe.nom,
         'employe_id': rdv.employe.id,
         'prestation': rdv.prestation.nom,
         'prestation_id': rdv.prestation.id,
@@ -613,7 +613,7 @@ def api_rdv_ajouter_prestation(request, institut_code, rdv_id):
                 rdv_conflit = conflits.first()
                 return JsonResponse({
                     'success': False,
-                    'message': f'Conflit : {employe.nom} a déjà un RDV ({rdv_conflit.client} - {rdv_conflit.heure_debut.strftime("%H:%M")})',
+                    'message': f'Conflit : {employe.prenom or employe.nom} a déjà un RDV ({rdv_conflit.client} - {rdv_conflit.heure_debut.strftime("%H:%M")})',
                 }, status=400)
         else:
             employe = rdv_existant.employe
@@ -919,7 +919,7 @@ def api_rdv_deplacer(request, institut_code, rdv_id):
                 'date': rdv.date.strftime('%Y-%m-%d'),
                 'heure_debut': rdv.heure_debut.strftime('%H:%M'),
                 'heure_fin': rdv.heure_fin.strftime('%H:%M'),
-                'employe': rdv.employe.nom
+                'employe': rdv.employe.prenom or rdv.employe.nom
             }
         })
 
@@ -1089,7 +1089,7 @@ def api_rdv_client_jour(request, institut_code, rdv_id):
         rdv_data = {
             'id': rdv.id,
             'client': rdv.client.get_full_name(),
-            'employe': rdv.employe.nom,
+            'employe': rdv.employe.prenom or rdv.employe.nom,
             'prestation': rdv.prestation.nom,
             'heure_debut': rdv.heure_debut.strftime('%H:%M'),
             'heure_fin': rdv.heure_fin.strftime('%H:%M'),

@@ -1,0 +1,293 @@
+{% extends 'base.html' %}
+
+{% block title %}Paramètres stocks{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stk-container { max-width: 1100px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+
+    .links-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+    .link-btn { padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); }
+    .link-btn:hover { background: var(--border); }
+    .link-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    .sections-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+
+    .section-card { background: white; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 2px 10px rgba(212,175,122,0.08); overflow: hidden; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px; border-bottom: 1px solid var(--border); background: var(--bg-section); }
+    .section-header h2 { font-size: 15px; font-weight: 700; color: var(--text-dark); margin: 0; }
+    .btn-add { background: var(--primary); color: white; border: none; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+    .item-list { padding: 8px 0; min-height: 60px; }
+    .item-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--border); }
+    .item-row:last-child { border-bottom: none; }
+    .item-row:hover { background: var(--bg-light); }
+    .item-nom { font-size: 14px; font-weight: 500; color: var(--text-dark); }
+    .item-sub { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+    .item-badge { font-size: 12px; color: var(--text-light); background: var(--bg-section); border-radius: 20px; padding: 2px 10px; margin-right: 8px; }
+    .item-actions { display: flex; gap: 6px; }
+    .btn-icon { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 3px 7px; cursor: pointer; font-size: 12px; }
+    .btn-icon:hover { background: var(--bg-section); }
+    .btn-icon-danger:hover { background: #ffeaea; border-color: #e74c3c; }
+    .empty-msg { text-align: center; color: var(--text-light); font-style: italic; padding: 24px; font-size: 13px; }
+
+    /* Modal */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+    .modal { background: white; border-radius: 20px; padding: 28px; width: 100%; max-width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+    .modal h2 { margin: 0 0 20px; font-size: 18px; color: var(--text-dark); }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-weight: 600; font-size: 13px; color: var(--text-dark); margin-bottom: 6px; }
+    .form-group input, .form-group textarea {
+        width: 100%; padding: 10px 14px; border: 2px solid var(--border); border-radius: 10px;
+        background: var(--bg-light); font-size: 14px; box-sizing: border-box;
+    }
+    .form-row { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+    .modal-footer { display: flex; gap: 12px; justify-content: flex-end; margin-top: 18px; }
+    .btn-secondary { background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); padding: 9px 18px; border-radius: 10px; font-weight: 600; cursor: pointer; }
+    .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none; padding: 9px 18px; border-radius: 10px; font-weight: 600; cursor: pointer; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="stk-container">
+
+    <div class="page-header">
+        <h1>Paramètres stocks</h1>
+    </div>
+
+    <div class="links-bar">
+        <a href="{% url 'gestion:stocks_produits' %}" class="link-btn">Produits</a>
+        <a href="{% url 'gestion:stocks_mouvements' %}" class="link-btn">Mouvements</a>
+        <a href="{% url 'gestion:stocks_parametres' %}" class="link-btn active">Paramètres</a>
+    </div>
+
+    <div class="sections-grid">
+
+        <!-- CATÉGORIES -->
+        <div class="section-card">
+            <div class="section-header">
+                <h2>Catégories</h2>
+                <button class="btn-add" onclick="ouvrirModal('categorie')">+ Ajouter</button>
+            </div>
+            <div class="item-list">
+                {% for cat in categories %}
+                <div class="item-row">
+                    <div>
+                        <div class="item-nom">{{ cat.nom }}</div>
+                        {% if cat.description %}<div class="item-sub">{{ cat.description }}</div>{% endif %}
+                    </div>
+                    <div style="display:flex;align-items:center;">
+                        <span class="item-badge">{{ cat.nb }} produit{{ cat.nb|pluralize }}</span>
+                        <div class="item-actions">
+                            <button class="btn-icon" onclick="ouvrirModalModifier('categorie', {{ cat.id }}, '{{ cat.nom|escapejs }}', '{{ cat.description|default:''|escapejs }}', '')">✏️</button>
+                            <button class="btn-icon btn-icon-danger" onclick="supprimer('categorie', {{ cat.id }}, '{{ cat.nom|escapejs }}')">🗑️</button>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="empty-msg">Aucune catégorie</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- UNITÉS DE MESURE -->
+        <div class="section-card">
+            <div class="section-header">
+                <h2>Unités de mesure</h2>
+                <button class="btn-add" onclick="ouvrirModal('unite')">+ Ajouter</button>
+            </div>
+            <div class="item-list">
+                {% for u in unites %}
+                <div class="item-row">
+                    <div>
+                        <div class="item-nom">{{ u.nom }} {% if u.abrv %}<small style="color:var(--text-light);">({{ u.abrv }})</small>{% endif %}</div>
+                    </div>
+                    <div style="display:flex;align-items:center;">
+                        <span class="item-badge">{{ u.nb }} produit{{ u.nb|pluralize }}</span>
+                        <div class="item-actions">
+                            <button class="btn-icon" onclick="ouvrirModalModifier('unite', {{ u.id }}, '{{ u.nom|escapejs }}', '', '{{ u.abrv|escapejs }}')">✏️</button>
+                            <button class="btn-icon btn-icon-danger" onclick="supprimer('unite', {{ u.id }}, '{{ u.nom|escapejs }}')">🗑️</button>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="empty-msg">Aucune unité</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- FOURNISSEURS -->
+        <div class="section-card" style="grid-column: 1 / -1;">
+            <div class="section-header">
+                <h2>Fournisseurs</h2>
+                <button class="btn-add" onclick="ouvrirModal('fournisseur')">+ Ajouter</button>
+            </div>
+            <div class="item-list">
+                {% for f in fournisseurs %}
+                <div class="item-row">
+                    <div>
+                        <div class="item-nom">{{ f.nom }}</div>
+                        <div class="item-sub">
+                            {% if f.telephone %}{{ f.telephone }}{% endif %}
+                            {% if f.telephone and f.email %} · {% endif %}
+                            {% if f.email %}{{ f.email }}{% endif %}
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;">
+                        <span class="item-badge">{{ f.nb }} produit{{ f.nb|pluralize }}</span>
+                        <div class="item-actions">
+                            <button class="btn-icon" onclick="ouvrirModalModifier('fournisseur', {{ f.id }}, '{{ f.nom|escapejs }}', '{{ f.telephone|escapejs }}', '{{ f.email|escapejs }}')">✏️</button>
+                            <button class="btn-icon btn-icon-danger" onclick="supprimer('fournisseur', {{ f.id }}, '{{ f.nom|escapejs }}')">🗑️</button>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="empty-msg">Aucun fournisseur</div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Modal générique -->
+<div id="modalParam" style="display:none;" class="modal-backdrop" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal">
+        <h2 id="modalParamTitre">Ajouter</h2>
+        <form id="formParam" onsubmit="submitParam(event)">
+            {% csrf_token %}
+            <input type="hidden" id="param_type" value="">
+            <input type="hidden" id="param_id" value="">
+
+            <!-- Champs communs -->
+            <div class="form-group">
+                <label id="labelNom">Nom *</label>
+                <input type="text" id="paramNom" name="nom" required placeholder="">
+            </div>
+
+            <!-- Champ description (catégories) -->
+            <div class="form-group" id="groupDescription" style="display:none;">
+                <label>Description</label>
+                <input type="text" id="paramDescription" name="description" placeholder="Optionnel">
+            </div>
+
+            <!-- Champ abréviation (unités) -->
+            <div class="form-group" id="groupAbrv" style="display:none;">
+                <label>Abréviation</label>
+                <input type="text" id="paramAbrv" name="abrv" placeholder="Ex : fl, u, ml" maxlength="10">
+            </div>
+
+            <!-- Champs fournisseur -->
+            <div id="groupFournisseur" style="display:none;">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Téléphone</label>
+                        <input type="text" id="paramTel" name="telephone" placeholder="Optionnel">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="text" id="paramEmail" name="email" placeholder="Optionnel">
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="document.getElementById('modalParam').style.display='none'">Annuler</button>
+                <button type="submit" class="btn-primary" id="btnParamSubmit">Ajouter</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+
+const URLS = {
+    categorie:   { creer: "{% url 'gestion:api_categorie_produit_creer' %}", modifier: '/gestion/stocks/api/categorie/', supprimer: '/gestion/stocks/api/categorie/' },
+    unite:       { creer: "{% url 'gestion:api_unite_creer' %}",            modifier: '/gestion/stocks/api/unite/',      supprimer: '/gestion/stocks/api/unite/' },
+    fournisseur: { creer: "{% url 'gestion:api_fournisseur_creer' %}",      modifier: '/gestion/stocks/api/fournisseur/', supprimer: '/gestion/stocks/api/fournisseur/' },
+};
+
+function resetModal() {
+    document.getElementById('groupDescription').style.display = 'none';
+    document.getElementById('groupAbrv').style.display = 'none';
+    document.getElementById('groupFournisseur').style.display = 'none';
+    document.getElementById('paramDescription').value = '';
+    document.getElementById('paramAbrv').value = '';
+    document.getElementById('paramTel').value = '';
+    document.getElementById('paramEmail').value = '';
+    document.getElementById('paramNom').value = '';
+    document.getElementById('param_id').value = '';
+}
+
+function ouvrirModal(type) {
+    resetModal();
+    document.getElementById('param_type').value = type;
+    document.getElementById('modalParamTitre').textContent = {categorie: 'Ajouter une catégorie', unite: 'Ajouter une unité', fournisseur: 'Ajouter un fournisseur'}[type];
+    document.getElementById('btnParamSubmit').textContent = 'Ajouter';
+    if (type === 'categorie') document.getElementById('groupDescription').style.display = '';
+    if (type === 'unite')     document.getElementById('groupAbrv').style.display = '';
+    if (type === 'fournisseur') document.getElementById('groupFournisseur').style.display = '';
+    document.getElementById('modalParam').style.display = 'flex';
+}
+
+function ouvrirModalModifier(type, id, nom, val2, val3) {
+    resetModal();
+    document.getElementById('param_type').value = type;
+    document.getElementById('param_id').value = id;
+    document.getElementById('paramNom').value = nom;
+    document.getElementById('modalParamTitre').textContent = {categorie: 'Modifier la catégorie', unite: "Modifier l'unité", fournisseur: 'Modifier le fournisseur'}[type];
+    document.getElementById('btnParamSubmit').textContent = 'Modifier';
+    if (type === 'categorie') {
+        document.getElementById('groupDescription').style.display = '';
+        document.getElementById('paramDescription').value = val2;
+    }
+    if (type === 'unite') {
+        document.getElementById('groupAbrv').style.display = '';
+        document.getElementById('paramAbrv').value = val3;
+    }
+    if (type === 'fournisseur') {
+        document.getElementById('groupFournisseur').style.display = '';
+        document.getElementById('paramTel').value = val2;
+        document.getElementById('paramEmail').value = val3;
+    }
+    document.getElementById('modalParam').style.display = 'flex';
+}
+
+async function submitParam(e) {
+    e.preventDefault();
+    const type = document.getElementById('param_type').value;
+    const id = document.getElementById('param_id').value;
+    const fd = new FormData(e.target);
+    const url = id ? `${URLS[type].modifier}${id}/modifier/` : URLS[type].creer;
+    try {
+        const resp = await fetch(url, { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            document.getElementById('modalParam').style.display = 'none';
+            setTimeout(() => location.reload(), 900);
+        } else { showError(data.error); }
+    } catch(err) { showError('Erreur réseau'); }
+}
+
+async function supprimer(type, id, nom) {
+    const labels = { categorie: 'la catégorie', unite: "l'unité", fournisseur: 'le fournisseur' };
+    if (!confirm(`Supprimer ${labels[type]} "${nom}" ?`)) return;
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF);
+    try {
+        const resp = await fetch(`${URLS[type].supprimer}${id}/supprimer/`, { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) { showSuccess(data.message); setTimeout(() => location.reload(), 900); }
+        else showError(data.error);
+    } catch(err) { showError('Erreur réseau'); }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('modalParam').style.display = 'none'; });
+</script>
+{% endblock %}

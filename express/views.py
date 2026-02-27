@@ -92,7 +92,7 @@ def index(request):
             'id': vente.id,
             'heure': vente.date_creation.strftime('%H:%M'),
             'client': vente.client.get_full_name(),
-            'employe': vente.employe.nom,
+            'employe': vente.employe.prenom or vente.employe.nom,
             'prestations': prestations_list,
             'total': vente.prix_total,
             'mode': mode_paiement

@@ -489,6 +489,48 @@
     </div>
 </div>
 
+<!-- ── DÉBIT/CRÉDIT/BÉNÉFICE ── -->
+{% if total_depenses or benefice %}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+    <!-- Crédit -->
+    <div style="background:white;border-radius:14px;overflow:hidden;border:1px solid var(--border);box-shadow:0 2px 10px rgba(212,175,122,.08);">
+        <div style="background:#d4edda;color:#155724;padding:12px 18px;font-weight:700;font-size:13px;">💰 CRÉDIT — Recettes</div>
+        <div style="padding:16px 18px;">
+            <div style="font-size:28px;font-weight:700;color:#27ae60;">{{ ca_total|floatformat:0 }} <span style="font-size:13px;">CFA</span></div>
+            <div style="font-size:12px;color:var(--text-light);margin-top:4px;">Paiements encaissés</div>
+        </div>
+    </div>
+    <!-- Débit -->
+    <div style="background:white;border-radius:14px;overflow:hidden;border:1px solid var(--border);box-shadow:0 2px 10px rgba(212,175,122,.08);">
+        <div style="background:#f8d7da;color:#721c24;padding:12px 18px;font-weight:700;font-size:13px;">💸 DÉBIT — Dépenses</div>
+        <div style="padding:16px 18px;">
+            <div style="font-size:28px;font-weight:700;color:#e74c3c;">{{ total_depenses|floatformat:0 }} <span style="font-size:13px;">CFA</span></div>
+            <div style="font-size:12px;color:var(--text-light);margin-top:4px;">
+                {% if depenses_par_cat %}
+                {% for item in depenses_par_cat %}{{ item.categorie__nom }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                {% else %}Aucune dépense{% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Bénéfice -->
+<div style="background:{% if benefice >= 0 %}linear-gradient(135deg,#2980b9 0%,#1a5276 100%){% else %}linear-gradient(135deg,#7f8c8d 0%,#555 100%){% endif %};color:white;border-radius:14px;padding:16px 22px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+    <div>
+        <div style="font-size:13px;opacity:.85;">📊 Bénéfice net de la période</div>
+        <div style="font-size:30px;font-weight:700;margin-top:4px;">{{ benefice|floatformat:0 }} CFA</div>
+        {% if ca_total > 0 %}<div style="font-size:12px;opacity:.75;">Taux de charges : {{ taux_charges }}%</div>{% endif %}
+    </div>
+    <div style="font-size:42px;opacity:.25;">{% if benefice >= 0 %}📈{% else %}📉{% endif %}</div>
+</div>
+{% if nb_alertes_stock > 0 %}
+<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:12px;padding:12px 18px;margin-bottom:20px;display:flex;align-items:center;gap:14px;">
+    <span style="font-size:22px;">⚠️</span>
+    <span style="color:#856404;font-weight:600;">{{ nb_alertes_stock }} produit{{ nb_alertes_stock|pluralize }} en stock bas</span>
+    <a href="{% url 'gestion:stocks_produits' %}" style="margin-left:auto;font-size:13px;color:#856404;text-decoration:underline;">Voir les stocks</a>
+</div>
+{% endif %}
+{% endif %}
+
 <!-- Stats globales -->
 <div class="stats-grid">
     <div class="stat-card success">
@@ -918,7 +960,7 @@
             <div class="rdv-info">
                 <div class="rdv-date">{{ rdv.date|date:"d/m/Y" }} à {{ rdv.heure_debut|time:"H:i" }} - {{ rdv.institut.nom }}</div>
                 <div class="rdv-client">{{ rdv.client.get_full_name }}</div>
-                <div class="rdv-detail">{{ rdv.employe.nom }} - {{ rdv.prestation.nom }}</div>
+                <div class="rdv-detail">{{ rdv.employe.prenom|default:rdv.employe.nom }} - {{ rdv.prestation.nom }}</div>
             </div>
             <div class="rdv-amount">
                 {{ rdv.prix_total|floatformat:0 }} CFA

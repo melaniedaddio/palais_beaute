@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestion des primes{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sal-container { max-width: 1100px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+    .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; }
+
+    .filters-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+    .filters-bar select, .filters-bar input { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; }
+    .filters-bar button.filter { padding: 8px 20px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+
+    .total-banner { background: linear-gradient(135deg, var(--secondary) 0%, var(--secondary-dark) 100%); color: white; border-radius: 14px; padding: 18px 24px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; }
+    .total-banner .label { font-size: 14px; opacity: 0.85; }
+    .total-banner .val { font-size: 28px; font-weight: 700; }
+
+    .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(212,175,122,0.10); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--bg-section); padding: 12px 14px; text-align: left; font-weight: 600; font-size: 13px; color: var(--text-dark); border-bottom: 2px solid var(--border); }
+    td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 14px; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-light); }
+
+    .montant-cell { font-weight: 700; color: #28a745; font-size: 15px; }
+    .btn-icon { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 13px; }
+    .btn-icon:hover { background: #ffeaea; border-color: #e74c3c; }
+
+    /* Modal */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+    .modal { background: white; border-radius: 20px; padding: 32px; width: 100%; max-width: 460px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+    .modal h2 { margin: 0 0 22px; font-size: 20px; color: var(--text-dark); }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-weight: 600; font-size: 13px; color: var(--text-dark); margin-bottom: 6px; }
+    .form-group select, .form-group input, .form-group textarea {
+        width: 100%; padding: 10px 14px; border: 2px solid var(--border); border-radius: 10px;
+        background: var(--bg-light); font-size: 14px; box-sizing: border-box;
+    }
+    .form-group textarea { resize: vertical; min-height: 70px; }
+    .modal-footer { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+    .btn-secondary { background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; }
+
+    .links-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .link-btn { padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); }
+    .link-btn:hover { background: var(--border); }
+    .link-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sal-container">
+
+    <div class="page-header">
+        <h1>Primes — {{ mois|date:"F Y" }}</h1>
+        <button class="btn-primary" onclick="document.getElementById('modalPrime').style.display='flex'">+ Ajouter une prime</button>
+    </div>
+
+    <div class="links-bar">
+        <a href="{% url 'gestion:salaires_calcul' %}" class="link-btn">Calcul mensuel</a>
+        <a href="{% url 'gestion:primes_liste' %}" class="link-btn active">Primes</a>
+        <a href="{% url 'gestion:avances_liste' %}" class="link-btn">Avances</a>
+    </div>
+
+    <form method="get" class="filters-bar">
+        <input type="month" name="mois" value="{{ mois|date:'Y-m' }}">
+        <select name="institut">
+            <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
+            {% for inst in instituts %}
+            <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
+            {% endfor %}
+            <option value="autres" {% if institut_code == 'autres' %}selected{% endif %}>Autres</option>
+        </select>
+        <button type="submit" class="filter">Filtrer</button>
+    </form>
+
+    {% if total_primes > 0 %}
+    <div class="total-banner">
+        <div>
+            <div class="label">Total primes ce mois</div>
+            <div class="val">{{ total_primes|floatformat:0 }} CFA</div>
+        </div>
+        <div style="font-size:36px; opacity:0.5;">🏆</div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Employé</th>
+                    <th>Type de prime</th>
+                    <th>Montant</th>
+                    <th>Commentaire</th>
+                    <th>Saisi le</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in primes %}
+                <tr>
+                    <td>
+                        <strong>{{ p.employe.get_full_name }}</strong>
+                        {% if p.employe.institut %}<br><small style="color:var(--text-light);">{{ p.employe.institut.nom }}</small>{% endif %}
+                    </td>
+                    <td>{{ p.type_prime.nom }}</td>
+                    <td class="montant-cell">{{ p.montant|floatformat:0 }} CFA</td>
+                    <td>{{ p.commentaire|default:"—" }}</td>
+                    <td style="color:var(--text-light);">{{ p.date_creation|date:"d/m/Y" }}</td>
+                    <td>
+                        <button class="btn-icon" onclick="supprimerPrime({{ p.id }}, '{{ p.type_prime.nom|escapejs }}')" title="Supprimer">🗑️</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" style="text-align:center;color:var(--text-light);font-style:italic;padding:40px;">Aucune prime ce mois</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<!-- Modal Prime -->
+<div id="modalPrime" style="display:none;" class="modal-backdrop" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal">
+        <h2>Ajouter une prime</h2>
+        <form id="formPrime" onsubmit="submitPrime(event)">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Employé *</label>
+                <select name="employe_id" required>
+                    <option value="">— Choisir —</option>
+                    {% for emp in employes %}
+                    <option value="{{ emp.id }}">{{ emp.get_full_name }}{% if emp.institut %} ({{ emp.institut.nom }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Type de prime *</label>
+                <select name="type_prime_id" required>
+                    <option value="">— Choisir —</option>
+                    {% for t in types_prime %}
+                    <option value="{{ t.id }}">{{ t.nom }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Mois *</label>
+                <input type="month" name="mois" value="{{ mois|date:'Y-m' }}" required>
+            </div>
+            <div class="form-group">
+                <label>Montant (CFA) *</label>
+                <input type="number" name="montant" min="1" placeholder="Ex : 15000" required>
+            </div>
+            <div class="form-group">
+                <label>Commentaire</label>
+                <textarea name="commentaire" placeholder="Optionnel..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="document.getElementById('modalPrime').style.display='none'">Annuler</button>
+                <button type="submit" class="btn-primary">Ajouter</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function submitPrime(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    try {
+        const resp = await fetch("{% url 'gestion:api_prime_creer' %}", { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            document.getElementById('modalPrime').style.display = 'none';
+            setTimeout(() => location.reload(), 900);
+        } else { showError(data.error); }
+    } catch(err) { showError('Erreur réseau'); }
+}
+
+async function supprimerPrime(id, nom) {
+    if (!confirm(`Supprimer la prime "${nom}" ?`)) return;
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    try {
+        const resp = await fetch(`/gestion/salaires/api/prime/${id}/supprimer/`, { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) { showSuccess(data.message); setTimeout(() => location.reload(), 900); }
+        else showError(data.error);
+    } catch(err) { showError('Erreur réseau'); }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('modalPrime').style.display = 'none'; });
+</script>
+{% endblock %}
