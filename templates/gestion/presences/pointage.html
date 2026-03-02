@@ -11,12 +11,12 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 24px;
+        margin-bottom: 20px;
         flex-wrap: wrap;
         gap: 12px;
     }
     .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
-    .page-header .date-badge {
+    .date-badge {
         background: var(--bg-section);
         border: 1px solid var(--border);
         border-radius: 20px;
@@ -26,17 +26,36 @@
         font-weight: 500;
     }
 
+    .links-bar {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    .link-btn {
+        padding: 7px 16px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 500;
+        text-decoration: none;
+        background: var(--bg-section);
+        color: var(--text-dark);
+        border: 1px solid var(--border);
+        transition: background 0.2s;
+    }
+    .link-btn:hover { background: var(--border); }
+
     .institut-tabs {
         display: flex;
         gap: 10px;
         overflow-x: auto;
-        margin-bottom: 24px;
+        margin-bottom: 20px;
     }
     .institut-tab {
-        padding: 10px 24px;
+        padding: 9px 22px;
         border-radius: 25px;
         font-weight: 500;
-        font-size: 14px;
+        font-size: 13px;
         cursor: pointer;
         border: none;
         background: var(--bg-section);
@@ -48,88 +67,151 @@
     .institut-tab.active { background: var(--primary); color: white; }
     .institut-tab:hover:not(.active) { background: #e0e0e0; }
 
+    /* Carte principale */
     .presence-card {
         background: white;
-        border-radius: 16px;
-        box-shadow: 0 4px 15px rgba(212,175,122,0.10);
+        border-radius: 14px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.07);
         border: 1px solid var(--border);
         overflow: hidden;
     }
 
+    /* Table */
     .presence-table { width: 100%; border-collapse: collapse; }
+
+    .presence-table thead tr {
+        background: #f8f9fa;
+        border-bottom: 1px solid var(--border);
+    }
     .presence-table th {
-        background: var(--bg-section);
-        padding: 14px 16px;
+        padding: 13px 18px;
         text-align: left;
         font-weight: 600;
-        font-size: 13px;
-        color: var(--text-dark);
-        border-bottom: 2px solid var(--border);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #6c757d;
     }
     .presence-table td {
-        padding: 14px 16px;
-        border-bottom: 1px solid var(--border);
+        padding: 14px 18px;
+        border-bottom: 1px solid #f0f0f0;
         vertical-align: middle;
     }
-    .presence-table tr:last-child td { border-bottom: none; }
-    .presence-table tr:hover td { background: var(--bg-light); }
+    .presence-table tbody tr:last-child td { border-bottom: none; }
+    .presence-table tbody tr:hover td { background: #fafafa; }
 
-    .employe-name { font-weight: 600; color: var(--text-dark); font-size: 14px; }
-    .employe-cat {
+    /* Nom employé */
+    .emp-name { font-weight: 600; color: var(--text-dark); font-size: 14px; }
+    .emp-cat {
         display: inline-block;
         padding: 2px 8px;
-        border-radius: 10px;
+        border-radius: 8px;
         font-size: 11px;
         font-weight: 500;
         margin-top: 3px;
     }
 
-    .btn-group-statut { display: flex; gap: 6px; flex-wrap: wrap; }
-    .btn-statut {
+    /* Shift prévu */
+    .shift-prevu {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #f0f4ff;
+        color: #3b5bdb;
+        border-radius: 20px;
+        padding: 5px 12px;
+        font-size: 13px;
+        font-weight: 500;
+    }
+    .shift-prevu .dot { width: 6px; height: 6px; border-radius: 50%; background: #3b5bdb; }
+
+    /* Badge heure enregistrée */
+    .heure-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        border-radius: 20px;
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    .heure-badge .indicator { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .heure-badge.present   { background: #e6f4ea; color: #1e7e34; }
+    .heure-badge.present .indicator   { background: #28a745; }
+    .heure-badge.retard    { background: #fff8e1; color: #856404; }
+    .heure-badge.retard .indicator    { background: #ffc107; }
+    .heure-badge.anticipe  { background: #fff8e1; color: #856404; }
+    .heure-badge.anticipe .indicator  { background: #ffc107; }
+    .heure-badge.absent    { background: #fdecea; color: #c62828; }
+    .heure-badge.absent .indicator    { background: #dc3545; }
+
+    /* Boutons d'action */
+    .action-group { display: flex; align-items: center; gap: 8px; }
+
+    .btn-point {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
         padding: 7px 14px;
         border-radius: 20px;
-        border: 2px solid transparent;
+        border: 1.5px solid;
         font-size: 12px;
         font-weight: 600;
         cursor: pointer;
-        transition: all 0.2s;
-        background: var(--bg-section);
-        color: var(--text-light);
+        background: white;
+        transition: all 0.15s;
     }
-    .btn-statut:hover { opacity: 0.85; transform: scale(1.03); }
-    .btn-statut.present.active { background: #d4edda; color: #155724; border-color: #28a745; }
-    .btn-statut.retard.active  { background: #fff3cd; color: #856404; border-color: #ffc107; }
-    .btn-statut.absent.active  { background: #f8d7da; color: #721c24; border-color: #dc3545; }
-    .btn-statut.present:hover  { background: #d4edda; color: #155724; }
-    .btn-statut.retard:hover   { background: #fff3cd; color: #856404; }
-    .btn-statut.absent:hover   { background: #f8d7da; color: #721c24; }
+    .btn-point:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-point:hover:not(:disabled) { filter: brightness(0.95); }
 
-    .badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-    .badge-success  { background: #d4edda; color: #155724; }
-    .badge-warning  { background: #fff3cd; color: #856404; }
-    .badge-danger   { background: #f8d7da; color: #721c24; }
-    .badge-secondary{ background: var(--bg-section); color: var(--text-light); }
+    .btn-point.arrivee { border-color: #28a745; color: #28a745; }
+    .btn-point.arrivee:hover:not(:disabled) { background: #e6f4ea; }
+    .btn-point.depart  { border-color: #3b5bdb; color: #3b5bdb; }
+    .btn-point.depart:hover:not(:disabled)  { background: #f0f4ff; }
+    .btn-point.absent  { border-color: #dc3545; color: #dc3545; }
+    .btn-point.absent:hover:not(:disabled)  { background: #fdecea; }
 
-    .empty-state { text-align: center; padding: 60px; color: var(--text-light); font-style: italic; }
-
-    .links-bar {
-        display: flex;
-        gap: 12px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
+    .btn-modifier {
+        background: none;
+        border: 1px dashed #ccc;
+        color: #999;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        cursor: pointer;
+        transition: all 0.15s;
     }
-    .link-btn {
-        padding: 8px 18px;
+    .btn-modifier:hover { border-color: #999; color: #666; background: #f5f5f5; }
+
+    /* Durée travaillée */
+    .duree-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: #f0f4ff;
+        color: #3b5bdb;
         border-radius: 20px;
+        padding: 5px 12px;
         font-size: 13px;
-        font-weight: 500;
-        text-decoration: none;
-        background: var(--bg-section);
-        color: var(--text-dark);
-        border: 1px solid var(--border);
-        transition: background 0.2s;
+        font-weight: 600;
     }
-    .link-btn:hover { background: var(--border); }
+    .duree-vide { color: #ccc; font-size: 20px; letter-spacing: 2px; }
+
+    /* Statut global (petit badge discret) */
+    .statut-global { display: inline-block; }
+    .s-badge {
+        padding: 3px 10px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+    .s-ok       { background: #e6f4ea; color: #1e7e34; }
+    .s-retard   { background: #fff8e1; color: #856404; }
+    .s-absent   { background: #fdecea; color: #c62828; }
+    .s-encours  { background: #f0f4ff; color: #3b5bdb; }
+    .s-none     { background: #f5f5f5; color: #999; }
+
+    .empty-state { text-align: center; padding: 60px; color: var(--text-light); }
 </style>
 {% endblock %}
 
@@ -147,7 +229,6 @@
         <a href="{% url 'gestion:retards_suivi' %}" class="link-btn">Suivi retards</a>
     </div>
 
-    <!-- Onglets instituts -->
     <div class="institut-tabs">
         {% for inst in instituts %}
         <a href="?institut={{ inst.code }}"
@@ -168,80 +249,141 @@
         <table class="presence-table">
             <thead>
                 <tr>
-                    <th style="width:25%">Employé</th>
-                    <th>Arrivée (matin)</th>
-                    <th>Départ (soir)</th>
-                    <th style="width:130px">Statut</th>
+                    <th style="width:22%">Employé</th>
+                    <th style="width:16%">Shift prévu</th>
+                    <th style="width:22%">Arrivée</th>
+                    <th style="width:22%">Départ</th>
+                    <th style="width:10%">Durée</th>
+                    <th style="width:8%">Statut</th>
                 </tr>
             </thead>
             <tbody>
                 {% for emp in employes %}
-                {% with presence=presences|default_if_none:None %}
-                {% with p=presences %}
-                <tr>
+                <tr id="row-{{ emp.id }}">
+
+                    <!-- Employé -->
                     <td>
-                        <div class="employe-name">{{ emp.get_full_name }}</div>
+                        <div class="emp-name">{{ emp.get_full_name }}</div>
                         {% if emp.categorie %}
-                        <span class="employe-cat" style="background:{{ emp.categorie.couleur }}22; color:{{ emp.categorie.couleur }};">
+                        <span class="emp-cat"
+                              style="background:{{ emp.categorie.couleur }}18; color:{{ emp.categorie.couleur }};">
                             {{ emp.categorie.nom }}
                         </span>
                         {% endif %}
                     </td>
 
+                    <!-- Shift prévu -->
                     <td>
-                        <div class="btn-group-statut" data-employe="{{ emp.id }}" data-type="arrivee">
-                            {% with sa=p|default:None %}
-                            {% for emp_id, pres in p.items %}{% if emp_id == emp.id %}
-                            <button class="btn-statut present {% if pres.statut_arrivee == 'present' %}active{% endif %}"
-                                    data-statut="present" onclick="pointer(this)">Présent</button>
-                            <button class="btn-statut retard {% if pres.statut_arrivee == 'retard' %}active{% endif %}"
-                                    data-statut="retard" onclick="pointer(this)">Retard</button>
-                            <button class="btn-statut absent {% if pres.statut_arrivee == 'absent' %}active{% endif %}"
-                                    data-statut="absent" onclick="pointer(this)">Absent</button>
-                            {% endif %}{% endfor %}
-                            {% if emp.id not in p %}
-                            <button class="btn-statut present" data-statut="present" onclick="pointer(this)">Présent</button>
-                            <button class="btn-statut retard" data-statut="retard" onclick="pointer(this)">Retard</button>
-                            <button class="btn-statut absent" data-statut="absent" onclick="pointer(this)">Absent</button>
-                            {% endif %}
-                            {% endwith %}
-                        </div>
+                        <span class="shift-prevu">
+                            <span class="dot"></span>
+                            09:00 – 19:00
+                        </span>
                     </td>
 
-                    <td>
-                        <div class="btn-group-statut" data-employe="{{ emp.id }}" data-type="depart">
-                            {% for emp_id, pres in p.items %}{% if emp_id == emp.id %}
-                            <button class="btn-statut present {% if pres.statut_depart == 'present' %}active{% endif %}"
-                                    data-statut="present" onclick="pointer(this)">Présent</button>
-                            <button class="btn-statut absent {% if pres.statut_depart == 'absent' %}active{% endif %}"
-                                    data-statut="absent" onclick="pointer(this)">Absent</button>
-                            {% endif %}{% endfor %}
-                            {% if emp.id not in p %}
-                            <button class="btn-statut present" data-statut="present" onclick="pointer(this)">Présent</button>
-                            <button class="btn-statut absent" data-statut="absent" onclick="pointer(this)">Absent</button>
-                            {% endif %}
-                        </div>
-                    </td>
-
-                    <td>
-                        {% for emp_id, pres in p.items %}{% if emp_id == emp.id %}
-                            {% if pres.statut_arrivee == 'present' and pres.statut_depart == 'present' %}
-                                <span class="badge badge-success">Journée OK</span>
-                            {% elif pres.statut_arrivee == 'retard' %}
-                                <span class="badge badge-warning">Retard</span>
-                            {% elif pres.statut_arrivee == 'absent' %}
-                                <span class="badge badge-danger">Absent</span>
+                    <!-- Arrivée -->
+                    <td id="arrivee-{{ emp.id }}">
+                        {% for eid, ep in presences.items %}{% if eid == emp.id %}
+                            {% if ep.statut_arrivee %}
+                                <div class="action-group">
+                                    <span class="heure-badge {{ ep.statut_arrivee }}">
+                                        <span class="indicator"></span>
+                                        {% if ep.statut_arrivee == 'present' %}Présent{% elif ep.statut_arrivee == 'retard' %}Retard{% else %}Absent{% endif %}
+                                        {% if ep.heure_arrivee %}&nbsp;· {{ ep.heure_arrivee|time:"H\hi" }}{% endif %}
+                                    </span>
+                                    <button class="btn-modifier" onclick="resetArrivee({{ emp.id }})">✎</button>
+                                </div>
                             {% else %}
-                                <span class="badge badge-secondary">En cours</span>
+                                <div class="action-group">
+                                    <button class="btn-point arrivee" onclick="pointerArrivee({{ emp.id }})">
+                                        ↩ Arrivée
+                                    </button>
+                                    <button class="btn-point absent" onclick="marquerAbsent({{ emp.id }}, 'arrivee')">
+                                        Absent
+                                    </button>
+                                </div>
                             {% endif %}
                         {% endif %}{% endfor %}
-                        {% if emp.id not in p %}
-                            <span class="badge badge-secondary">Non pointé</span>
+                        {% if emp.id not in presences %}
+                            <div class="action-group">
+                                <button class="btn-point arrivee" onclick="pointerArrivee({{ emp.id }})">
+                                    ↩ Arrivée
+                                </button>
+                                <button class="btn-point absent" onclick="marquerAbsent({{ emp.id }}, 'arrivee')">
+                                    Absent
+                                </button>
+                            </div>
                         {% endif %}
                     </td>
+
+                    <!-- Départ -->
+                    <td id="depart-{{ emp.id }}">
+                        {% for eid, ep in presences.items %}{% if eid == emp.id %}
+                            {% if ep.statut_depart %}
+                                <div class="action-group">
+                                    <span class="heure-badge {{ ep.statut_depart }}">
+                                        <span class="indicator"></span>
+                                        {% if ep.statut_depart == 'present' %}Départ{% elif ep.statut_depart == 'anticipe' %}Anticipé{% else %}Absent{% endif %}
+                                        {% if ep.heure_depart %}&nbsp;· {{ ep.heure_depart|time:"H\hi" }}{% endif %}
+                                    </span>
+                                    <button class="btn-modifier" onclick="resetDepart({{ emp.id }})">✎</button>
+                                </div>
+                            {% elif ep.statut_arrivee and ep.statut_arrivee != 'absent' %}
+                                <div class="action-group">
+                                    <button class="btn-point depart" onclick="pointerDepart({{ emp.id }})">
+                                        ↪ Départ
+                                    </button>
+                                    <button class="btn-point absent" onclick="marquerAbsent({{ emp.id }}, 'depart')">
+                                        Absent
+                                    </button>
+                                </div>
+                            {% else %}
+                                <span class="duree-vide">—</span>
+                            {% endif %}
+                        {% endif %}{% endfor %}
+                        {% if emp.id not in presences %}
+                            <span class="duree-vide">—</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Durée travaillée -->
+                    <td id="duree-{{ emp.id }}">
+                        {% for eid, ep in presences.items %}{% if eid == emp.id %}
+                            {% if ep.heure_arrivee and ep.heure_depart %}
+                                <span class="duree-badge" id="duree-badge-{{ emp.id }}">
+                                    {{ ep.duree_travaillee }}
+                                </span>
+                            {% else %}
+                                <span class="duree-vide">—</span>
+                            {% endif %}
+                        {% endif %}{% endfor %}
+                        {% if emp.id not in presences %}
+                            <span class="duree-vide">—</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Statut global -->
+                    <td id="statut-{{ emp.id }}">
+                        {% for eid, ep in presences.items %}{% if eid == emp.id %}
+                            {% if ep.statut_arrivee == 'present' and ep.statut_depart == 'present' %}
+                                <span class="s-badge s-ok">OK</span>
+                            {% elif ep.statut_arrivee == 'retard' %}
+                                <span class="s-badge s-retard">Retard</span>
+                            {% elif ep.statut_arrivee == 'absent' %}
+                                <span class="s-badge s-absent">Absent</span>
+                            {% elif ep.statut_depart == 'anticipe' %}
+                                <span class="s-badge s-retard">Anticipé</span>
+                            {% elif ep.statut_arrivee %}
+                                <span class="s-badge s-encours">En cours</span>
+                            {% else %}
+                                <span class="s-badge s-none">—</span>
+                            {% endif %}
+                        {% endif %}{% endfor %}
+                        {% if emp.id not in presences %}
+                            <span class="s-badge s-none">—</span>
+                        {% endif %}
+                    </td>
+
                 </tr>
-                {% endwith %}
-                {% endwith %}
                 {% endfor %}
             </tbody>
         </table>
@@ -256,67 +398,181 @@
 {% block extra_js %}
 <script>
 const CSRF = '{{ csrf_token }}';
+const URL_POINTER = "{% url 'gestion:api_pointer' %}";
 
-async function pointer(btn) {
-    const container = btn.closest('.btn-group-statut');
-    const employeId = container.dataset.employe;
-    const type = container.dataset.type;
-    const statut = btn.dataset.statut;
-
-    btn.disabled = true;
-
-    try {
-        const resp = await fetch("{% url 'gestion:api_pointer' %}", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': CSRF,
-            },
-            body: JSON.stringify({ employe_id: employeId, type: type, statut: statut })
-        });
-        const data = await resp.json();
-
-        if (data.success) {
-            // Mettre à jour les boutons actifs
-            container.querySelectorAll('.btn-statut').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            // Mettre à jour le badge de statut
-            updateStatutBadge(employeId);
-            showSuccess('Pointage enregistré');
-        } else {
-            showError(data.error || 'Erreur lors du pointage');
-        }
-    } catch(e) {
-        showError('Erreur réseau');
-    } finally {
-        btn.disabled = false;
-    }
+async function envoyerPointage(employeId, type, statut = null) {
+    const payload = { employe_id: employeId, type: type };
+    if (statut) payload.statut = statut;
+    const resp = await fetch(URL_POINTER, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify(payload)
+    });
+    return await resp.json();
 }
 
-function updateStatutBadge(employeId) {
-    const row = document.querySelector(`[data-employe="${employeId}"][data-type="arrivee"]`)?.closest('tr');
-    if (!row) return;
+/* ---- Calcul durée ---- */
+function calculerDuree(heureArriveeStr, heureDepartStr) {
+    if (!heureArriveeStr || !heureDepartStr) return null;
+    const [ha, ma] = heureArriveeStr.split(':').map(Number);
+    const [hd, md] = heureDepartStr.split(':').map(Number);
+    const totalMin = (hd * 60 + md) - (ha * 60 + ma);
+    if (totalMin <= 0) return null;
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
+}
 
-    const arriveeActive = row.querySelector('[data-type="arrivee"] .btn-statut.active');
-    const departActive = row.querySelector('[data-type="depart"] .btn-statut.active');
-    const badge = row.querySelector('td:last-child .badge') || row.querySelector('td:last-child span');
+/* ---- Rendu arrivée ---- */
+function renderArrivee(empId, statut, heure) {
+    const labels  = { present: 'Présent', retard: 'Retard', absent: 'Absent' };
+    const label   = labels[statut] || statut;
+    const heureHtml = heure ? `&nbsp;· ${heure}` : '';
+    document.getElementById('arrivee-' + empId).innerHTML = `
+        <div class="action-group">
+            <span class="heure-badge ${statut}">
+                <span class="indicator"></span>
+                ${label}${heureHtml}
+            </span>
+            <button class="btn-modifier" onclick="resetArrivee(${empId})">✎</button>
+        </div>`;
 
-    if (!badge) return;
-
-    if (arriveeActive?.dataset.statut === 'present' && departActive?.dataset.statut === 'present') {
-        badge.className = 'badge badge-success';
-        badge.textContent = 'Journée OK';
-    } else if (arriveeActive?.dataset.statut === 'retard') {
-        badge.className = 'badge badge-warning';
-        badge.textContent = 'Retard';
-    } else if (arriveeActive?.dataset.statut === 'absent') {
-        badge.className = 'badge badge-danger';
-        badge.textContent = 'Absent';
-    } else if (arriveeActive) {
-        badge.className = 'badge badge-secondary';
-        badge.textContent = 'En cours';
+    if (statut !== 'absent') {
+        renderDepartBoutons(empId);
+    } else {
+        document.getElementById('depart-' + empId).innerHTML = '<span class="duree-vide">—</span>';
     }
+    updateStatut(empId, statut, null, null, null);
+}
+
+/* ---- Rendu départ ---- */
+function renderDepart(empId, statut, heure, heureArriveeStr) {
+    const labels  = { present: 'Départ', anticipe: 'Anticipé', absent: 'Absent' };
+    const label   = labels[statut] || statut;
+    const heureHtml = heure ? `&nbsp;· ${heure}` : '';
+    document.getElementById('depart-' + empId).innerHTML = `
+        <div class="action-group">
+            <span class="heure-badge ${statut}">
+                <span class="indicator"></span>
+                ${label}${heureHtml}
+            </span>
+            <button class="btn-modifier" onclick="resetDepart(${empId})">✎</button>
+        </div>`;
+
+    const duree = calculerDuree(heureArriveeStr, heure);
+    const durCell = document.getElementById('duree-' + empId);
+    if (duree && statut !== 'absent') {
+        durCell.innerHTML = `<span class="duree-badge">${duree}</span>`;
+    } else {
+        durCell.innerHTML = '<span class="duree-vide">—</span>';
+    }
+
+    const arriveeStatut = getStatutArrivee(empId);
+    updateStatut(empId, arriveeStatut, statut, heureArriveeStr, heure);
+}
+
+function renderDepartBoutons(empId) {
+    document.getElementById('depart-' + empId).innerHTML = `
+        <div class="action-group">
+            <button class="btn-point depart" onclick="pointerDepart(${empId})">↪ Départ</button>
+            <button class="btn-point absent" onclick="marquerAbsent(${empId}, 'depart')">Absent</button>
+        </div>`;
+    document.getElementById('duree-' + empId).innerHTML = '<span class="duree-vide">—</span>';
+}
+
+function getStatutArrivee(empId) {
+    const cell = document.getElementById('arrivee-' + empId);
+    const badge = cell.querySelector('.heure-badge');
+    if (!badge) return null;
+    for (const cls of ['present', 'retard', 'absent']) {
+        if (badge.classList.contains(cls)) return cls;
+    }
+    return null;
+}
+
+function getHeureArrivee(empId) {
+    const cell = document.getElementById('arrivee-' + empId);
+    const badge = cell.querySelector('.heure-badge');
+    if (!badge) return null;
+    const txt = badge.textContent.trim();
+    const match = txt.match(/(\d{2})h(\d{2})/);
+    if (match) return `${match[1]}:${match[2]}`;
+    return null;
+}
+
+/* ---- Statut global ---- */
+function updateStatut(empId, arrivee, depart, hA, hD) {
+    const cell = document.getElementById('statut-' + empId);
+    let cls = 's-none', label = '—';
+    if (arrivee === 'absent') { cls = 's-absent'; label = 'Absent'; }
+    else if (arrivee === 'retard') { cls = 's-retard'; label = 'Retard'; }
+    else if (depart === 'anticipe') { cls = 's-retard'; label = 'Anticipé'; }
+    else if (arrivee === 'present' && depart === 'present') { cls = 's-ok'; label = 'OK'; }
+    else if (arrivee === 'present') { cls = 's-encours'; label = 'En cours'; }
+    cell.innerHTML = `<span class="s-badge ${cls}">${label}</span>`;
+}
+
+/* ---- Actions ---- */
+async function pointerArrivee(empId) {
+    const btn = event.currentTarget;
+    btn.disabled = true;
+    try {
+        const data = await envoyerPointage(empId, 'arrivee');
+        if (data.success) {
+            renderArrivee(empId, data.statut, data.heure);
+            showSuccess(data.statut === 'retard' ? 'Arrivée enregistrée — Retard' : 'Arrivée enregistrée');
+        } else {
+            showError(data.error || 'Erreur');
+            btn.disabled = false;
+        }
+    } catch(e) { showError('Erreur réseau'); btn.disabled = false; }
+}
+
+async function pointerDepart(empId) {
+    const btn = event.currentTarget;
+    btn.disabled = true;
+    const heureArrivee = getHeureArrivee(empId);
+    try {
+        const data = await envoyerPointage(empId, 'depart');
+        if (data.success) {
+            renderDepart(empId, data.statut, data.heure, heureArrivee);
+            showSuccess(data.statut === 'anticipe' ? 'Départ enregistré — Anticipé' : 'Départ enregistré');
+        } else {
+            showError(data.error || 'Erreur');
+            btn.disabled = false;
+        }
+    } catch(e) { showError('Erreur réseau'); btn.disabled = false; }
+}
+
+async function marquerAbsent(empId, type) {
+    const btn = event.currentTarget;
+    btn.disabled = true;
+    try {
+        const data = await envoyerPointage(empId, type, 'absent');
+        if (data.success) {
+            if (type === 'arrivee') renderArrivee(empId, 'absent', null);
+            else renderDepart(empId, 'absent', null, null);
+            showSuccess('Absence enregistrée');
+        } else {
+            showError(data.error || 'Erreur');
+            btn.disabled = false;
+        }
+    } catch(e) { showError('Erreur réseau'); btn.disabled = false; }
+}
+
+function resetArrivee(empId) {
+    document.getElementById('arrivee-' + empId).innerHTML = `
+        <div class="action-group">
+            <button class="btn-point arrivee" onclick="pointerArrivee(${empId})">↩ Arrivée</button>
+            <button class="btn-point absent" onclick="marquerAbsent(${empId}, 'arrivee')">Absent</button>
+        </div>`;
+    document.getElementById('depart-' + empId).innerHTML = '<span class="duree-vide">—</span>';
+    document.getElementById('duree-' + empId).innerHTML = '<span class="duree-vide">—</span>';
+    updateStatut(empId, null, null, null, null);
+}
+
+function resetDepart(empId) {
+    renderDepartBoutons(empId);
 }
 </script>
 {% endblock %}

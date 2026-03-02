@@ -95,7 +95,10 @@
         <div class="kpi-card recettes">
             <div class="kpi-label">Recettes</div>
             <div class="kpi-val">{{ total_recettes|floatformat:0 }} <small>CFA</small></div>
-            <div class="kpi-sub">Paiements encaissés (hors forfait/offert)</div>
+            <div class="kpi-sub">
+                RDV : {{ ca_rdv|floatformat:0 }} CFA
+                {% if ca_ventes_produits > 0 %} · Produits : {{ ca_ventes_produits|floatformat:0 }} CFA{% endif %}
+            </div>
             <div class="kpi-icon">💰</div>
         </div>
         <div class="kpi-card depenses">
@@ -115,18 +118,18 @@
     <!-- Détails -->
     <div class="layout">
         <div class="card">
-            <h3>Recettes par mode de paiement</h3>
+            <h3>Recettes par source</h3>
             {% if recettes_par_mode %}
                 {% for mode, montant in recettes_par_mode.items %}
                 <div class="detail-row">
                     <span>
-                        {% if mode == 'especes' %}Espèces
-                        {% elif mode == 'wave' %}Wave
-                        {% elif mode == 'om' %}Orange Money
-                        {% elif mode == 'virement' %}Virement
-                        {% elif mode == 'carte' %}Carte bancaire
-                        {% elif mode == 'cheque' %}Chèque
-                        {% elif mode == 'carte_cadeau' %}Carte cadeau
+                        {% if mode == 'especes' %}Espèces (RDV)
+                        {% elif mode == 'wave' %}Wave (RDV)
+                        {% elif mode == 'om' %}Orange Money (RDV)
+                        {% elif mode == 'virement' %}Virement (RDV)
+                        {% elif mode == 'carte' %}Carte bancaire (RDV)
+                        {% elif mode == 'cheque' %}Chèque (RDV)
+                        {% elif mode == 'carte_cadeau' %}Carte cadeau (RDV)
                         {% else %}{{ mode }}{% endif %}
                     </span>
                     <span class="detail-val green">{{ montant|floatformat:0 }} CFA</span>
@@ -135,7 +138,17 @@
                 <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill green" style="width:{% widthratio montant total_recettes 100 %}%"></div></div></div>
                 {% endif %}
                 {% endfor %}
-            {% else %}
+            {% endif %}
+            {% if ca_ventes_produits > 0 %}
+                <div class="detail-row">
+                    <span style="font-weight:600;color:#e67e22;">Ventes produits</span>
+                    <span class="detail-val" style="color:#e67e22;">{{ ca_ventes_produits|floatformat:0 }} CFA</span>
+                </div>
+                {% if total_recettes > 0 %}
+                <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:{% widthratio ca_ventes_produits total_recettes 100 %}%;background:#e67e22;"></div></div></div>
+                {% endif %}
+            {% endif %}
+            {% if not recettes_par_mode and ca_ventes_produits == 0 %}
                 <p style="color:var(--text-light);font-style:italic;font-size:13px;">Aucune recette ce mois</p>
             {% endif %}
         </div>

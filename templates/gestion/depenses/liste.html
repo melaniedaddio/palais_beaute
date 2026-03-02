@@ -59,6 +59,11 @@
     .add-cat-row { display: flex; gap: 8px; margin-top: 8px; }
     .add-cat-row input { flex: 1; padding: 8px 12px; border: 2px solid var(--border); border-radius: 8px; font-size: 13px; background: var(--bg-light); }
     .add-cat-row button { padding: 8px 14px; border-radius: 8px; border: none; background: var(--primary); color: white; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+    .links-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .link-btn { padding: 8px 18px; border-radius: 10px; border: 2px solid var(--border); background: white; color: var(--text-dark); font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; transition: all .15s; }
+    .link-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .link-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
 </style>
 {% endblock %}
 
@@ -68,6 +73,12 @@
     <div class="page-header">
         <h1>Dépenses — {{ mois|date:"F Y" }}</h1>
         <button class="btn-primary" onclick="document.getElementById('modalDepense').style.display='flex'">+ Enregistrer une dépense</button>
+    </div>
+
+    <div class="links-bar">
+        <a href="{% url 'gestion:depenses_liste' %}" class="link-btn active">Informelles</a>
+        <a href="{% url 'gestion:depenses_recurrentes' %}" class="link-btn">Récurrentes</a>
+        <a href="{% url 'gestion:depenses_parametres' %}" class="link-btn">Paramètres</a>
     </div>
 
     <form method="get" class="filters-bar">
@@ -265,6 +276,7 @@ async function ajouterCategorie() {
     const fd = new FormData();
     fd.append('csrfmiddlewaretoken', CSRF);
     fd.append('nom', nom);
+    fd.append('type', 'informelle');
     try {
         const resp = await fetch("{% url 'gestion:api_categorie_depense_creer' %}", { method: 'POST', body: fd });
         const data = await resp.json();

@@ -1,0 +1,429 @@
+{% extends 'base.html' %}
+
+{% block title %}Paramètres dépenses{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dep-container { max-width: 1100px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+
+    .links-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .link-btn { padding: 8px 18px; border-radius: 10px; border: 2px solid var(--border); background: white; color: var(--text-dark); font-size: 13px; font-weight: 600; text-decoration: none; transition: all .15s; }
+    .link-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .link-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
+
+    .layout { display: grid; grid-template-columns: 300px 1fr; gap: 24px; align-items: start; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+    .card { background: white; border-radius: 16px; padding: 22px; box-shadow: 0 4px 15px rgba(212,175,122,.10); border: 1px solid var(--border); margin-bottom: 20px; }
+    .card h3 { font-size: 13px; font-weight: 700; color: var(--text-dark); margin: 0 0 16px; text-transform: uppercase; letter-spacing: .5px; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th { background: var(--bg-section); padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 700; color: var(--text-dark); border-bottom: 2px solid var(--border); text-transform: uppercase; letter-spacing: .5px; }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 8px; font-size: 11px; font-weight: 600; }
+    .badge-actif { background: #d4edda; color: #155724; }
+    .badge-inactif { background: #f8d7da; color: #721c24; }
+
+    .btn-primary { padding: 9px 18px; border: none; border-radius: 10px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; font-weight: 600; font-size: 13px; cursor: pointer; }
+    .btn-sm { padding: 5px 10px; border: 1px solid var(--border); border-radius: 7px; background: white; font-size: 12px; cursor: pointer; }
+    .btn-danger-sm { padding: 5px 10px; border: none; border-radius: 7px; background: #f8d7da; color: #721c24; font-size: 12px; cursor: pointer; font-weight: 600; }
+
+    .cat-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .cat-item:last-child { border-bottom: none; }
+    .add-row { display: flex; gap: 8px; margin-top: 12px; }
+    .add-row input { flex: 1; padding: 8px 12px; border: 2px solid var(--border); border-radius: 8px; font-size: 13px; background: var(--bg-light); }
+    .add-row button { padding: 8px 14px; border-radius: 8px; border: none; background: var(--primary); color: white; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+    .empty-state { text-align: center; padding: 30px; color: var(--text-light); font-style: italic; font-size: 13px; }
+
+    /* Modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-overlay.active { display: flex; }
+    .modal { background: white; border-radius: 16px; padding: 28px; width: 480px; max-width: 95vw; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+    .modal h2 { font-size: 17px; color: var(--text-dark); margin: 0 0 20px; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+    .btn-cancel { padding: 9px 20px; border: 2px solid var(--border); border-radius: 10px; background: white; font-size: 14px; cursor: pointer; }
+    .btn-save { padding: 9px 22px; border: none; border-radius: 10px; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-weight: 600; font-size: 12px; color: var(--text-dark); margin-bottom: 4px; }
+    .form-group input, .form-group select { width: 100%; padding: 8px 12px; border: 2px solid var(--border); border-radius: 9px; background: var(--bg-light); font-size: 13px; box-sizing: border-box; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dep-container">
+
+    <div class="page-header">
+        <h1>Dépenses</h1>
+    </div>
+
+    <div class="links-bar">
+        <a href="{% url 'gestion:depenses_liste' %}" class="link-btn">Informelles</a>
+        <a href="{% url 'gestion:depenses_recurrentes' %}" class="link-btn">Récurrentes</a>
+        <a href="{% url 'gestion:depenses_parametres' %}" class="link-btn active">Paramètres</a>
+    </div>
+
+    <div class="layout">
+
+        <!-- Colonne gauche : Catégories -->
+        <div class="card">
+            <h3>Catégories de dépenses</h3>
+            <div id="listeCats">
+                {% for cat in categories %}
+                <div class="cat-item" id="cat-{{ cat.id }}">
+                    <span>
+                        <span id="cat-nom-{{ cat.id }}">{{ cat.nom }}</span>
+                        {% if cat.type == 'informelle' %}
+                        <span id="cat-badge-{{ cat.id }}" style="font-size:10px;padding:2px 7px;border-radius:6px;background:#dbeafe;color:#1d4ed8;font-weight:600;margin-left:6px;">Informelle</span>
+                        {% elif cat.type == 'recurrente' %}
+                        <span id="cat-badge-{{ cat.id }}" style="font-size:10px;padding:2px 7px;border-radius:6px;background:#fce7f3;color:#9d174d;font-weight:600;margin-left:6px;">Récurrente</span>
+                        {% else %}
+                        <span id="cat-badge-{{ cat.id }}" style="font-size:10px;padding:2px 7px;border-radius:6px;background:#d1fae5;color:#065f46;font-weight:600;margin-left:6px;">Les deux</span>
+                        {% endif %}
+                    </span>
+                    <div style="display:flex;gap:5px;">
+                        <button class="btn-sm" onclick="ouvrirEditCat({{ cat.id }}, '{{ cat.nom|escapejs }}', '{{ cat.type }}')">✏️</button>
+                        <button class="btn-danger-sm" onclick="supprimerCategorie({{ cat.id }}, '{{ cat.nom|escapejs }}')">✕</button>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="empty-state">Aucune catégorie</div>
+                {% endfor %}
+            </div>
+            <div class="add-row" style="flex-wrap:wrap;gap:8px;">
+                <input type="text" id="nouvelleCatNom" placeholder="Nouvelle catégorie…" style="min-width:120px;">
+                <select id="nouvelleCatType" style="padding:8px 10px;border:2px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-light);">
+                    <option value="les_deux">Les deux</option>
+                    <option value="informelle">Informelle uniquement</option>
+                    <option value="recurrente">Récurrente uniquement</option>
+                </select>
+                <button onclick="ajouterCategorie()">+ Ajouter</button>
+            </div>
+        </div>
+
+        <!-- Colonne droite : Dépenses récurrentes configurées -->
+        <div>
+            <div class="card">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <h3 style="margin:0;">Dépenses récurrentes</h3>
+                    <button class="btn-primary" onclick="openModal()">+ Ajouter</button>
+                </div>
+
+                {% if recurrentes %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Catégorie</th>
+                            <th>Montant</th>
+                            <th>Fréquence</th>
+                            <th>Jour</th>
+                            <th>Statut</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dr in recurrentes %}
+                        <tr id="dr-row-{{ dr.id }}">
+                            <td>
+                                <strong>{{ dr.nom }}</strong>
+                                {% if dr.beneficiaire %}<br><span style="font-size:11px;color:var(--text-light);">{{ dr.beneficiaire }}</span>{% endif %}
+                            </td>
+                            <td>{{ dr.categorie.nom }}</td>
+                            <td><strong>{{ dr.montant|floatformat:0 }} CFA</strong></td>
+                            <td>{{ dr.get_frequence_display }}</td>
+                            <td>{{ dr.jour_du_mois }}</td>
+                            <td>
+                                {% if dr.actif %}<span class="badge badge-actif">Actif</span>
+                                {% else %}<span class="badge badge-inactif">Inactif</span>{% endif %}
+                            </td>
+                            <td>
+                                <div style="display:flex;gap:6px;">
+                                    <button class="btn-sm" onclick="openModalModifier({{ dr.id }}, '{{ dr.nom|escapejs }}', {{ dr.categorie.id }}, {{ dr.montant }}, '{{ dr.beneficiaire|escapejs }}', '{{ dr.mode_paiement }}', '{{ dr.frequence }}', {{ dr.jour_du_mois }})">✏️</button>
+                                    <button class="btn-sm" onclick="toggleActif({{ dr.id }}, {{ dr.actif|yesno:'true,false' }})">
+                                        {% if dr.actif %}Désactiver{% else %}Activer{% endif %}
+                                    </button>
+                                    <button class="btn-danger-sm" onclick="supprimerRecurrente({{ dr.id }})">✕</button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-state">
+                    <p>Aucune dépense récurrente configurée.</p>
+                    <p style="margin-top:6px;font-size:12px;">Ajoutez vos charges fixes (loyer, CNSS…) pour recevoir des rappels mensuels.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal création / modification récurrente -->
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+        <h2 id="modalTitre">Nouvelle dépense récurrente</h2>
+        <input type="hidden" id="fId" value="">
+        <div class="form-group">
+            <label>Nom *</label>
+            <input type="text" id="fNom" placeholder="Ex: Loyer, CNSS, Abonnement…">
+        </div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Catégorie *</label>
+                <select id="fCategorie">
+                    <option value="">-- Choisir --</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.nom }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Montant (CFA) *</label>
+                <input type="number" id="fMontant" min="0" placeholder="0">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Bénéficiaire</label>
+            <input type="text" id="fBeneficiaire" placeholder="Ex: Propriétaire, CNSS…">
+        </div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Mode paiement</label>
+                <select id="fMode">
+                    {% for val, label in MODES_PAIEMENT %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Fréquence</label>
+                <select id="fFrequence">
+                    <option value="mensuel">Mensuel (chaque mois)</option>
+                    <option value="bimestriel">Tous les 2 mois</option>
+                    <option value="trimestriel">Trimestriel (tous les 3 mois)</option>
+                    <option value="semestriel">Semestriel (tous les 6 mois)</option>
+                    <option value="annuel">Annuel</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Jour du mois (échéance)</label>
+            <input type="number" id="fJour" min="1" max="31" value="1">
+        </div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">Annuler</button>
+            <button class="btn-save" onclick="sauvegarder()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal édition catégorie -->
+<div class="modal-overlay" id="modalEditCat">
+    <div class="modal">
+        <h2>Modifier la catégorie</h2>
+        <input type="hidden" id="editCatId">
+        <div class="form-group">
+            <label>Nom *</label>
+            <input type="text" id="editCatNom">
+        </div>
+        <div class="form-group">
+            <label>Utilisée pour</label>
+            <select id="editCatType">
+                <option value="les_deux">Les deux</option>
+                <option value="informelle">Informelle uniquement</option>
+                <option value="recurrente">Récurrente uniquement</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="fermerEditCat()">Annuler</button>
+            <button class="btn-save" onclick="sauvegarderEditCat()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+
+/* ── Catégories ── */
+const TYPE_LABELS = { informelle: 'Informelle', recurrente: 'Récurrente', les_deux: 'Les deux' };
+const TYPE_STYLES = {
+    informelle: 'background:#dbeafe;color:#1d4ed8;',
+    recurrente: 'background:#fce7f3;color:#9d174d;',
+    les_deux:   'background:#d1fae5;color:#065f46;',
+};
+
+async function ajouterCategorie() {
+    const nom = document.getElementById('nouvelleCatNom').value.trim();
+    const type = document.getElementById('nouvelleCatType').value;
+    if (!nom) return;
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF);
+    fd.append('nom', nom);
+    fd.append('type', type);
+    try {
+        const resp = await fetch("{% url 'gestion:api_categorie_depense_creer' %}", { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) {
+            const badge = `<span style="font-size:10px;padding:2px 7px;border-radius:6px;${TYPE_STYLES[data.type]}font-weight:600;margin-left:6px;">${TYPE_LABELS[data.type]}</span>`;
+            const div = document.createElement('div');
+            div.className = 'cat-item';
+            div.id = 'cat-' + data.id;
+            div.innerHTML = `<span>${data.nom}${badge}</span><button class="btn-danger-sm" onclick="supprimerCategorie(${data.id}, '${data.nom}')">✕</button>`;
+            document.getElementById('listeCats').appendChild(div);
+            document.getElementById('nouvelleCatNom').value = '';
+            showSuccess(data.message);
+        } else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+function ouvrirEditCat(id, nom, type) {
+    document.getElementById('editCatId').value = id;
+    document.getElementById('editCatNom').value = nom;
+    document.getElementById('editCatType').value = type;
+    document.getElementById('modalEditCat').classList.add('active');
+}
+
+function fermerEditCat() { document.getElementById('modalEditCat').classList.remove('active'); }
+document.getElementById('modalEditCat').addEventListener('click', function(e) { if (e.target === this) fermerEditCat(); });
+
+async function sauvegarderEditCat() {
+    const id = document.getElementById('editCatId').value;
+    const nom = document.getElementById('editCatNom').value.trim();
+    const type = document.getElementById('editCatType').value;
+    if (!nom) { showError('Le nom est requis'); return; }
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF);
+    fd.append('nom', nom);
+    fd.append('type', type);
+    try {
+        const resp = await fetch(`/gestion/depenses/api/categorie/${id}/modifier/`, { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) {
+            document.getElementById('cat-nom-' + id).textContent = data.nom;
+            const badge = document.getElementById('cat-badge-' + id);
+            badge.textContent = TYPE_LABELS[data.type];
+            badge.style.cssText = `font-size:10px;padding:2px 7px;border-radius:6px;${TYPE_STYLES[data.type]}font-weight:600;margin-left:6px;`;
+            fermerEditCat();
+            showSuccess(data.message);
+        } else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+async function supprimerCategorie(id, nom) {
+    if (!confirm(`Supprimer la catégorie "${nom}" ?`)) return;
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF);
+    try {
+        const resp = await fetch(`/gestion/depenses/api/categorie/${id}/supprimer/`, { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) {
+            document.getElementById('cat-' + id)?.remove();
+            showSuccess(data.message || 'Supprimé');
+        } else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+/* ── Modal récurrentes ── */
+function openModal() {
+    document.getElementById('fId').value = '';
+    document.getElementById('modalTitre').textContent = 'Nouvelle dépense récurrente';
+    document.getElementById('fNom').value = '';
+    document.getElementById('fCategorie').value = '';
+    document.getElementById('fMontant').value = '';
+    document.getElementById('fBeneficiaire').value = '';
+    document.getElementById('fMode').value = 'especes';
+    document.getElementById('fFrequence').value = 'mensuel';
+    document.getElementById('fJour').value = '1';
+    document.getElementById('modalOverlay').classList.add('active');
+}
+
+function openModalModifier(id, nom, categorieId, montant, beneficiaire, mode, frequence, jour) {
+    document.getElementById('fId').value = id;
+    document.getElementById('modalTitre').textContent = 'Modifier la dépense récurrente';
+    document.getElementById('fNom').value = nom;
+    document.getElementById('fCategorie').value = categorieId;
+    document.getElementById('fMontant').value = montant;
+    document.getElementById('fBeneficiaire').value = beneficiaire;
+    document.getElementById('fMode').value = mode;
+    document.getElementById('fFrequence').value = frequence;
+    document.getElementById('fJour').value = jour;
+    document.getElementById('modalOverlay').classList.add('active');
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
+document.getElementById('modalOverlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+async function sauvegarder() {
+    const id = document.getElementById('fId').value;
+    const payload = {
+        nom: document.getElementById('fNom').value.trim(),
+        categorie_id: parseInt(document.getElementById('fCategorie').value),
+        montant: parseInt(document.getElementById('fMontant').value),
+        beneficiaire: document.getElementById('fBeneficiaire').value.trim(),
+        mode_paiement: document.getElementById('fMode').value,
+        frequence: document.getElementById('fFrequence').value,
+        jour_du_mois: parseInt(document.getElementById('fJour').value) || 1,
+    };
+    if (!payload.nom || !payload.categorie_id || !payload.montant) {
+        showError('Veuillez remplir les champs obligatoires'); return;
+    }
+    const url = id
+        ? `/gestion/depenses/recurrentes/api/${id}/modifier/`
+        : "{% url 'gestion:api_depense_recurrente_creer' %}";
+    try {
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(id ? 'Modifications enregistrées' : 'Dépense récurrente créée');
+            closeModal();
+            setTimeout(() => location.reload(), 800);
+        } else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+async function toggleActif(drId, estActif) {
+    try {
+        const resp = await fetch(`/gestion/depenses/recurrentes/api/${drId}/modifier/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({ actif: !estActif }),
+        });
+        const data = await resp.json();
+        if (data.success) { location.reload(); }
+        else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+async function supprimerRecurrente(drId) {
+    if (!confirm('Supprimer cette dépense récurrente ?')) return;
+    try {
+        const resp = await fetch(`/gestion/depenses/recurrentes/api/${drId}/supprimer/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({}),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            document.getElementById('dr-row-' + drId)?.remove();
+            showSuccess('Supprimé');
+        } else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+</script>
+{% endblock %}

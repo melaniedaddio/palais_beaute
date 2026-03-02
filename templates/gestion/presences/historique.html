@@ -87,11 +87,12 @@
         <a href="{% url 'gestion:retards_suivi' %}" class="link-btn">Suivi retards</a>
     </div>
 
-    <!-- Filtres -->
-    <form method="get" class="filters-bar">
-        <input type="month" name="mois" value="{{ mois|date:'Y-m' }}" title="Mois">
+    <!-- Filtres (auto-submit, pas de bouton) -->
+    <form method="get" class="filters-bar" id="filtres-form">
+        <input type="month" name="mois" value="{{ mois|date:'Y-m' }}"
+               onchange="this.form.submit()" title="Mois">
         {% if is_patron %}
-        <select name="institut">
+        <select name="institut" onchange="this.form.submit()">
             <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
             {% for inst in instituts %}
             <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
@@ -99,7 +100,12 @@
             <option value="autres" {% if institut_code == 'autres' %}selected{% endif %}>Autres</option>
         </select>
         {% endif %}
-        <button type="submit">Filtrer</button>
+        <select name="statut" onchange="this.form.submit()">
+            <option value="tous"     {% if statut_filtre == 'tous' %}selected{% endif %}>Tous les statuts</option>
+            <option value="retard"   {% if statut_filtre == 'retard' %}selected{% endif %}>Retards seulement</option>
+            <option value="absent"   {% if statut_filtre == 'absent' %}selected{% endif %}>Absences seulement</option>
+            <option value="anticipe" {% if statut_filtre == 'anticipe' %}selected{% endif %}>Départs anticipés</option>
+        </select>
     </form>
 
     <!-- Stats résumé -->
@@ -132,7 +138,7 @@
                     {% if is_patron %}<th>Institut</th>{% endif %}
                     <th>Arrivée</th>
                     <th>Départ</th>
-                    <th>Heure arrivée</th>
+                    <th>Durée</th>
                 </tr>
             </thead>
             <tbody>
@@ -159,14 +165,20 @@
                     </td>
                     <td>
                         {% if p.statut_depart == 'present' %}
-                            <span class="badge badge-success">Présent</span>
+                            <span class="badge badge-success">{{ p.heure_depart|time:"H:i"|default:"Départ" }}</span>
+                        {% elif p.statut_depart == 'anticipe' %}
+                            <span class="badge badge-warning">Anticipé {{ p.heure_depart|time:"H:i" }}</span>
                         {% elif p.statut_depart == 'absent' %}
                             <span class="badge badge-danger">Absent</span>
                         {% else %}
                             <span class="badge badge-secondary">—</span>
                         {% endif %}
                     </td>
-                    <td>{{ p.heure_arrivee|time:"H:i"|default:"—" }}</td>
+                    <td>
+                        {% if p.duree_travaillee %}
+                            <span style="font-weight:600;color:var(--text-dark);">{{ p.duree_travaillee }}</span>
+                        {% else %}—{% endif %}
+                    </td>
                 </tr>
                 {% empty %}
                 <tr>

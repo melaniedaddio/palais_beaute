@@ -85,9 +85,11 @@ urlpatterns = [
 
     # ========== DÉPENSES ==========
     path('depenses/', views.depenses_liste, name='depenses_liste'),
+    path('depenses/parametres/', views.depenses_parametres, name='depenses_parametres'),
     path('depenses/api/creer/', views.api_depense_creer, name='api_depense_creer'),
     path('depenses/api/<int:depense_id>/supprimer/', views.api_depense_supprimer, name='api_depense_supprimer'),
     path('depenses/api/categorie/creer/', views.api_categorie_depense_creer, name='api_categorie_depense_creer'),
+    path('depenses/api/categorie/<int:pk>/modifier/', views.api_categorie_depense_modifier, name='api_categorie_depense_modifier'),
     path('depenses/api/categorie/<int:pk>/supprimer/', views.api_categorie_depense_supprimer, name='api_categorie_depense_supprimer'),
 
     # ========== DÉPENSES RÉCURRENTES ==========

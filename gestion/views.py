@@ -1,4 +1,4 @@
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from core.decorators import login_required_json as login_required
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Q, Max, Count
@@ -951,6 +951,8 @@ def presences_historique(request):
         instituts = [utilisateur.institut]
         institut_code = utilisateur.institut.code
 
+    statut_filtre = request.GET.get('statut', 'tous')  # 'tous', 'retard', 'absent', 'anticipe'
+
     # Filtrer les présences
     presences_qs = Presence.objects.filter(
         date__range=[mois, fin_mois]
@@ -962,6 +964,13 @@ def presences_historique(request):
         presences_qs = presences_qs.filter(employe__institut__isnull=True)
     else:
         presences_qs = presences_qs.filter(employe__institut__code=institut_code)
+
+    if statut_filtre == 'retard':
+        presences_qs = presences_qs.filter(statut_arrivee='retard')
+    elif statut_filtre == 'absent':
+        presences_qs = presences_qs.filter(statut_arrivee='absent')
+    elif statut_filtre == 'anticipe':
+        presences_qs = presences_qs.filter(statut_depart='anticipe')
 
     # Statistiques par employé
     employe_filter = {}
@@ -997,6 +1006,7 @@ def presences_historique(request):
         'stats_employes': stats_employes,
         'presences': presences_qs.order_by('-date', 'employe__nom'),
         'is_patron': utilisateur.is_patron(),
+        'statut_filtre': statut_filtre,
     })
 
 
@@ -1122,34 +1132,70 @@ def retards_suivi(request):
 @role_required(['patron', 'manager'])
 @require_POST
 def api_pointer(request):
-    """API pour enregistrer une présence (arrivée ou départ)."""
+    """API pour enregistrer une présence (arrivée ou départ).
+
+    Si statut n'est pas fourni, l'heure actuelle détermine automatiquement :
+    - Arrivée : présent si <= 9h15, retard sinon
+    - Départ  : présent si >= 18h45, anticipe sinon
+    Si statut='absent' est fourni explicitement, on marque absent.
+    """
+    from datetime import time as dtime
+    SEUIL_RETARD   = dtime(9, 15)
+    SEUIL_ANTICIPE = dtime(18, 45)
+
     try:
         data = json.loads(request.body)
         employe = get_object_or_404(Employe, id=data['employe_id'])
 
-        presence, created = Presence.objects.get_or_create(
-            employe=employe,
-            date=date.today(),
-            defaults={'saisi_par': request.user.utilisateur}
-        )
+        # Récupérer la présence existante ou construire en mémoire sans sauvegarder
+        try:
+            presence = Presence.objects.get(employe=employe, date=date.today())
+        except Presence.DoesNotExist:
+            presence = Presence(
+                employe=employe,
+                date=date.today(),
+                saisi_par=request.user.utilisateur,
+                statut_arrivee='present',  # valeur temporaire, écrasée juste après
+            )
 
-        type_pointage = data.get('type')  # 'arrivee' ou 'depart'
-        statut = data.get('statut')       # 'present', 'retard', 'absent'
+        type_pointage = data.get('type')   # 'arrivee' ou 'depart'
+        statut_force  = data.get('statut') # 'absent' si marqué manuellement absent
+
+        now_local  = timezone.localtime(timezone.now())
+        heure_now  = now_local.time()
+        heure_str  = heure_now.strftime('%H:%M')
 
         if type_pointage == 'arrivee':
-            presence.statut_arrivee = statut
-            if statut == 'retard':
-                presence.heure_arrivee = timezone.now().time()
-            elif statut == 'present':
-                presence.heure_arrivee = timezone.now().time()
+            if statut_force == 'absent':
+                presence.statut_arrivee = 'absent'
+                presence.heure_arrivee  = None
+                statut_result = 'absent'
+                heure_str = None
+            else:
+                statut_result = 'retard' if heure_now > SEUIL_RETARD else 'present'
+                presence.statut_arrivee = statut_result
+                presence.heure_arrivee  = heure_now
+
         elif type_pointage == 'depart':
-            presence.statut_depart = statut
-            if statut == 'present':
-                presence.heure_depart = timezone.now().time()
+            if statut_force == 'absent':
+                presence.statut_depart = 'absent'
+                presence.heure_depart  = None
+                statut_result = 'absent'
+                heure_str = None
+            else:
+                statut_result = 'anticipe' if heure_now < SEUIL_ANTICIPE else 'present'
+                presence.statut_depart = statut_result
+                presence.heure_depart  = heure_now
+        else:
+            return JsonResponse({'success': False, 'error': 'type invalide'}, status=400)
 
         presence.save()
 
-        return JsonResponse({'success': True, 'created': created})
+        return JsonResponse({
+            'success': True,
+            'statut': statut_result,
+            'heure':  heure_str,
+        })
 
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
@@ -1268,33 +1314,69 @@ def _get_mois_et_fin(request):
 def salaires_calcul(request):
     mois, fin_mois = _get_mois_et_fin(request)
     institut_code = request.GET.get('institut', 'tous')
+    vue = request.GET.get('vue', 'calcul')  # 'calcul', 'primes', 'avances'
     instituts = Institut.objects.all().order_by('nom')
+    employes_all = Employe.objects.filter(actif=True).order_by('nom')
+    types_prime = TypePrime.objects.filter(actif=True)
 
-    if institut_code == 'tous':
-        employes = Employe.objects.filter(actif=True).order_by('nom')
-    elif institut_code == 'autres':
-        employes = Employe.objects.filter(institut__isnull=True, actif=True).order_by('nom')
-    else:
-        employes = Employe.objects.filter(institut__code=institut_code, actif=True).order_by('nom')
+    def _filtre_institut(qs, champ_institut='employe__institut__code'):
+        if institut_code == 'autres':
+            return qs.filter(**{champ_institut.replace('__code', '__isnull'): True})
+        elif institut_code != 'tous':
+            return qs.filter(**{champ_institut: institut_code})
+        return qs
 
-    calculs = []
-    for emp in employes:
-        calcul, created = CalculSalaire.objects.get_or_create(
-            employe=emp, mois=mois,
-            defaults={'salaire_base': emp.salaire_base}
-        )
-        if created or calcul.statut == 'brouillon':
-            calcul.calculer()
-        calculs.append(calcul)
-
-    return render(request, 'gestion/salaires/calcul.html', {
+    context = {
         'mois': mois,
         'instituts': instituts,
         'institut_code': institut_code,
-        'calculs': calculs,
-        'total_net': sum(c.net_a_payer for c in calculs),
-        'total_base': sum(c.salaire_base for c in calculs),
-    })
+        'vue': vue,
+        'employes_all': employes_all,
+        'types_prime': types_prime,
+    }
+
+    if vue == 'primes':
+        primes = _filtre_institut(
+            Prime.objects.filter(mois=mois).select_related('employe', 'employe__institut', 'type_prime')
+        ).order_by('-date_creation')
+        context['primes'] = primes
+        context['total_primes'] = sum(p.montant for p in primes)
+
+    elif vue == 'avances':
+        statut_filtre = request.GET.get('statut', 'en_cours')
+        avances_qs = Avance.objects.select_related('employe', 'employe__institut')
+        if statut_filtre != 'tous':
+            avances_qs = avances_qs.filter(statut=statut_filtre)
+        avances_qs = _filtre_institut(avances_qs).order_by('-date')
+        context['avances'] = avances_qs
+        context['statut_filtre'] = statut_filtre
+        context['total_en_cours'] = sum(
+            a.reste_a_rembourser() for a in Avance.objects.filter(statut='en_cours')
+        )
+
+    else:  # vue == 'calcul'
+        if institut_code == 'tous':
+            employes = employes_all
+        elif institut_code == 'autres':
+            employes = Employe.objects.filter(institut__isnull=True, actif=True).order_by('nom')
+        else:
+            employes = Employe.objects.filter(institut__code=institut_code, actif=True).order_by('nom')
+
+        calculs = []
+        for emp in employes:
+            calcul, created = CalculSalaire.objects.get_or_create(
+                employe=emp, mois=mois,
+                defaults={'salaire_base': emp.salaire_base}
+            )
+            if created or calcul.statut == 'brouillon':
+                calcul.calculer()
+            calculs.append(calcul)
+
+        context['calculs'] = calculs
+        context['total_net'] = sum(c.net_a_payer for c in calculs)
+        context['total_base'] = sum(c.salaire_base for c in calculs)
+
+    return render(request, 'gestion/salaires/calcul.html', context)
 
 
 @login_required
@@ -1571,6 +1653,7 @@ def api_produit_creer(request):
             unite=UniteMesure.objects.filter(id=unite_id).first() if unite_id else None,
             fournisseur=Fournisseur.objects.filter(id=fournisseur_id).first() if fournisseur_id else None,
             prix_achat=int(request.POST.get('prix_achat', 0) or 0),
+            prix_vente=int(request.POST.get('prix_vente', 0) or 0),
             stock_actuel=int(request.POST.get('stock_actuel', 0) or 0),
             stock_minimum=int(request.POST.get('stock_minimum', 0) or 0),
         )
@@ -1599,6 +1682,7 @@ def api_produit_modifier(request, produit_id):
         produit.unite = UniteMesure.objects.filter(id=unite_id).first() if unite_id else None
         produit.fournisseur = Fournisseur.objects.filter(id=fournisseur_id).first() if fournisseur_id else None
         produit.prix_achat = int(request.POST.get('prix_achat', 0) or 0)
+        produit.prix_vente = int(request.POST.get('prix_vente', 0) or 0)
         produit.stock_minimum = int(request.POST.get('stock_minimum', 0) or 0)
         produit.save()
         return JsonResponse({'success': True, 'message': f'Produit "{produit.nom}" modifié'})
@@ -1881,7 +1965,7 @@ def depenses_liste(request):
         nom_cat = d.categorie.nom
         par_categorie[nom_cat] = par_categorie.get(nom_cat, 0) + d.montant
 
-    categories = CategoriDepense.objects.all()
+    categories = CategoriDepense.objects.filter(type__in=['informelle', 'les_deux'])
     instituts = Institut.objects.all()
 
     return render(request, 'gestion/depenses/liste.html', {
@@ -1955,10 +2039,38 @@ def api_categorie_depense_creer(request):
         nom = request.POST.get('nom', '').strip()
         if not nom:
             return JsonResponse({'success': False, 'error': 'Nom requis'}, status=400)
-        cat, created = CategoriDepense.objects.get_or_create(nom=nom, defaults={'description': request.POST.get('description', '').strip()})
+        type_cat = request.POST.get('type', 'les_deux')
+        if type_cat not in ['informelle', 'recurrente', 'les_deux']:
+            type_cat = 'les_deux'
+        cat, created = CategoriDepense.objects.get_or_create(
+            nom=nom,
+            defaults={'description': request.POST.get('description', '').strip(), 'type': type_cat},
+        )
         if not created:
             return JsonResponse({'success': False, 'error': 'Cette catégorie existe déjà'}, status=400)
-        return JsonResponse({'success': True, 'message': f'Catégorie "{cat.nom}" créée', 'id': cat.id, 'nom': cat.nom})
+        return JsonResponse({'success': True, 'message': f'Catégorie "{cat.nom}" créée', 'id': cat.id, 'nom': cat.nom, 'type': cat.type})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@role_required(['patron'])
+@require_POST
+def api_categorie_depense_modifier(request, pk):
+    try:
+        cat = get_object_or_404(CategoriDepense, pk=pk)
+        nom = request.POST.get('nom', '').strip()
+        if not nom:
+            return JsonResponse({'success': False, 'error': 'Nom requis'}, status=400)
+        if CategoriDepense.objects.filter(nom=nom).exclude(pk=pk).exists():
+            return JsonResponse({'success': False, 'error': 'Ce nom est déjà utilisé'}, status=400)
+        type_cat = request.POST.get('type', 'les_deux')
+        if type_cat not in ['informelle', 'recurrente', 'les_deux']:
+            type_cat = 'les_deux'
+        cat.nom = nom
+        cat.type = type_cat
+        cat.save(update_fields=['nom', 'type'])
+        return JsonResponse({'success': True, 'message': f'Catégorie modifiée', 'id': cat.id, 'nom': cat.nom, 'type': cat.type})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
@@ -2013,12 +2125,23 @@ def bilan_mensuel(request):
             rendez_vous__employe__institut__code=institut_code
         )
 
-    total_recettes = paiements_qs.aggregate(s=Sum('montant'))['s'] or 0
+    ca_rdv = paiements_qs.aggregate(s=Sum('montant'))['s'] or 0
 
     # Recettes par mode de paiement
     recettes_par_mode = {}
     for p in paiements_qs.values('mode').annotate(total=Sum('montant')).order_by('-total'):
         recettes_par_mode[p['mode']] = p['total']
+
+    # Ventes de produits
+    ventes_produits_qs = VenteProduit.objects.filter(
+        date__date__gte=mois,
+        date__date__lte=fin_mois,
+    )
+    if institut_code != 'tous':
+        ventes_produits_qs = ventes_produits_qs.filter(institut__code=institut_code)
+    ca_ventes_produits = ventes_produits_qs.aggregate(s=Sum('montant_total'))['s'] or 0
+
+    total_recettes = ca_rdv + ca_ventes_produits
 
     # ── Dépenses ──
     depenses_qs = Depense.objects.filter(date__gte=mois, date__lte=fin_mois)
@@ -2064,6 +2187,11 @@ def bilan_mensuel(request):
             rec_qs = rec_qs.filter(rendez_vous__employe__institut__code=institut_code)
         rec = rec_qs.aggregate(s=Sum('montant'))['s'] or 0
 
+        vp_qs = VenteProduit.objects.filter(date__date__gte=m_debut, date__date__lte=m_fin)
+        if institut_code != 'tous':
+            vp_qs = vp_qs.filter(institut__code=institut_code)
+        rec += vp_qs.aggregate(s=Sum('montant_total'))['s'] or 0
+
         dep_qs = Depense.objects.filter(date__gte=m_debut, date__lte=m_fin)
         if institut_code != 'tous':
             dep_qs = dep_qs.filter(Q(institut__code=institut_code) | Q(institut__isnull=True))
@@ -2086,6 +2214,8 @@ def bilan_mensuel(request):
         'institut_code': institut_code,
         'nb_mois': nb_mois,
         'total_recettes': total_recettes,
+        'ca_rdv': ca_rdv,
+        'ca_ventes_produits': ca_ventes_produits,
         'total_depenses': total_depenses,
         'benefice': benefice,
         'taux_charges': taux_charges,
@@ -2179,21 +2309,45 @@ def ventes_historique(request):
 @require_POST
 def api_vendre(request):
     try:
+        from core.models import CarteCadeau, UtilisationCarteCadeau
         data = json.loads(request.body)
         utilisateur = request.user.utilisateur
 
-        institut = get_object_or_404(Institut, id=data['institut_id'])
-        client = None
-        if data.get('client_id'):
-            client = Client.objects.filter(id=data['client_id']).first()
+        # Client obligatoire
+        client_id = data.get('client_id')
+        if not client_id:
+            return JsonResponse({'success': False, 'error': 'Le client est obligatoire.'}, status=400)
+        client = get_object_or_404(Client, id=client_id)
 
+        institut = get_object_or_404(Institut, id=data['institut_id'])
+
+        # Paiement
+        mode_paiement   = data.get('mode_paiement', 'especes')
+        mode_paiement_2 = data.get('mode_paiement_2') or None
+        montant_paiement_1 = int(data.get('montant_paiement_1', 0) or 0)
+
+        # Carte cadeau
+        carte_id       = data.get('carte_id')
+        montant_carte  = int(data.get('montant_carte', 0) or 0)
+        carte = None
+        if carte_id and montant_carte > 0:
+            carte = CarteCadeau.objects.filter(id=carte_id, statut='active', solde__gte=montant_carte).first()
+            if not carte:
+                return JsonResponse({'success': False, 'error': 'Carte cadeau invalide ou solde insuffisant.'}, status=400)
+
+        # Créer la vente
         vente = VenteProduit.objects.create(
             institut=institut,
             client=client,
-            mode_paiement=data['mode_paiement'],
+            mode_paiement=mode_paiement,
+            mode_paiement_2=mode_paiement_2,
+            montant_paiement_1=montant_paiement_1,
+            carte_cadeau_utilisee=carte,
+            montant_carte_utilise=montant_carte,
             effectue_par=utilisateur,
         )
 
+        # Lignes + mouvements stock
         for item in data['items']:
             produit = get_object_or_404(Produit, id=item['produit_id'])
             quantite = int(item['quantite'])
@@ -2207,16 +2361,37 @@ def api_vendre(request):
                 quantite=quantite,
                 prix_unitaire=produit.prix_vente,
             )
+            stock_avant = produit.stock_actuel
+            produit.stock_actuel -= quantite
+            produit.save(update_fields=['stock_actuel'])
             MouvementStock.objects.create(
                 produit=produit,
                 type_mouvement='sortie',
-                motif='vente',
                 quantite=quantite,
+                quantite_avant=stock_avant,
+                quantite_apres=produit.stock_actuel,
                 prix_unitaire=produit.prix_vente,
-                effectue_par=utilisateur,
+                commentaire='Vente produit',
+                cree_par=utilisateur,
             )
 
         vente.calculer_total()
+
+        # Déduire la carte cadeau
+        if carte and montant_carte > 0:
+            carte.solde -= montant_carte
+            if carte.solde <= 0:
+                carte.solde = 0
+                carte.statut = 'soldee'
+            carte.date_derniere_utilisation = timezone.now()
+            carte.save()
+            UtilisationCarteCadeau.objects.create(
+                carte=carte,
+                montant=montant_carte,
+                institut=institut,
+                enregistre_par=utilisateur,
+            )
+
         return JsonResponse({
             'success': True,
             'message': f'Vente enregistrée — {vente.montant_total:,} CFA',
@@ -2442,25 +2617,19 @@ def api_inventaire_cloturer(request, inventaire_id):
 def depenses_recurrentes(request):
     user = request.user.utilisateur
     institut = user.institut
-    recurrentes = DepenseRecurrente.objects.filter(
-        institut=institut
-    ).select_related('categorie').prefetch_related('validations').order_by('nom')
 
-    categories = CategoriDepense.objects.all().order_by('nom')
-
-    # Validation du mois en cours
     from datetime import date
-    aujourd_hui = date.today()
-    mois_courant = aujourd_hui.replace(day=1)
+    mois_courant = date.today().replace(day=1)
+
+    recurrentes = DepenseRecurrente.objects.filter(institut=institut, actif=True).select_related('categorie')
 
     # Générer les validations manquantes pour le mois en cours
     for dr in recurrentes:
-        if dr.actif:
-            ValidationDepenseRecurrente.objects.get_or_create(
-                depense_recurrente=dr,
-                mois=mois_courant,
-                defaults={'statut': 'en_attente'},
-            )
+        ValidationDepenseRecurrente.objects.get_or_create(
+            depense_recurrente=dr,
+            mois=mois_courant,
+            defaults={'statut': 'en_attente'},
+        )
 
     validations_en_attente = ValidationDepenseRecurrente.objects.filter(
         depense_recurrente__institut=institut,
@@ -2468,16 +2637,42 @@ def depenses_recurrentes(request):
         statut='en_attente',
     ).select_related('depense_recurrente', 'depense_recurrente__categorie')
 
+    categories = CategoriDepense.objects.filter(type__in=['recurrente', 'les_deux']).order_by('nom')
+
+    MODES_PAIEMENT = [
+        ('especes', 'Espèces'), ('virement', 'Virement'), ('cheque', 'Chèque'),
+        ('carte', 'Carte bancaire'), ('om', 'Orange Money'), ('wave', 'Wave'), ('autre', 'Autre'),
+    ]
+
     return render(request, 'gestion/depenses/recurrentes.html', {
-        'recurrentes': recurrentes,
-        'categories': categories,
         'validations_en_attente': validations_en_attente,
         'mois_courant': mois_courant,
-        'titre': 'Dépenses récurrentes',
-        'MODES_PAIEMENT': Depense.MODE_CHOICES if hasattr(Depense, 'MODE_CHOICES') else [
-            ('especes', 'Espèces'), ('virement', 'Virement'), ('cheque', 'Chèque'),
-            ('carte', 'Carte bancaire'), ('om', 'Orange Money'), ('wave', 'Wave'), ('autre', 'Autre'),
-        ],
+        'categories': categories,
+        'MODES_PAIEMENT': MODES_PAIEMENT,
+    })
+
+
+@login_required
+@role_required(['patron', 'manager'])
+def depenses_parametres(request):
+    user = request.user.utilisateur
+    institut = user.institut
+
+    recurrentes = DepenseRecurrente.objects.filter(
+        institut=institut
+    ).select_related('categorie').order_by('nom')
+
+    categories = CategoriDepense.objects.all().order_by('nom')
+
+    MODES_PAIEMENT = [
+        ('especes', 'Espèces'), ('virement', 'Virement'), ('cheque', 'Chèque'),
+        ('carte', 'Carte bancaire'), ('om', 'Orange Money'), ('wave', 'Wave'), ('autre', 'Autre'),
+    ]
+
+    return render(request, 'gestion/depenses/parametres.html', {
+        'recurrentes': recurrentes,
+        'categories': categories,
+        'MODES_PAIEMENT': MODES_PAIEMENT,
     })
 
 

@@ -4,49 +4,35 @@
 
 {% block extra_css %}
 <style>
-    .dr-container { max-width: 1100px; margin: 0 auto; }
+    .dep-container { max-width: 900px; margin: 0 auto; }
     .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
     .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
 
-    .layout { display: grid; grid-template-columns: 1fr 380px; gap: 24px; align-items: start; }
-    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+    .links-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .link-btn { padding: 8px 18px; border-radius: 10px; border: 2px solid var(--border); background: white; color: var(--text-dark); font-size: 13px; font-weight: 600; text-decoration: none; transition: all .15s; }
+    .link-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .link-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
 
     .card { background: white; border-radius: 16px; padding: 22px; box-shadow: 0 4px 15px rgba(212,175,122,.10); border: 1px solid var(--border); margin-bottom: 20px; }
     .card h3 { font-size: 13px; font-weight: 700; color: var(--text-dark); margin: 0 0 16px; text-transform: uppercase; letter-spacing: .5px; }
 
-    table { width: 100%; border-collapse: collapse; }
-    th { background: var(--bg-section); padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 700; color: var(--text-dark); border-bottom: 2px solid var(--border); text-transform: uppercase; letter-spacing: .5px; }
-    td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
-    tr:last-child td { border-bottom: none; }
-
-    .badge { display: inline-block; padding: 3px 9px; border-radius: 8px; font-size: 11px; font-weight: 600; }
-    .badge-actif { background: #d4edda; color: #155724; }
-    .badge-inactif { background: #f8d7da; color: #721c24; }
     .badge-att { background: #fff3cd; color: #856404; }
     .badge-ok { background: #d4edda; color: #155724; }
     .badge-ignore { background: #e9ecef; color: #6c757d; }
 
-    .btn-primary { padding: 10px 20px; border: none; border-radius: 10px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; font-weight: 600; font-size: 14px; cursor: pointer; }
-    .btn-sm { padding: 5px 10px; border: 1px solid var(--border); border-radius: 7px; background: white; font-size: 12px; cursor: pointer; }
-    .btn-danger-sm { padding: 5px 10px; border: none; border-radius: 7px; background: #f8d7da; color: #721c24; font-size: 12px; cursor: pointer; font-weight: 600; }
-    .btn-success-sm { padding: 5px 10px; border: none; border-radius: 7px; background: #d4edda; color: #155724; font-size: 12px; cursor: pointer; font-weight: 600; }
+    .btn-success-sm { padding: 6px 14px; border: none; border-radius: 8px; background: #d4edda; color: #155724; font-size: 13px; cursor: pointer; font-weight: 600; }
+    .btn-sm { padding: 6px 14px; border: 1px solid var(--border); border-radius: 8px; background: white; font-size: 13px; cursor: pointer; }
 
-    .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-weight: 600; font-size: 12px; color: var(--text-dark); margin-bottom: 4px; }
-    .form-group input, .form-group select, .form-group textarea {
-        width: 100%; padding: 8px 12px; border: 2px solid var(--border); border-radius: 9px;
-        background: var(--bg-light); font-size: 13px; box-sizing: border-box;
-    }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-
-    .validation-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); gap: 10px; flex-wrap: wrap; }
+    .validation-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border); gap: 10px; flex-wrap: wrap; }
     .validation-item:last-child { border-bottom: none; }
     .val-info { flex: 1; }
-    .val-info strong { font-size: 14px; color: var(--text-dark); }
-    .val-info .meta { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+    .val-info strong { font-size: 15px; color: var(--text-dark); }
+    .val-info .meta { font-size: 12px; color: var(--text-light); margin-top: 3px; }
     .val-actions { display: flex; gap: 8px; }
 
-    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-light); font-style: italic; }
+    .empty-state { text-align: center; padding: 50px 20px; color: var(--text-light); font-style: italic; font-size: 14px; }
+
+    .btn-primary { padding: 9px 18px; border: none; border-radius: 10px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; font-weight: 600; font-size: 13px; cursor: pointer; }
 
     /* Modal */
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1000; align-items: center; justify-content: center; }
@@ -56,117 +42,69 @@
     .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
     .btn-cancel { padding: 9px 20px; border: 2px solid var(--border); border-radius: 10px; background: white; font-size: 14px; cursor: pointer; }
     .btn-save { padding: 9px 22px; border: none; border-radius: 10px; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-weight: 600; font-size: 12px; color: var(--text-dark); margin-bottom: 4px; }
+    .form-group input, .form-group select { width: 100%; padding: 8px 12px; border: 2px solid var(--border); border-radius: 9px; background: var(--bg-light); font-size: 13px; box-sizing: border-box; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="dr-container">
+<div class="dep-container">
+
     <div class="page-header">
-        <h1>Dépenses récurrentes</h1>
-        <button class="btn-primary" onclick="openModal()">+ Ajouter</button>
+        <h1>Dépenses</h1>
+        <button class="btn-primary" onclick="openModal()">+ Ajouter une récurrente</button>
     </div>
 
-    <div class="layout">
-        <!-- Colonne principale : liste des récurrentes -->
-        <div>
-            <div class="card">
-                <h3>Dépenses récurrentes configurées</h3>
-                {% if recurrentes %}
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Nom</th>
-                            <th>Catégorie</th>
-                            <th>Montant</th>
-                            <th>Fréquence</th>
-                            <th>Jour</th>
-                            <th>Statut</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for dr in recurrentes %}
-                        <tr id="dr-row-{{ dr.id }}">
-                            <td><strong>{{ dr.nom }}</strong><br><span style="font-size:11px;color:var(--text-light);">{{ dr.beneficiaire|default:"" }}</span></td>
-                            <td>{{ dr.categorie.nom }}</td>
-                            <td><strong>{{ dr.montant|floatformat:0 }} CFA</strong></td>
-                            <td>{{ dr.get_frequence_display }}</td>
-                            <td>{{ dr.jour_du_mois }}</td>
-                            <td>
-                                {% if dr.actif %}<span class="badge badge-actif">Actif</span>
-                                {% else %}<span class="badge badge-inactif">Inactif</span>{% endif %}
-                            </td>
-                            <td>
-                                <div style="display:flex;gap:6px;">
-                                    <button class="btn-sm" onclick="openModalModifier({{ dr.id }}, '{{ dr.nom|escapejs }}', {{ dr.categorie.id }}, {{ dr.montant }}, '{{ dr.beneficiaire|escapejs }}', '{{ dr.mode_paiement }}', '{{ dr.frequence }}', {{ dr.jour_du_mois }})">✏️</button>
-                                    <button class="btn-sm" onclick="toggleActif({{ dr.id }}, {{ dr.actif|yesno:'true,false' }})">
-                                        {% if dr.actif %}Désactiver{% else %}Activer{% endif %}
-                                    </button>
-                                    <button class="btn-danger-sm" onclick="supprimer({{ dr.id }})">✕</button>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                {% else %}
-                <div class="empty-state">
-                    <p>Aucune dépense récurrente configurée.</p>
-                    <p style="margin-top:8px;font-size:12px;">Ajoutez des dépenses récurrentes pour recevoir des rappels mensuels de paiement.</p>
-                </div>
-                {% endif %}
-            </div>
-        </div>
+    <div class="links-bar">
+        <a href="{% url 'gestion:depenses_liste' %}" class="link-btn">Informelles</a>
+        <a href="{% url 'gestion:depenses_recurrentes' %}" class="link-btn active">Récurrentes</a>
+        <a href="{% url 'gestion:depenses_parametres' %}" class="link-btn">Paramètres</a>
+    </div>
 
-        <!-- Colonne droite : validations du mois -->
+    <div class="card">
+        <h3>À valider — {{ mois_courant|date:"F Y" }}</h3>
+
+        {% if validations_en_attente %}
+        {% with total_attente=0 %}
         <div>
-            <div class="card">
-                <h3>À valider — {{ mois_courant|date:"F Y" }}</h3>
-                {% if validations_en_attente %}
-                <div>
-                    {% for val in validations_en_attente %}
-                    <div class="validation-item" id="val-{{ val.id }}">
-                        <div class="val-info">
-                            <strong>{{ val.depense_recurrente.nom }}</strong>
-                            <div class="meta">{{ val.depense_recurrente.montant|floatformat:0 }} CFA • {{ val.depense_recurrente.categorie.nom }}</div>
-                        </div>
-                        <div class="val-actions">
-                            <button class="btn-success-sm" onclick="valider({{ val.id }})">✓ Valider</button>
-                            <button class="btn-sm" onclick="ignorer({{ val.id }})">Ignorer</button>
-                        </div>
+            {% for val in validations_en_attente %}
+            <div class="validation-item" id="val-{{ val.id }}">
+                <div class="val-info">
+                    <strong>{{ val.depense_recurrente.nom }}</strong>
+                    <div class="meta">
+                        {{ val.depense_recurrente.montant|floatformat:0 }} CFA
+                        • {{ val.depense_recurrente.categorie.nom }}
+                        {% if val.depense_recurrente.beneficiaire %} • {{ val.depense_recurrente.beneficiaire }}{% endif %}
+                        • Échéance : {{ val.depense_recurrente.jour_du_mois }}
                     </div>
-                    {% endfor %}
                 </div>
-                {% else %}
-                <div class="empty-state">
-                    <p>Aucune validation en attente pour ce mois.</p>
-                </div>
-                {% endif %}
-            </div>
-
-            <!-- Résumé total -->
-            {% if validations_en_attente %}
-            <div class="card" style="text-align:center;padding:16px 22px;">
-                <div style="font-size:13px;color:var(--text-light);">Total en attente</div>
-                <div style="font-size:26px;font-weight:700;color:var(--text-dark);">
-                    {% with total=0 %}
-                    {{ validations_en_attente|length }} dépense{{ validations_en_attente|length|pluralize }}
-                    {% endwith %}
+                <div class="val-actions">
+                    <button class="btn-success-sm" onclick="valider({{ val.id }})">✓ Valider</button>
+                    <button class="btn-sm" onclick="ignorer({{ val.id }})">Ignorer</button>
                 </div>
             </div>
-            {% endif %}
+            {% endfor %}
         </div>
+        {% endwith %}
+        {% else %}
+        <div class="empty-state">
+            <p>✓ Toutes les dépenses récurrentes ont été traitées pour {{ mois_courant|date:"F Y" }}.</p>
+            <p style="margin-top:8px;font-size:12px;">Configurez vos dépenses récurrentes dans <a href="{% url 'gestion:depenses_parametres' %}">Paramètres</a>.</p>
+        </div>
+        {% endif %}
     </div>
+
 </div>
 
-<!-- Modal création / modification -->
+<!-- Modal création récurrente -->
 <div class="modal-overlay" id="modalOverlay">
     <div class="modal">
-        <h2 id="modalTitre">Nouvelle dépense récurrente</h2>
-        <input type="hidden" id="fId" value="">
+        <h2>Nouvelle dépense récurrente</h2>
         <div class="form-group">
             <label>Nom *</label>
-            <input type="text" id="fNom" placeholder="Ex: Loyer, EDF, Abonnement...">
+            <input type="text" id="fNom" placeholder="Ex: Loyer, CNSS, Abonnement…">
         </div>
         <div class="form-grid">
             <div class="form-group">
@@ -177,6 +115,12 @@
                     <option value="{{ cat.id }}">{{ cat.nom }}</option>
                     {% endfor %}
                 </select>
+                <div style="display:flex;gap:6px;margin-top:6px;">
+                    <input type="text" id="nouvelleCatNom" placeholder="Nouvelle catégorie…"
+                           style="flex:1;padding:6px 10px;border:2px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg-light);">
+                    <button type="button" onclick="ajouterCategorieRecurrente()"
+                            style="padding:6px 10px;border-radius:8px;border:none;background:var(--primary);color:white;font-size:12px;font-weight:600;cursor:pointer;">+ Ajouter</button>
+                </div>
             </div>
             <div class="form-group">
                 <label>Montant (CFA) *</label>
@@ -185,26 +129,24 @@
         </div>
         <div class="form-group">
             <label>Bénéficiaire</label>
-            <input type="text" id="fBeneficiaire" placeholder="Ex: Propriétaire, EDF...">
+            <input type="text" id="fBeneficiaire" placeholder="Ex: Propriétaire, CNSS…">
         </div>
         <div class="form-grid">
             <div class="form-group">
                 <label>Mode paiement</label>
                 <select id="fMode">
-                    <option value="especes">Espèces</option>
-                    <option value="virement">Virement</option>
-                    <option value="cheque">Chèque</option>
-                    <option value="carte">Carte bancaire</option>
-                    <option value="om">Orange Money</option>
-                    <option value="wave">Wave</option>
-                    <option value="autre">Autre</option>
+                    {% for val, label in MODES_PAIEMENT %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="form-group">
                 <label>Fréquence</label>
                 <select id="fFrequence">
-                    <option value="mensuel">Mensuel</option>
-                    <option value="trimestriel">Trimestriel</option>
+                    <option value="mensuel">Mensuel (chaque mois)</option>
+                    <option value="bimestriel">Tous les 2 mois</option>
+                    <option value="trimestriel">Trimestriel (tous les 3 mois)</option>
+                    <option value="semestriel">Semestriel (tous les 6 mois)</option>
                     <option value="annuel">Annuel</option>
                 </select>
             </div>
@@ -215,7 +157,7 @@
         </div>
         <div class="modal-actions">
             <button class="btn-cancel" onclick="closeModal()">Annuler</button>
-            <button class="btn-save" id="btnSave" onclick="sauvegarder()">Enregistrer</button>
+            <button class="btn-save" onclick="sauvegarder()">Enregistrer</button>
         </div>
     </div>
 </div>
@@ -224,100 +166,6 @@
 {% block extra_js %}
 <script>
 const CSRF = '{{ csrf_token }}';
-
-function openModal() {
-    document.getElementById('fId').value = '';
-    document.getElementById('modalTitre').textContent = 'Nouvelle dépense récurrente';
-    document.getElementById('fNom').value = '';
-    document.getElementById('fCategorie').value = '';
-    document.getElementById('fMontant').value = '';
-    document.getElementById('fBeneficiaire').value = '';
-    document.getElementById('fMode').value = 'especes';
-    document.getElementById('fFrequence').value = 'mensuel';
-    document.getElementById('fJour').value = '1';
-    document.getElementById('modalOverlay').classList.add('active');
-}
-
-function openModalModifier(id, nom, categorieId, montant, beneficiaire, mode, frequence, jour) {
-    document.getElementById('fId').value = id;
-    document.getElementById('modalTitre').textContent = 'Modifier la dépense récurrente';
-    document.getElementById('fNom').value = nom;
-    document.getElementById('fCategorie').value = categorieId;
-    document.getElementById('fMontant').value = montant;
-    document.getElementById('fBeneficiaire').value = beneficiaire;
-    document.getElementById('fMode').value = mode;
-    document.getElementById('fFrequence').value = frequence;
-    document.getElementById('fJour').value = jour;
-    document.getElementById('modalOverlay').classList.add('active');
-}
-
-function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
-document.getElementById('modalOverlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
-
-function getFormData() {
-    return {
-        nom: document.getElementById('fNom').value.trim(),
-        categorie_id: parseInt(document.getElementById('fCategorie').value),
-        montant: parseInt(document.getElementById('fMontant').value),
-        beneficiaire: document.getElementById('fBeneficiaire').value.trim(),
-        mode_paiement: document.getElementById('fMode').value,
-        frequence: document.getElementById('fFrequence').value,
-        jour_du_mois: parseInt(document.getElementById('fJour').value) || 1,
-    };
-}
-
-async function sauvegarder() {
-    const id = document.getElementById('fId').value;
-    const payload = getFormData();
-    if (!payload.nom || !payload.categorie_id || !payload.montant) {
-        showError('Veuillez remplir les champs obligatoires'); return;
-    }
-    const url = id
-        ? `/gestion/depenses/recurrentes/api/${id}/modifier/`
-        : "{% url 'gestion:api_depense_recurrente_creer' %}";
-    try {
-        const resp = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-            body: JSON.stringify(payload),
-        });
-        const data = await resp.json();
-        if (data.success) {
-            showSuccess(id ? 'Modifications enregistrées' : 'Dépense récurrente créée');
-            closeModal();
-            setTimeout(() => location.reload(), 800);
-        } else { showError(data.error); }
-    } catch(e) { showError('Erreur réseau'); }
-}
-
-async function toggleActif(drId, estActif) {
-    try {
-        const resp = await fetch(`/gestion/depenses/recurrentes/api/${drId}/modifier/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-            body: JSON.stringify({ actif: !estActif }),
-        });
-        const data = await resp.json();
-        if (data.success) { location.reload(); }
-        else { showError(data.error); }
-    } catch(e) { showError('Erreur réseau'); }
-}
-
-async function supprimer(drId) {
-    if (!confirm('Supprimer cette dépense récurrente ?')) return;
-    try {
-        const resp = await fetch(`/gestion/depenses/recurrentes/api/${drId}/supprimer/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-            body: JSON.stringify({}),
-        });
-        const data = await resp.json();
-        if (data.success) {
-            document.getElementById('dr-row-' + drId)?.remove();
-            showSuccess('Supprimé');
-        } else { showError(data.error); }
-    } catch(e) { showError('Erreur réseau'); }
-}
 
 async function valider(valId) {
     if (!confirm('Valider et créer la dépense pour ce mois ?')) return;
@@ -350,5 +198,69 @@ async function ignorer(valId) {
         } else { showError(data.error); }
     } catch(e) { showError('Erreur réseau'); }
 }
+
+function openModal() {
+    document.getElementById('fNom').value = '';
+    document.getElementById('fCategorie').value = '';
+    document.getElementById('fMontant').value = '';
+    document.getElementById('fBeneficiaire').value = '';
+    document.getElementById('fMode').value = 'especes';
+    document.getElementById('fFrequence').value = 'mensuel';
+    document.getElementById('fJour').value = '1';
+    document.getElementById('modalOverlay').classList.add('active');
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
+document.getElementById('modalOverlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+async function sauvegarder() {
+    const payload = {
+        nom: document.getElementById('fNom').value.trim(),
+        categorie_id: parseInt(document.getElementById('fCategorie').value),
+        montant: parseInt(document.getElementById('fMontant').value),
+        beneficiaire: document.getElementById('fBeneficiaire').value.trim(),
+        mode_paiement: document.getElementById('fMode').value,
+        frequence: document.getElementById('fFrequence').value,
+        jour_du_mois: parseInt(document.getElementById('fJour').value) || 1,
+    };
+    if (!payload.nom || !payload.categorie_id || !payload.montant) {
+        showError('Veuillez remplir les champs obligatoires'); return;
+    }
+    try {
+        const resp = await fetch("{% url 'gestion:api_depense_recurrente_creer' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess('Dépense récurrente créée');
+            closeModal();
+            setTimeout(() => location.reload(), 800);
+        } else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+async function ajouterCategorieRecurrente() {
+    const nom = document.getElementById('nouvelleCatNom').value.trim();
+    if (!nom) return;
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF);
+    fd.append('nom', nom);
+    fd.append('type', 'recurrente');
+    try {
+        const resp = await fetch("{% url 'gestion:api_categorie_depense_creer' %}", { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) {
+            const sel = document.getElementById('fCategorie');
+            const opt = new Option(data.nom, data.id, true, true);
+            sel.appendChild(opt);
+            document.getElementById('nouvelleCatNom').value = '';
+            showSuccess(data.message);
+        } else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 </script>
 {% endblock %}

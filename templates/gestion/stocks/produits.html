@@ -148,7 +148,7 @@
                     </td>
                     <td>
                         <button class="btn-mouv" onclick="ouvrirModalMouvement({{ p.id }}, '{{ p.nom|escapejs }}', {{ p.stock_actuel }}, {{ p.prix_achat }})">+ / −</button>
-                        <button class="btn-icon" onclick="ouvrirModalModifier({{ p.id }}, '{{ p.nom|escapejs }}', '{{ p.reference|escapejs }}', {{ p.categorie.id|default:'null' }}, {{ p.unite.id|default:'null' }}, {{ p.fournisseur.id|default:'null' }}, {{ p.prix_achat }}, {{ p.stock_minimum }})" title="Modifier">✏️</button>
+                        <button class="btn-icon" onclick="ouvrirModalModifier({{ p.id }}, '{{ p.nom|escapejs }}', '{{ p.reference|escapejs }}', {{ p.categorie.id|default:'null' }}, {{ p.unite.id|default:'null' }}, {{ p.fournisseur.id|default:'null' }}, {{ p.prix_achat }}, {{ p.stock_minimum }}, {{ p.prix_vente }})" title="Modifier">✏️</button>
                         <button class="btn-icon" onclick="supprimerProduit({{ p.id }}, '{{ p.nom|escapejs }}')" title="Supprimer" style="border-color:#e74c3c;">🗑️</button>
                     </td>
                 </tr>
@@ -212,6 +212,12 @@
                     <label>Prix d'achat (CFA)</label>
                     <input type="number" name="prix_achat" id="prod_prix" min="0" value="0">
                 </div>
+                <div class="form-group">
+                    <label>Prix de vente (CFA)</label>
+                    <input type="number" name="prix_vente" id="prod_prix_vente" min="0" value="0">
+                </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group">
                     <label>Stock minimum</label>
                     <input type="number" name="stock_minimum" id="prod_min" min="0" value="0">
@@ -301,7 +307,7 @@ function majLabelMouvement() {
     document.getElementById('groupPrixUnitaire').style.display = type === 'entree' ? '' : 'none';
 }
 
-function ouvrirModalModifier(id, nom, ref, catId, uniteId, foId, prix, min) {
+function ouvrirModalModifier(id, nom, ref, catId, uniteId, foId, prix, min, prixVente) {
     modeEdit = true;
     document.getElementById('produit_id').value = id;
     document.getElementById('prod_nom').value = nom;
@@ -310,6 +316,7 @@ function ouvrirModalModifier(id, nom, ref, catId, uniteId, foId, prix, min) {
     document.getElementById('prod_unite').value = uniteId || '';
     document.getElementById('prod_fournisseur').value = foId || '';
     document.getElementById('prod_prix').value = prix;
+    document.getElementById('prod_prix_vente').value = prixVente || 0;
     document.getElementById('prod_min').value = min;
     document.getElementById('groupStockInitial').style.display = 'none';
     document.getElementById('modalProduitTitre').textContent = 'Modifier le produit';

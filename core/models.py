@@ -209,6 +209,21 @@ class Presence(models.Model):
     def est_journee_complete(self):
         return self.statut_arrivee == 'present' and self.statut_depart == 'present'
 
+    @property
+    def duree_travaillee(self):
+        """Retourne la durée travaillée formatée (ex: 9h45) ou None."""
+        if not self.heure_arrivee or not self.heure_depart:
+            return None
+        from datetime import datetime, date as date_cls
+        dt_a = datetime.combine(date_cls.today(), self.heure_arrivee)
+        dt_d = datetime.combine(date_cls.today(), self.heure_depart)
+        diff = dt_d - dt_a
+        total_min = int(diff.total_seconds() / 60)
+        if total_min <= 0:
+            return None
+        h, m = divmod(total_min, 60)
+        return f"{h}h{str(m).zfill(2)}" if m else f"{h}h"
+
 
 class Absence(models.Model):
     """Absence d'un employé sur une période."""
@@ -281,8 +296,14 @@ class Avertissement(models.Model):
 
 class CategoriDepense(models.Model):
     """Catégorie de dépense (Loyer, Électricité, Achats, etc.)."""
+    TYPE_CHOICES = [
+        ('informelle', 'Informelle'),
+        ('recurrente', 'Récurrente'),
+        ('les_deux', 'Les deux'),
+    ]
     nom = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True, null=True)
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='les_deux')
 
     class Meta:
         verbose_name = "Catégorie dépense"
@@ -331,8 +352,10 @@ class Depense(models.Model):
 class DepenseRecurrente(models.Model):
     """Dépense récurrente avec rappel mensuel."""
     FREQUENCE_CHOICES = [
-        ('mensuel', 'Mensuel'),
-        ('trimestriel', 'Trimestriel'),
+        ('mensuel', 'Mensuel (chaque mois)'),
+        ('bimestriel', 'Tous les 2 mois'),
+        ('trimestriel', 'Trimestriel (tous les 3 mois)'),
+        ('semestriel', 'Semestriel (tous les 6 mois)'),
         ('annuel', 'Annuel'),
     ]
     MODE_PAIEMENT_CHOICES = Depense.MODE_PAIEMENT_CHOICES
@@ -2079,6 +2102,7 @@ class VenteProduit(models.Model):
         ('wave', 'Wave'),
         ('om', 'Orange Money'),
         ('carte', 'Carte bancaire'),
+        ('carte_cadeau', 'Carte cadeau'),
     ]
 
     date = models.DateTimeField(auto_now_add=True)
@@ -2086,6 +2110,10 @@ class VenteProduit(models.Model):
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, related_name='ventes_produits')
     montant_total = models.IntegerField(default=0)
     mode_paiement = models.CharField(max_length=20, choices=MODE_CHOICES)
+    mode_paiement_2 = models.CharField(max_length=20, choices=MODE_CHOICES, blank=True, null=True)
+    montant_paiement_1 = models.IntegerField(default=0)
+    carte_cadeau_utilisee = models.ForeignKey('CarteCadeau', on_delete=models.SET_NULL, null=True, blank=True, related_name='utilisations_ventes')
+    montant_carte_utilise = models.IntegerField(default=0)
     effectue_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
 
     class Meta:

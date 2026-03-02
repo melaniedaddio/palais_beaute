@@ -1093,13 +1093,16 @@
                         <!-- Navigation Patron -->
                         <div class="nav-section">
                             <div class="nav-section-title">Principal</div>
-                            <a href="{% url 'dashboard:index' %}" class="nav-item {% if request.resolver_match.app_name == 'dashboard' %}active{% endif %}">
+                            <a href="{% url 'dashboard:index' %}" class="nav-item {% if request.resolver_match.app_name == 'dashboard' and request.GET.tab != 'bilan' %}active{% endif %}">
                                 Dashboard
+                            </a>
+                            <a href="{% url 'dashboard:index' %}?tab=bilan" class="nav-item {% if request.resolver_match.app_name == 'dashboard' and request.GET.tab == 'bilan' %}active{% endif %}">
+                                Bilan
                             </a>
                         </div>
 
                         <div class="nav-section">
-                            <div class="nav-section-title">Agendas</div>
+                            <div class="nav-section-title">Activité</div>
                             <a href="{% url 'agenda:index' institut_code='palais' %}" class="nav-item">
                                 Agenda Le Palais
                             </a>
@@ -1109,28 +1112,31 @@
                             <a href="{% url 'express:index' %}" class="nav-item">
                                 Express (Caisse)
                             </a>
+                            <a href="{% url 'gestion:ventes_caisse' %}" class="nav-item {% if request.resolver_match.url_name and 'ventes' in request.resolver_match.url_name %}active{% endif %}">
+                                Ventes produits
+                            </a>
                         </div>
 
                         <div class="nav-section">
                             <div class="nav-section-title">Gestion</div>
-                            <a href="{% url 'gestion:catalogue' %}" class="nav-item {% if request.resolver_match.app_name == 'gestion' %}active{% endif %}">
-                                Catalogue
-                            </a>
                             <a href="{% url 'core:clients_list' %}" class="nav-item {% if request.resolver_match.url_name == 'clients_list' %}active{% endif %}">
                                 Clients
                             </a>
-                            <a href="{% url 'core:employes_list' %}" class="nav-item {% if request.resolver_match.url_name == 'employes_list' %}active{% endif %}">
-                                Employés
-                            </a>
                             <a href="{% url 'core:cartes_cadeaux_list' %}" class="nav-item {% if request.resolver_match.url_name == 'cartes_cadeaux_list' %}active{% endif %}">
                                 Cartes Cadeaux
+                            </a>
+                            <a href="{% url 'gestion:presences_pointage' %}" class="nav-item {% if request.resolver_match.url_name and 'presences' in request.resolver_match.url_name %}active{% endif %}">
+                                Présences
                             </a>
                         </div>
 
                         <div class="nav-section">
                             <div class="nav-section-title">Gestion interne</div>
-                            <a href="{% url 'gestion:presences_pointage' %}" class="nav-item {% if request.resolver_match.url_name and 'presences' in request.resolver_match.url_name %}active{% endif %}">
-                                Présences
+                            <a href="{% url 'gestion:catalogue' %}" class="nav-item {% if request.resolver_match.app_name == 'gestion' %}active{% endif %}">
+                                Catalogue
+                            </a>
+                            <a href="{% url 'core:employes_list' %}" class="nav-item {% if request.resolver_match.url_name == 'employes_list' %}active{% endif %}">
+                                Employés
                             </a>
                             <a href="{% url 'gestion:salaires_calcul' %}" class="nav-item {% if request.resolver_match.url_name and 'salaires' in request.resolver_match.url_name or request.resolver_match.url_name and 'prime' in request.resolver_match.url_name or request.resolver_match.url_name and 'avance' in request.resolver_match.url_name %}active{% endif %}">
                                 Salaires
@@ -1141,20 +1147,8 @@
                             <a href="{% url 'gestion:inventaire_liste' %}" class="nav-item {% if request.resolver_match.url_name and 'inventaire' in request.resolver_match.url_name %}active{% endif %}">
                                 Inventaires
                             </a>
-                            <a href="{% url 'gestion:depenses_liste' %}" class="nav-item {% if request.resolver_match.url_name and 'depense' in request.resolver_match.url_name and 'recurrente' not in request.resolver_match.url_name %}active{% endif %}">
+                            <a href="{% url 'gestion:depenses_liste' %}" class="nav-item {% if request.resolver_match.url_name and 'depense' in request.resolver_match.url_name %}active{% endif %}">
                                 Dépenses
-                            </a>
-                            <a href="{% url 'gestion:depenses_recurrentes' %}" class="nav-item {% if request.resolver_match.url_name and 'recurrente' in request.resolver_match.url_name %}active{% endif %}">
-                                Dép. récurrentes
-                            </a>
-                            <a href="{% url 'gestion:bilan_mensuel' %}" class="nav-item {% if request.resolver_match.url_name and 'bilan' in request.resolver_match.url_name %}active{% endif %}">
-                                Bilan
-                            </a>
-                            <a href="{% url 'gestion:ventes_caisse' %}" class="nav-item {% if request.resolver_match.url_name and 'ventes' in request.resolver_match.url_name %}active{% endif %}">
-                                Ventes produits
-                            </a>
-                            <a href="{% url 'gestion:reconciliation_index' %}" class="nav-item {% if request.resolver_match.url_name and 'reconciliation' in request.resolver_match.url_name %}active{% endif %}">
-                                Réconciliation
                             </a>
                         </div>
 

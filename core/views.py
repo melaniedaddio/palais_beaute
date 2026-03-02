@@ -666,6 +666,22 @@ def api_employe_modifier(request, pk):
 
 @login_required
 @role_required(['patron'])
+def api_employe_salaire_base(request, pk):
+    """API légère pour modifier uniquement le salaire de base d'un employé"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Méthode non autorisée'}, status=405)
+    try:
+        employe = get_object_or_404(Employe, pk=pk)
+        salaire_base = int(request.POST.get('salaire_base', 0) or 0)
+        employe.salaire_base = salaire_base
+        employe.save(update_fields=['salaire_base'])
+        return JsonResponse({'success': True, 'message': 'Salaire de base mis à jour'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@role_required(['patron'])
 def api_employe_supprimer(request, pk):
     """API pour supprimer un employé (patron uniquement)"""
     if request.method != 'POST':

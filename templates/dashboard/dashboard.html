@@ -459,10 +459,59 @@
             justify-content: space-between;
         }
     }
+
+    /* ── Onglets de page ── */
+    .page-tabs { display: flex; gap: 0; margin-bottom: 28px; border-bottom: 2px solid var(--border); }
+    .page-tab { padding: 10px 26px; font-size: 15px; font-weight: 600; color: var(--text-light); text-decoration: none; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all .2s; }
+    .page-tab:hover { color: var(--primary); }
+    .page-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    /* ── Bilan CSS ── */
+    .bilan-kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 28px; }
+    @media (max-width: 700px) { .bilan-kpi-grid { grid-template-columns: 1fr; } }
+    .bilan-kpi { border-radius: 16px; padding: 22px 24px; color: white; position: relative; overflow: hidden; }
+    .bilan-kpi.recettes { background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%); }
+    .bilan-kpi.depenses { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); }
+    .bilan-kpi.bpos { background: linear-gradient(135deg, #2980b9 0%, #1a5276 100%); }
+    .bilan-kpi.bneg { background: linear-gradient(135deg, #7f8c8d 0%, #555 100%); }
+    .bilan-kpi-label { font-size: 13px; opacity: .85; margin-bottom: 6px; }
+    .bilan-kpi-val { font-size: 30px; font-weight: 700; }
+    .bilan-kpi-sub { font-size: 12px; opacity: .75; margin-top: 4px; }
+    .bilan-kpi-icon { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-size: 42px; opacity: .2; }
+    .bilan-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    @media (max-width: 800px) { .bilan-layout { grid-template-columns: 1fr; } }
+    .bilan-card { background: white; border-radius: 16px; padding: 22px; box-shadow: 0 4px 15px rgba(212,175,122,.10); border: 1px solid var(--border); }
+    .bilan-card h3 { font-size: 14px; font-weight: 700; color: var(--text-dark); margin: 0 0 16px; text-transform: uppercase; letter-spacing: .5px; }
+    .bilan-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .bilan-row:last-child { border-bottom: none; }
+    .bilan-val-green { font-weight: 700; color: #27ae60; }
+    .bilan-val-red { font-weight: 700; color: #e74c3c; }
+    .bilan-bar-wrap { margin: 4px 0 10px; }
+    .bilan-bar-bg { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .bilan-bar-fill-green { height: 100%; border-radius: 4px; background: #27ae60; transition: width .4s; }
+    .bilan-bar-fill-red { height: 100%; border-radius: 4px; background: #e74c3c; transition: width .4s; }
+    .bilan-chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+    .bilan-chart-header h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--text-dark); text-transform: uppercase; letter-spacing: .5px; }
+    .bilan-period-btns { display: flex; gap: 6px; }
+    .bilan-period-btn { padding: 5px 14px; border-radius: 8px; border: 2px solid var(--border); background: var(--bg-light); font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-dark); }
+    .bilan-period-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .bilan-tooltip { position: fixed; pointer-events: none; display: none; background: rgba(20,20,20,.92); color: white; border-radius: 10px; padding: 10px 14px; font-size: 12px; line-height: 1.6; box-shadow: 0 4px 16px rgba(0,0,0,.3); z-index: 9999; min-width: 160px; }
+    .bilan-legend { display: flex; gap: 18px; margin-top: 14px; font-size: 12px; }
+    .bilan-legend-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 5px; vertical-align: middle; }
+    .bilan-filters-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+    .bilan-filters-bar input, .bilan-filters-bar select { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; }
+    .bilan-filters-bar button { padding: 8px 20px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
 </style>
 {% endblock %}
 
 {% block content %}
+<!-- Onglets -->
+<div class="page-tabs">
+    <a href="{% url 'dashboard:index' %}" class="page-tab {% if active_tab != 'bilan' %}active{% endif %}">Tableau de bord</a>
+    <a href="{% url 'dashboard:index' %}?tab=bilan&mois={{ bilan_mois|date:'Y-m' }}&nb_mois={{ nb_mois_bilan }}" class="page-tab {% if active_tab == 'bilan' %}active{% endif %}">Bilan mensuel</a>
+</div>
+
+{% if active_tab != 'bilan' %}
 <div class="dashboard-header">
     <div>
         <h1 class="page-title">Dashboard Patron</h1>
@@ -551,6 +600,11 @@
             dont {{ ca_forfaits_total|floatformat:0 }} CFA de forfaits vendus
         </div>
         {% endif %}
+        {% if ca_ventes_produits_total > 0 %}
+        <div style="font-size: 0.7em; color: var(--text-light); margin-top: 3px;">
+            dont {{ ca_ventes_produits_total|floatformat:0 }} CFA de ventes produits
+        </div>
+        {% endif %}
     </div>
     {% if ca_credits_total > 0 %}
     <div class="stat-card" style="border-left: 4px solid #4a90d9;">
@@ -562,6 +616,12 @@
     <div class="stat-card" style="border-left: 4px solid #9b59b6;">
         <div class="stat-label">Forfaits vendus</div>
         <div class="stat-value" style="color: #9b59b6;">{{ ca_forfaits_total|floatformat:0 }} <span class="stat-unit">CFA</span></div>
+    </div>
+    {% endif %}
+    {% if ca_ventes_produits_total > 0 %}
+    <div class="stat-card" style="border-left: 4px solid #e67e22;">
+        <div class="stat-label">Ventes produits</div>
+        <div class="stat-value" style="color: #e67e22;">{{ ca_ventes_produits_total|floatformat:0 }} <span class="stat-unit">CFA</span></div>
     </div>
     {% endif %}
     <div class="stat-card danger">
@@ -609,6 +669,11 @@
                     {% if stat.ca_forfaits > 0 %}
                     <div style="font-size: 0.7em; opacity: 0.8; margin-top: 3px;">
                         dont {{ stat.ca_forfaits|floatformat:0 }} forfaits vendus
+                    </div>
+                    {% endif %}
+                    {% if stat.ca_ventes_produits > 0 %}
+                    <div style="font-size: 0.7em; opacity: 0.8; margin-top: 3px;">
+                        dont {{ stat.ca_ventes_produits|floatformat:0 }} ventes produits
                     </div>
                     {% endif %}
                 </div>
@@ -1433,4 +1498,243 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('institut-select').addEventListener('change', chargerStatsInstitut);
 });
 </script>
+
+{% else %}
+<!-- ═══════════════════ ONGLET BILAN MENSUEL ═══════════════════ -->
+<div style="max-width:1100px;margin:0 auto;">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+        <h1 style="font-size:22px;color:var(--text-dark);margin:0;">Bilan mensuel — {{ bilan_mois|date:"F Y" }}</h1>
+    </div>
+
+    <form method="get" class="bilan-filters-bar" id="bilanForm">
+        <input type="hidden" name="tab" value="bilan">
+        <input type="month" name="mois" value="{{ bilan_mois|date:'Y-m' }}">
+        <select name="bilan_institut">
+            <option value="tous" {% if bilan_institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
+            {% for inst in stats_par_institut %}
+            <option value="{{ inst.institut.code }}" {% if bilan_institut_code == inst.institut.code %}selected{% endif %}>{{ inst.institut.nom }}</option>
+            {% endfor %}
+        </select>
+        <input type="hidden" name="nb_mois" id="nbMoisHidden" value="{{ nb_mois_bilan }}">
+        <button type="submit">Afficher</button>
+    </form>
+
+    <!-- KPI -->
+    <div class="bilan-kpi-grid">
+        <div class="bilan-kpi recettes">
+            <div class="bilan-kpi-label">Recettes</div>
+            <div class="bilan-kpi-val">{{ bilan_total_recettes|floatformat:0 }} <small>CFA</small></div>
+            <div class="bilan-kpi-sub">
+                RDV : {{ bilan_ca_rdv|floatformat:0 }} CFA{% if bilan_ca_ventes > 0 %} · Produits : {{ bilan_ca_ventes|floatformat:0 }} CFA{% endif %}
+            </div>
+            <div class="bilan-kpi-icon">💰</div>
+        </div>
+        <div class="bilan-kpi depenses">
+            <div class="bilan-kpi-label">Dépenses</div>
+            <div class="bilan-kpi-val">{{ bilan_total_depenses|floatformat:0 }} <small>CFA</small></div>
+            <div class="bilan-kpi-sub">Taux de charges : {{ bilan_taux_charges }}%</div>
+            <div class="bilan-kpi-icon">💸</div>
+        </div>
+        <div class="bilan-kpi {% if bilan_benefice >= 0 %}bpos{% else %}bneg{% endif %}">
+            <div class="bilan-kpi-label">Bénéfice net</div>
+            <div class="bilan-kpi-val">{{ bilan_benefice|floatformat:0 }} <small>CFA</small></div>
+            <div class="bilan-kpi-sub">{% if bilan_benefice >= 0 %}Résultat positif{% else %}Résultat déficitaire{% endif %}</div>
+            <div class="bilan-kpi-icon">{% if bilan_benefice >= 0 %}📈{% else %}📉{% endif %}</div>
+        </div>
+    </div>
+
+    <!-- Détails recettes / dépenses -->
+    <div class="bilan-layout">
+        <div class="bilan-card">
+            <h3>Recettes par source</h3>
+            {% if bilan_recettes_par_mode %}
+                {% for mode, montant in bilan_recettes_par_mode.items %}
+                <div class="bilan-row">
+                    <span>
+                        {% if mode == 'especes' %}Espèces (RDV)
+                        {% elif mode == 'wave' %}Wave (RDV)
+                        {% elif mode == 'om' %}Orange Money (RDV)
+                        {% elif mode == 'virement' %}Virement (RDV)
+                        {% elif mode == 'carte' %}Carte bancaire (RDV)
+                        {% elif mode == 'cheque' %}Chèque (RDV)
+                        {% elif mode == 'carte_cadeau' %}Carte cadeau (RDV)
+                        {% else %}{{ mode }}{% endif %}
+                    </span>
+                    <span class="bilan-val-green">{{ montant|floatformat:0 }} CFA</span>
+                </div>
+                {% if bilan_total_recettes > 0 %}
+                <div class="bilan-bar-wrap"><div class="bilan-bar-bg"><div class="bilan-bar-fill-green" style="width:{% widthratio montant bilan_total_recettes 100 %}%"></div></div></div>
+                {% endif %}
+                {% endfor %}
+            {% endif %}
+            {% if bilan_ca_ventes > 0 %}
+                <div class="bilan-row">
+                    <span style="font-weight:600;color:#e67e22;">Ventes produits</span>
+                    <span style="font-weight:700;color:#e67e22;">{{ bilan_ca_ventes|floatformat:0 }} CFA</span>
+                </div>
+                {% if bilan_total_recettes > 0 %}
+                <div class="bilan-bar-wrap"><div class="bilan-bar-bg"><div class="bilan-bar-fill-green" style="width:{% widthratio bilan_ca_ventes bilan_total_recettes 100 %}%;background:#e67e22;"></div></div></div>
+                {% endif %}
+            {% endif %}
+            {% if not bilan_recettes_par_mode and bilan_ca_ventes == 0 %}
+                <p style="color:var(--text-light);font-style:italic;font-size:13px;">Aucune recette ce mois</p>
+            {% endif %}
+        </div>
+
+        <div class="bilan-card">
+            <h3>Dépenses par catégorie</h3>
+            {% if bilan_depenses_par_cat %}
+                {% for item in bilan_depenses_par_cat %}
+                <div class="bilan-row">
+                    <span>{{ item.categorie__nom }}</span>
+                    <span class="bilan-val-red">{{ item.total|floatformat:0 }} CFA</span>
+                </div>
+                {% if bilan_total_depenses > 0 %}
+                <div class="bilan-bar-wrap"><div class="bilan-bar-bg"><div class="bilan-bar-fill-red" style="width:{% widthratio item.total bilan_total_depenses 100 %}%"></div></div></div>
+                {% endif %}
+                {% endfor %}
+            {% else %}
+                <p style="color:var(--text-light);font-style:italic;font-size:13px;">Aucune dépense ce mois</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Graphique évolution -->
+    <div class="bilan-card">
+        <div class="bilan-chart-header">
+            <h3>Évolution</h3>
+            <div class="bilan-period-btns">
+                <button type="button" class="bilan-period-btn {% if nb_mois_bilan == 3 %}active{% endif %}" onclick="setBilanPeriod(3)">3 mois</button>
+                <button type="button" class="bilan-period-btn {% if nb_mois_bilan == 6 %}active{% endif %}" onclick="setBilanPeriod(6)">6 mois</button>
+                <button type="button" class="bilan-period-btn {% if nb_mois_bilan == 12 %}active{% endif %}" onclick="setBilanPeriod(12)">12 mois</button>
+            </div>
+        </div>
+        <div style="position:relative;">
+            <svg id="bilanChartSvg" style="width:100%;overflow:visible;display:block;"></svg>
+        </div>
+        <div class="bilan-legend">
+            <span><span class="bilan-legend-dot" style="background:#27ae60;"></span>Recettes</span>
+            <span><span class="bilan-legend-dot" style="background:#e74c3c;"></span>Dépenses</span>
+            <span><span class="bilan-legend-dot" style="background:#2980b9;"></span>Bénéfice</span>
+        </div>
+    </div>
+
+</div>
+
+<!-- Tooltip bilan -->
+<div class="bilan-tooltip" id="bilanTooltip">
+    <div style="font-weight:700;font-size:13px;margin-bottom:4px;" id="bilanTtTitle"></div>
+    <div style="color:#4ece7a;" id="bilanTtRec"></div>
+    <div style="color:#f1918a;" id="bilanTtDep"></div>
+    <div style="color:#7ec8f0;" id="bilanTtBen"></div>
+</div>
+
+<script>
+const BILAN_EVOLUTION = {{ bilan_evolution_json|safe }};
+
+function setBilanPeriod(n) {
+    document.getElementById('nbMoisHidden').value = n;
+    document.getElementById('bilanForm').submit();
+}
+
+function fmtCfa(n) { return n.toLocaleString('fr-FR') + ' CFA'; }
+
+function drawBilanChart() {
+    const data = BILAN_EVOLUTION;
+    if (!data || !data.length) return;
+
+    const svg = document.getElementById('bilanChartSvg');
+    const W = svg.parentElement.clientWidth || 700;
+    const H = 220;
+    const PAD = { top: 20, right: 16, bottom: 36, left: 60 };
+    const chartW = W - PAD.left - PAD.right;
+    const chartH = H - PAD.top - PAD.bottom;
+
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('width', W);
+    svg.setAttribute('height', H);
+    svg.innerHTML = '';
+
+    const ns = 'http://www.w3.org/2000/svg';
+    function el(tag, attrs) {
+        const e = document.createElementNS(ns, tag);
+        for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+        return e;
+    }
+
+    const allVals = data.flatMap(d => [d.recettes, d.depenses, Math.abs(d.benefice)]);
+    const maxVal = Math.max(...allVals, 1);
+    function yScale(v) { return PAD.top + chartH - (v / maxVal * chartH); }
+
+    const n = data.length;
+    const barGroupW = chartW / n;
+    const barW = Math.max(6, barGroupW * 0.28);
+
+    for (let i = 0; i <= 4; i++) {
+        const y = PAD.top + (chartH / 4) * i;
+        const val = Math.round(maxVal * (1 - i / 4));
+        svg.appendChild(el('line', { x1: PAD.left, y1: y, x2: PAD.left + chartW, y2: y, stroke: '#e8e0d5', 'stroke-width': 1 }));
+        const t = el('text', { x: PAD.left - 6, y: y + 4, 'text-anchor': 'end', 'font-size': 10, fill: '#999' });
+        t.textContent = val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val;
+        svg.appendChild(t);
+    }
+    svg.appendChild(el('line', { x1: PAD.left, y1: PAD.top + chartH, x2: PAD.left + chartW, y2: PAD.top + chartH, stroke: '#ccc', 'stroke-width': 1 }));
+
+    let linePath = '';
+    const dotPoints = [];
+    data.forEach((d, i) => {
+        const cx = PAD.left + barGroupW * i + barGroupW / 2;
+        const ben = d.benefice;
+        const cy = ben >= 0 ? yScale(ben) : yScale(0) + (yScale(0) - yScale(-ben));
+        const safeY = Math.min(Math.max(cy, PAD.top), PAD.top + chartH);
+        linePath += (i === 0 ? `M ${cx},${safeY}` : ` L ${cx},${safeY}`);
+        dotPoints.push({ cx, cy: safeY, d });
+    });
+    if (linePath) svg.appendChild(el('path', { d: linePath, stroke: '#2980b9', 'stroke-width': 2.5, fill: 'none', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+
+    data.forEach((d, i) => {
+        const cx = PAD.left + barGroupW * i + barGroupW / 2;
+        const baseline = PAD.top + chartH;
+        const hRec = Math.max(2, d.recettes / maxVal * chartH);
+        svg.appendChild(el('rect', { x: cx - barW - 2, y: baseline - hRec, width: barW, height: hRec, fill: '#27ae60', rx: 3, opacity: 0.85 }));
+        const hDep = Math.max(2, d.depenses / maxVal * chartH);
+        svg.appendChild(el('rect', { x: cx + 2, y: baseline - hDep, width: barW, height: hDep, fill: '#e74c3c', rx: 3, opacity: 0.85 }));
+        const lbl = el('text', { x: cx, y: baseline + 14, 'text-anchor': 'middle', 'font-size': n <= 6 ? 11 : 9, fill: '#888' });
+        lbl.textContent = d.label;
+        svg.appendChild(lbl);
+        const zone = el('rect', { x: PAD.left + barGroupW * i, y: PAD.top, width: barGroupW, height: chartH + 10, fill: 'transparent', style: 'cursor:crosshair;' });
+        zone.addEventListener('mouseenter', (e) => showBilanTooltip(e, d));
+        zone.addEventListener('mousemove', moveBilanTooltip);
+        zone.addEventListener('mouseleave', hideBilanTooltip);
+        svg.appendChild(zone);
+    });
+
+    dotPoints.forEach(({ cx, cy }) => {
+        svg.appendChild(el('circle', { cx, cy, r: 4, fill: '#2980b9', stroke: 'white', 'stroke-width': 2 }));
+    });
+}
+
+const bilanTooltip = document.getElementById('bilanTooltip');
+function showBilanTooltip(e, d) {
+    document.getElementById('bilanTtTitle').textContent = d.label;
+    document.getElementById('bilanTtRec').textContent = '💰 Recettes : ' + fmtCfa(d.recettes);
+    document.getElementById('bilanTtDep').textContent = '💸 Dépenses : ' + fmtCfa(d.depenses);
+    document.getElementById('bilanTtBen').textContent = (d.benefice >= 0 ? '📈' : '📉') + ' Bénéfice : ' + fmtCfa(d.benefice);
+    bilanTooltip.style.display = 'block';
+    moveBilanTooltip(e);
+}
+function moveBilanTooltip(e) {
+    const x = e.clientX + 14, y = e.clientY - 10;
+    const tw = bilanTooltip.offsetWidth, th = bilanTooltip.offsetHeight;
+    bilanTooltip.style.left = (x + tw > window.innerWidth ? x - tw - 28 : x) + 'px';
+    bilanTooltip.style.top  = (y + th > window.innerHeight ? y - th : y) + 'px';
+}
+function hideBilanTooltip() { bilanTooltip.style.display = 'none'; }
+
+drawBilanChart();
+window.addEventListener('resize', drawBilanChart);
+</script>
+
+{% endif %}
 {% endblock %}

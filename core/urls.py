@@ -21,6 +21,7 @@ urlpatterns = [
     path('employes/', views.employes_list, name='employes_list'),
     path('api/employes/creer/', views.api_employe_creer, name='api_employe_creer'),
     path('api/employes/<int:pk>/modifier/', views.api_employe_modifier, name='api_employe_modifier'),
+    path('api/employes/<int:pk>/salaire-base/', views.api_employe_salaire_base, name='api_employe_salaire_base'),
     path('api/employes/<int:pk>/supprimer/', views.api_employe_supprimer, name='api_employe_supprimer'),
 
     # Catégories employés (patron uniquement)

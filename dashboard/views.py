@@ -9,7 +9,7 @@ from core.decorators import role_required
 from core.models import (
     Institut, Client, RendezVous, Paiement, Credit, PaiementCredit,
     ClotureCaisse, Employe, CarteCadeau, UtilisationCarteCadeau, ForfaitClient,
-    Depense, Produit,
+    Depense, Produit, VenteProduit,
 )
 import json
 
@@ -149,7 +149,28 @@ def index(request):
         date_achat__date__lte=date_fin
     ).aggregate(total=Sum('montant_paye_initial'))['total'] or 0
 
-    ca_total = ca_paiements_total + ca_cartes_vendues_total + ca_credits_total + ca_forfaits_total
+    # Ventes de produits dans la période
+    base_ventes_produits = VenteProduit.objects.filter(
+        date__date__gte=date_debut,
+        date__date__lte=date_fin
+    )
+    if express and not dates_cloturees_express:
+        # Express sans clôture : exclure ses ventes
+        ca_ventes_produits_total = base_ventes_produits.exclude(
+            institut=express
+        ).aggregate(total=Sum('montant_total'))['total'] or 0
+    elif express and dates_cloturees_express:
+        ca_ventes_produits_total = (
+            base_ventes_produits.exclude(institut=express).aggregate(total=Sum('montant_total'))['total'] or 0
+        ) + (
+            base_ventes_produits.filter(
+                institut=express, date__date__in=dates_cloturees_express
+            ).aggregate(total=Sum('montant_total'))['total'] or 0
+        )
+    else:
+        ca_ventes_produits_total = base_ventes_produits.aggregate(total=Sum('montant_total'))['total'] or 0
+
+    ca_total = ca_paiements_total + ca_cartes_vendues_total + ca_credits_total + ca_forfaits_total + ca_ventes_produits_total
 
     # RDV de la période sélectionnée
     # Pour Express : n'inclure que les jours clôturés
@@ -226,7 +247,14 @@ def index(request):
                 ).aggregate(total=Sum('montant'))['total'] or 0
 
                 ca_forfaits = 0  # Pas de forfaits pour Express
-                ca_institut = ca_paiements + ca_cartes_vendues + ca_credits
+
+                # Ventes produits (dates clôturées seulement)
+                ca_ventes_produits = VenteProduit.objects.filter(
+                    institut=institut,
+                    date__date__in=dates_cloturees_express
+                ).aggregate(total=Sum('montant_total'))['total'] or 0
+
+                ca_institut = ca_paiements + ca_cartes_vendues + ca_credits + ca_ventes_produits
 
                 # Nombre de RDV validés (seulement dates clôturées)
                 rdv_count = RendezVous.objects.filter(
@@ -240,6 +268,7 @@ def index(request):
                 ca_cartes_vendues = 0
                 ca_credits = 0
                 ca_forfaits = 0
+                ca_ventes_produits = 0
                 ca_institut = 0
                 rdv_count = 0
         else:
@@ -272,7 +301,14 @@ def index(request):
                 date_achat__date__lte=date_fin
             ).aggregate(total=Sum('montant_paye_initial'))['total'] or 0
 
-            ca_institut = ca_paiements + ca_cartes_vendues + ca_credits + ca_forfaits
+            # Ventes produits dans cet institut
+            ca_ventes_produits = VenteProduit.objects.filter(
+                institut=institut,
+                date__date__gte=date_debut,
+                date__date__lte=date_fin
+            ).aggregate(total=Sum('montant_total'))['total'] or 0
+
+            ca_institut = ca_paiements + ca_cartes_vendues + ca_credits + ca_forfaits + ca_ventes_produits
 
             rdv_count = RendezVous.objects.filter(
                 institut=institut,
@@ -318,6 +354,7 @@ def index(request):
             'ca_cartes_vendues': ca_cartes_vendues,
             'ca_credits': ca_credits,
             'ca_forfaits': ca_forfaits,
+            'ca_ventes_produits': ca_ventes_produits,
             'credits_en_cours': credits_en_cours_institut,
             'rdv_count': rdv_count,
             'cloture': derniere_cloture,  # Pour compatibilité
@@ -501,6 +538,7 @@ def index(request):
         'ca_cartes_vendues_total': ca_cartes_vendues_total,
         'ca_credits_total': ca_credits_total,
         'ca_forfaits_total': ca_forfaits_total,
+        'ca_ventes_produits_total': ca_ventes_produits_total,
         'rdv_periode': rdv_periode,
         'rdv_valides_periode': rdv_valides_periode,
         'total_credits': total_credits,
@@ -554,6 +592,118 @@ def index(request):
         'benefice': benefice,
         'taux_charges': taux_charges,
         'nb_alertes_stock': nb_alertes_stock,
+    })
+
+    # ── Onglet Bilan mensuel ──
+    active_tab = request.GET.get('tab', 'dashboard')
+    mois_param = request.GET.get('mois', '')
+    bilan_institut_code = request.GET.get('bilan_institut', 'tous')
+
+    if mois_param:
+        try:
+            from datetime import datetime as _dt
+            bilan_mois = _dt.strptime(mois_param, '%Y-%m').date()
+        except ValueError:
+            bilan_mois = today.replace(day=1)
+    else:
+        bilan_mois = today.replace(day=1)
+
+    bilan_fin_mois = (bilan_mois.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+    bilan_paiements_qs = Paiement.objects.filter(
+        date__date__gte=bilan_mois,
+        date__date__lte=bilan_fin_mois,
+    ).exclude(mode__in=['forfait', 'offert'])
+    if bilan_institut_code != 'tous':
+        bilan_paiements_qs = bilan_paiements_qs.filter(
+            rendez_vous__employe__institut__code=bilan_institut_code
+        )
+    bilan_ca_rdv = bilan_paiements_qs.aggregate(s=Sum('montant'))['s'] or 0
+
+    bilan_recettes_par_mode = {}
+    for p in bilan_paiements_qs.values('mode').annotate(total=Sum('montant')).order_by('-total'):
+        bilan_recettes_par_mode[p['mode']] = p['total']
+
+    bilan_ventes_qs = VenteProduit.objects.filter(
+        date__date__gte=bilan_mois,
+        date__date__lte=bilan_fin_mois,
+    )
+    if bilan_institut_code != 'tous':
+        bilan_ventes_qs = bilan_ventes_qs.filter(institut__code=bilan_institut_code)
+    bilan_ca_ventes = bilan_ventes_qs.aggregate(s=Sum('montant_total'))['s'] or 0
+
+    bilan_total_recettes = bilan_ca_rdv + bilan_ca_ventes
+
+    bilan_dep_qs = Depense.objects.filter(date__gte=bilan_mois, date__lte=bilan_fin_mois)
+    if bilan_institut_code != 'tous':
+        bilan_dep_qs = bilan_dep_qs.filter(
+            Q(institut__code=bilan_institut_code) | Q(institut__isnull=True)
+        )
+    bilan_total_depenses = bilan_dep_qs.aggregate(s=Sum('montant'))['s'] or 0
+    bilan_depenses_par_cat = list(
+        bilan_dep_qs.values('categorie__nom').annotate(total=Sum('montant')).order_by('-total')
+    )
+    bilan_benefice = bilan_total_recettes - bilan_total_depenses
+    bilan_taux_charges = round((bilan_total_depenses / bilan_total_recettes * 100), 1) if bilan_total_recettes else 0
+
+    try:
+        nb_mois_bilan = int(request.GET.get('nb_mois', 6))
+        if nb_mois_bilan not in (3, 6, 12):
+            nb_mois_bilan = 6
+    except (ValueError, TypeError):
+        nb_mois_bilan = 6
+
+    bilan_evolution = []
+    for i in range(nb_mois_bilan - 1, -1, -1):
+        month = bilan_mois.month - i
+        year = bilan_mois.year
+        while month <= 0:
+            month += 12
+            year -= 1
+        m_debut = dt_date(year, month, 1)
+        m_fin = (m_debut.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+        rec_qs = Paiement.objects.filter(
+            date__date__gte=m_debut, date__date__lte=m_fin,
+        ).exclude(mode__in=['forfait', 'offert'])
+        if bilan_institut_code != 'tous':
+            rec_qs = rec_qs.filter(rendez_vous__employe__institut__code=bilan_institut_code)
+        rec = rec_qs.aggregate(s=Sum('montant'))['s'] or 0
+
+        vp_qs = VenteProduit.objects.filter(date__date__gte=m_debut, date__date__lte=m_fin)
+        if bilan_institut_code != 'tous':
+            vp_qs = vp_qs.filter(institut__code=bilan_institut_code)
+        rec += vp_qs.aggregate(s=Sum('montant_total'))['s'] or 0
+
+        dep_qs = Depense.objects.filter(date__gte=m_debut, date__lte=m_fin)
+        if bilan_institut_code != 'tous':
+            dep_qs = dep_qs.filter(Q(institut__code=bilan_institut_code) | Q(institut__isnull=True))
+        dep = dep_qs.aggregate(s=Sum('montant'))['s'] or 0
+
+        bilan_evolution.append({
+            'label': m_debut.strftime('%b %Y'),
+            'recettes': rec,
+            'depenses': dep,
+            'benefice': rec - dep,
+        })
+
+    bilan_evolution_json = json.dumps(bilan_evolution)
+
+    context.update({
+        'active_tab': active_tab,
+        'bilan_mois': bilan_mois,
+        'bilan_fin_mois': bilan_fin_mois,
+        'bilan_institut_code': bilan_institut_code,
+        'nb_mois_bilan': nb_mois_bilan,
+        'bilan_ca_rdv': bilan_ca_rdv,
+        'bilan_ca_ventes': bilan_ca_ventes,
+        'bilan_total_recettes': bilan_total_recettes,
+        'bilan_total_depenses': bilan_total_depenses,
+        'bilan_depenses_par_cat': bilan_depenses_par_cat,
+        'bilan_recettes_par_mode': bilan_recettes_par_mode,
+        'bilan_benefice': bilan_benefice,
+        'bilan_taux_charges': bilan_taux_charges,
+        'bilan_evolution_json': bilan_evolution_json,
     })
 
     return render(request, 'dashboard/dashboard.html', context)

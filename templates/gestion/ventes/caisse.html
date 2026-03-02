@@ -6,65 +6,111 @@
 <style>
     .vente-container { max-width: 1200px; margin: 0 auto; }
     .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
-    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
 
-    .layout { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: start; }
+    .layout { display: grid; grid-template-columns: 1fr 380px; gap: 24px; align-items: start; }
     @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
 
     .card { background: white; border-radius: 16px; padding: 22px; box-shadow: 0 4px 15px rgba(212,175,122,.10); border: 1px solid var(--border); }
-    .card h3 { font-size: 14px; font-weight: 700; color: var(--text-dark); margin: 0 0 16px; text-transform: uppercase; letter-spacing: .5px; }
+    .card h3 { font-size: 13px; font-weight: 700; color: var(--text-dark); margin: 0 0 14px; text-transform: uppercase; letter-spacing: .5px; }
 
-    /* Filtre institut */
     .filters-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
-    .filters-bar select { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; }
+    .filters-bar select { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; color: var(--text-dark); }
 
-    /* Grille produits */
-    .produits-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
-    .produit-card { border: 2px solid var(--border); border-radius: 12px; padding: 14px; cursor: pointer; transition: all .2s; text-align: center; background: var(--bg-light); }
-    .produit-card:hover { border-color: var(--primary); background: white; transform: translateY(-2px); }
-    .produit-card.zero { opacity: .45; cursor: not-allowed; }
-    .produit-card .p-nom { font-weight: 700; font-size: 13px; color: var(--text-dark); margin-bottom: 4px; }
-    .produit-card .p-prix { font-size: 15px; font-weight: 700; color: var(--primary-dark); }
-    .produit-card .p-stock { font-size: 11px; color: var(--text-light); margin-top: 3px; }
-    .produit-card .p-cat { font-size: 10px; color: var(--text-light); margin-bottom: 6px; }
-
-    /* Recherche produits */
-    .search-bar { display: flex; gap: 8px; margin-bottom: 14px; }
-    .search-bar input { flex: 1; padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; }
+    /* Produits */
+    .search-produit { width: 100%; padding: 9px 14px; border: 2px solid var(--border); border-radius: 10px; font-size: 14px; margin-bottom: 16px; box-sizing: border-box; }
+    .search-produit:focus { outline: none; border-color: var(--primary); }
+    .produits-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; max-height: 65vh; overflow-y: auto; padding-right: 4px; }
+    .produit-card { border: 2px solid var(--border); border-radius: 12px; padding: 12px; cursor: pointer; transition: all .15s; text-align: center; background: var(--bg-light); }
+    .produit-card:hover:not(.zero) { border-color: var(--primary); background: white; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(212,175,122,.2); }
+    .produit-card.zero { opacity: .4; cursor: not-allowed; }
+    .produit-card.in-cart { border-color: #28a745; background: #f0fef4; }
+    .p-cat  { font-size: 10px; color: var(--text-light); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
+    .p-nom  { font-size: 13px; font-weight: 700; color: var(--text-dark); margin-bottom: 6px; line-height: 1.3; }
+    .p-prix { font-size: 14px; font-weight: 700; color: var(--secondary); }
+    .p-stock{ font-size: 11px; color: var(--text-light); margin-top: 4px; }
 
     /* Panier */
-    .panier-empty { text-align: center; color: var(--text-light); font-style: italic; font-size: 13px; padding: 30px 0; }
-    .panier-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; gap: 8px; }
-    .panier-item:last-child { border-bottom: none; }
-    .panier-nom { flex: 1; font-weight: 600; color: var(--text-dark); }
-    .panier-qty { display: flex; align-items: center; gap: 6px; }
-    .qty-btn { width: 26px; height: 26px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-section); cursor: pointer; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-    .qty-val { width: 28px; text-align: center; font-weight: 700; }
-    .panier-prix { font-weight: 700; color: var(--primary-dark); white-space: nowrap; }
-    .panier-del { background: none; border: none; cursor: pointer; color: #e74c3c; font-size: 16px; padding: 0 4px; }
+    .panier-empty { text-align: center; color: var(--text-light); font-style: italic; font-size: 13px; padding: 24px 0; }
+    .panier-item  { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; gap: 6px; }
+    .panier-nom   { flex: 1; font-weight: 600; color: var(--text-dark); }
+    .panier-qty   { display: flex; align-items: center; gap: 5px; }
+    .qty-btn      { width: 24px; height: 24px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-section); cursor: pointer; font-size: 14px; font-weight: 700; line-height: 1; }
+    .qty-val      { font-weight: 700; min-width: 20px; text-align: center; }
+    .panier-prix  { font-weight: 700; color: var(--secondary); white-space: nowrap; }
+    .panier-del   { background: none; border: none; color: #ccc; cursor: pointer; font-size: 16px; padding: 0 2px; }
+    .panier-del:hover { color: #e74c3c; }
+    .panier-total { display: flex; justify-content: space-between; padding: 12px 0 0; font-size: 18px; font-weight: 700; border-top: 2px solid var(--border); margin-top: 6px; color: var(--secondary); }
 
-    .panier-total { display: flex; justify-content: space-between; padding: 12px 0 0; font-size: 18px; font-weight: 700; color: var(--text-dark); margin-top: 8px; border-top: 2px solid var(--border); }
-
+    /* Finaliser */
     .form-group { margin-bottom: 14px; }
-    .form-group label { display: block; font-weight: 600; font-size: 13px; color: var(--text-dark); margin-bottom: 5px; }
-    .form-group select, .form-group input { width: 100%; padding: 9px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; box-sizing: border-box; }
+    .form-group label { display: block; font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .4px; }
+
+    /* Recherche client */
+    .client-search-wrap { position: relative; }
+    .client-search-row  { display: flex; gap: 8px; }
+    .client-search-input { flex: 1; padding: 9px 14px; border: 2px solid var(--border); border-radius: 10px; font-size: 14px; background: white; }
+    .client-search-input:focus { outline: none; border-color: var(--primary); }
+    .client-search-input.selected { border-color: #28a745; background: #f0fef4; }
+    .btn-add-client { padding: 9px 14px; border: 2px solid var(--primary); border-radius: 10px; background: white; color: var(--primary); font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+    .btn-add-client:hover { background: var(--primary); color: white; }
+    .autocomplete-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 100; background: white; border: 2px solid var(--primary); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.12); max-height: 220px; overflow-y: auto; display: none; }
+    .autocomplete-item { padding: 10px 14px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f0f0f0; }
+    .autocomplete-item:last-child { border-bottom: none; }
+    .autocomplete-item:hover { background: var(--bg-light); }
+    .autocomplete-item.empty { color: var(--text-light); cursor: default; font-style: italic; }
+    .autocomplete-item.empty:hover { background: none; }
+
+    /* Carte cadeau */
+    .carte-section { background: #fff8e1; border: 2px solid #f39c12; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+    .carte-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #856404; }
+    .carte-toggle input { width: auto; margin: 0; cursor: pointer; }
+    .carte-detail { margin-top: 12px; display: none; }
+    .carte-select { width: 100%; padding: 8px 12px; border: 1px solid #f39c12; border-radius: 8px; font-size: 13px; background: white; margin-bottom: 8px; }
+    .carte-solde-info { font-size: 12px; color: #856404; margin-bottom: 10px; }
+    .carte-montant-input { width: 100%; padding: 8px 12px; border: 1px solid #f39c12; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
+    .reste-display { margin-top: 8px; font-size: 13px; font-weight: 700; text-align: right; }
+
+    /* Paiement */
+    .paiement-options { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .paiement-opt { display: flex; align-items: center; gap: 5px; padding: 6px 10px; background: #f8f9fa; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 13px; }
+    .paiement-opt input { margin: 0; cursor: pointer; }
+    .paiement-opt:has(input:checked) { background: #e8f4fd; border-color: var(--primary); color: var(--primary); font-weight: 600; }
+
+    .double-toggle { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-light); cursor: pointer; margin-top: 10px; }
+    .double-toggle input { margin: 0; cursor: pointer; width: auto; }
+    .montant-1-group { margin-top: 12px; }
+    .montant-1-input { width: 100%; padding: 9px 12px; border: 2px solid var(--border); border-radius: 10px; font-size: 14px; box-sizing: border-box; }
+    .mode-2-group { margin-top: 12px; }
+    .montant-2-display { background: #e8f5e9; border-radius: 8px; padding: 10px 14px; font-size: 14px; margin-top: 8px; display: flex; justify-content: space-between; }
+    .montant-2-val { font-weight: 700; color: #2e7d32; }
 
     .btn-vendre { width: 100%; padding: 14px; border: none; border-radius: 12px; background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%); color: white; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 8px; }
     .btn-vendre:disabled { background: #ccc; cursor: not-allowed; }
 
     .stat-banner { background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%); color: white; border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
-    .stat-banner .label { font-size: 13px; opacity: .85; }
+    .stat-banner .label { font-size: 12px; opacity: .8; }
     .stat-banner .val { font-size: 22px; font-weight: 700; }
 
     .nav-links { display: flex; gap: 10px; margin-bottom: 20px; }
     .nav-link { padding: 8px 18px; border-radius: 10px; border: 2px solid var(--border); background: var(--bg-light); font-size: 13px; font-weight: 600; color: var(--text-dark); text-decoration: none; }
     .nav-link.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    /* Modal client */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+    .modal-box { background: white; border-radius: 20px; padding: 28px; width: 100%; max-width: 440px; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+    .modal-box h2 { margin: 0 0 20px; font-size: 18px; }
+    .modal-form-group { margin-bottom: 14px; }
+    .modal-form-group label { display: block; font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 5px; }
+    .modal-form-group input { width: 100%; padding: 9px 12px; border: 2px solid var(--border); border-radius: 10px; font-size: 14px; box-sizing: border-box; }
+    .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+    .btn-secondary { background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); padding: 9px 18px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; }
+    .btn-primary   { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none; padding: 9px 18px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; }
+    .error-msg { font-size: 12px; color: #e74c3c; margin-top: 4px; display: none; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="vente-container">
-
     <div class="page-header">
         <h1>Ventes produits</h1>
     </div>
@@ -93,12 +139,12 @@
     </div>
 
     <div class="layout">
-        <!-- Produits -->
+        <!-- ── Colonne gauche : Produits ── -->
         <div class="card">
             <h3>Produits disponibles</h3>
-            <div class="search-bar">
-                <input type="text" id="searchProduit" placeholder="Rechercher un produit..." oninput="filtrerProduits(this.value)">
-            </div>
+            <input type="text" class="search-produit" id="searchProduit"
+                   placeholder="🔍  Rechercher un produit ou catégorie…"
+                   oninput="filtrerProduits(this.value)">
             {% if produits %}
             <div class="produits-grid" id="produitGrid">
                 {% for p in produits %}
@@ -121,8 +167,9 @@
             {% endif %}
         </div>
 
-        <!-- Panier -->
+        <!-- ── Colonne droite : Panier + Finaliser ── -->
         <div>
+            <!-- Panier -->
             <div class="card">
                 <h3>Panier</h3>
                 <div id="panierItems">
@@ -134,42 +181,134 @@
                 </div>
             </div>
 
+            <!-- Finaliser -->
             <div class="card" style="margin-top:16px;">
-                <h3>Finaliser</h3>
+                <h3>Finaliser la vente</h3>
+
+                <!-- Client (obligatoire) -->
                 <div class="form-group">
-                    <label>Client (optionnel)</label>
-                    <select id="clientSelect">
-                        <option value="">— Anonyme —</option>
-                        {% for c in clients %}
-                        <option value="{{ c.id }}">{{ c.prenom }} {{ c.nom }}</option>
-                        {% endfor %}
-                    </select>
+                    <label>Client <span style="color:#e74c3c;">*</span></label>
+                    <div class="client-search-wrap">
+                        <div class="client-search-row">
+                            <input type="text" id="clientSearch" class="client-search-input"
+                                   placeholder="Rechercher un client…" autocomplete="off"
+                                   oninput="rechercherClient(this.value)"
+                                   onfocus="if(this.value.length>=2) document.getElementById('clientResults').style.display='block'">
+                            <button type="button" class="btn-add-client" onclick="ouvrirModalClient()">+ Client</button>
+                        </div>
+                        <input type="hidden" id="clientId">
+                        <div id="clientResults" class="autocomplete-results"></div>
+                    </div>
+                    <div id="clientError" class="error-msg">Veuillez sélectionner un client.</div>
                 </div>
-                <div class="form-group">
-                    <label>Mode de paiement *</label>
-                    <select id="modePaiement">
-                        <option value="especes">Espèces</option>
-                        <option value="wave">Wave</option>
-                        <option value="om">Orange Money</option>
-                        <option value="carte">Carte bancaire</option>
-                    </select>
+
+                <!-- Carte cadeau (visible si client a une carte active) -->
+                <div id="sectionCarteCadeau" style="display:none;" class="carte-section">
+                    <label class="carte-toggle">
+                        <input type="checkbox" id="utiliserCarte" onchange="toggleCarte()">
+                        🎁 Utiliser une carte cadeau
+                    </label>
+                    <div class="carte-detail" id="carteDetail">
+                        <select id="carteSelect" class="carte-select" onchange="onCarteChange()">
+                            <option value="">— Choisir une carte —</option>
+                        </select>
+                        <div class="carte-solde-info" id="carteSoldeInfo"></div>
+                        <div>
+                            <label style="font-size:12px;font-weight:600;color:#856404;display:block;margin-bottom:4px;">Montant à prendre sur la carte (CFA)</label>
+                            <input type="number" id="montantCarte" class="carte-montant-input"
+                                   min="1" placeholder="Ex: 5000" oninput="validerMontantCarte()">
+                        </div>
+                        <div class="reste-display" id="resteDisplay"></div>
+                    </div>
                 </div>
+
+                <!-- Mode de paiement -->
+                <div class="form-group" id="sectionPaiement">
+                    <label id="labelModePaiement">Mode de paiement <span style="color:#e74c3c;">*</span></label>
+                    <div class="paiement-options">
+                        <label class="paiement-opt"><input type="radio" name="mode1" value="especes" checked> Espèces</label>
+                        <label class="paiement-opt"><input type="radio" name="mode1" value="wave"> Wave</label>
+                        <label class="paiement-opt"><input type="radio" name="mode1" value="om"> Orange Money</label>
+                        <label class="paiement-opt"><input type="radio" name="mode1" value="carte"> Carte bancaire</label>
+                    </div>
+
+                    <!-- Double paiement -->
+                    <label class="double-toggle">
+                        <input type="checkbox" id="doublePaiement" onchange="toggleDoublePaiement()">
+                        Payer avec 2 moyens
+                    </label>
+
+                    <div class="montant-1-group" id="montant1Group" style="display:none;">
+                        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Montant avec le 1er moyen (CFA)</label>
+                        <input type="number" id="montant1" class="montant-1-input"
+                               min="0" placeholder="Ex: 10000" oninput="calculerMontant2()">
+                        <div class="error-msg" id="montant1Error">Montant invalide.</div>
+                    </div>
+
+                    <div class="mode-2-group" id="mode2Group" style="display:none;">
+                        <label style="font-size:12px;font-weight:600;margin-top:10px;display:block;">2ème moyen de paiement</label>
+                        <div class="paiement-options">
+                            <label class="paiement-opt"><input type="radio" name="mode2" value="especes"> Espèces</label>
+                            <label class="paiement-opt"><input type="radio" name="mode2" value="wave" checked> Wave</label>
+                            <label class="paiement-opt"><input type="radio" name="mode2" value="om"> Orange Money</label>
+                            <label class="paiement-opt"><input type="radio" name="mode2" value="carte"> Carte bancaire</label>
+                        </div>
+                        <div class="montant-2-display">
+                            <span>Montant avec le 2ème moyen :</span>
+                            <span class="montant-2-val" id="montant2Val">0 CFA</span>
+                        </div>
+                    </div>
+                </div>
+
                 <button class="btn-vendre" id="btnVendre" onclick="finaliserVente()" disabled>
                     Enregistrer la vente
                 </button>
             </div>
         </div>
     </div>
-
 </div>
+
+<!-- ── Modal création client ── -->
+<div id="modalClient" style="display:none;" class="modal-backdrop" onclick="if(event.target===this)fermerModalClient()">
+    <div class="modal-box">
+        <h2>Nouveau client</h2>
+        <div class="modal-form-group">
+            <label>Prénom *</label>
+            <input type="text" id="nc-prenom" placeholder="Ex: Marie">
+        </div>
+        <div class="modal-form-group">
+            <label>Nom *</label>
+            <input type="text" id="nc-nom" placeholder="Ex: Dupont">
+        </div>
+        <div class="modal-form-group">
+            <label>Téléphone *</label>
+            <input type="tel" id="nc-telephone" placeholder="Ex: 77 123 45 67">
+        </div>
+        <div class="modal-form-group">
+            <label>Email</label>
+            <input type="email" id="nc-email" placeholder="Optionnel">
+        </div>
+        <div id="ncError" style="color:#e74c3c;font-size:13px;margin-top:4px;display:none;"></div>
+        <div class="modal-footer">
+            <button class="btn-secondary" onclick="fermerModalClient()">Annuler</button>
+            <button class="btn-primary" onclick="creerClient()">Créer</button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
-const CSRF = '{{ csrf_token }}';
+const CSRF        = '{{ csrf_token }}';
 const INSTITUT_ID = {{ institut.id }};
-let panier = {};
 
+let panier = {};
+let totalPanier = 0;
+
+/* ══════════════════════════
+   PANIER
+══════════════════════════ */
 function ajouterAuPanier(el) {
     if (el.classList.contains('zero')) return;
     const id = el.dataset.id;
@@ -184,44 +323,46 @@ function ajouterAuPanier(el) {
 
 function changerQty(id, delta) {
     if (!panier[id]) return;
-    panier[id].qty += delta;
-    if (panier[id].qty <= 0) delete panier[id];
-    else if (panier[id].qty > panier[id].stock) { panier[id].qty = panier[id].stock; showError('Stock insuffisant'); }
+    panier[id].qty = Math.max(0, panier[id].qty + delta);
+    if (panier[id].qty > panier[id].stock) { panier[id].qty = panier[id].stock; showError('Stock insuffisant'); }
+    if (panier[id].qty === 0) delete panier[id];
     renderPanier();
 }
 
-function retirerDuPanier(id) {
-    delete panier[id];
-    renderPanier();
-}
+function retirerDuPanier(id) { delete panier[id]; renderPanier(); }
 
 function renderPanier() {
     const container = document.getElementById('panierItems');
-    const empty = document.getElementById('panierEmpty');
-    const totalDiv = document.getElementById('panierTotal');
-    const totalVal = document.getElementById('totalVal');
-    const btnVendre = document.getElementById('btnVendre');
+    const empty     = document.getElementById('panierEmpty');
+    const totalDiv  = document.getElementById('panierTotal');
+    const totalVal  = document.getElementById('totalVal');
+    const btn       = document.getElementById('btnVendre');
+    const items     = Object.values(panier);
 
-    const items = Object.values(panier);
+    [...container.children].forEach(c => { if (c.id !== 'panierEmpty') c.remove(); });
+
     if (!items.length) {
         empty.style.display = '';
         totalDiv.style.display = 'none';
-        btnVendre.disabled = true;
-        // Effacer les items précédents (sauf panierEmpty)
-        Array.from(container.children).forEach(c => { if (c.id !== 'panierEmpty') c.remove(); });
+        btn.disabled = true;
+        totalPanier = 0;
+        document.querySelectorAll('.produit-card.in-cart').forEach(c => c.classList.remove('in-cart'));
+        recalculerPaiement();
         return;
     }
+
     empty.style.display = 'none';
     totalDiv.style.display = '';
-    btnVendre.disabled = false;
+    totalPanier = 0;
 
-    // Effacer les items précédents
-    Array.from(container.children).forEach(c => { if (c.id !== 'panierEmpty') c.remove(); });
+    const panierIds = new Set(items.map(i => i.id));
+    document.querySelectorAll('.produit-card').forEach(c => {
+        c.classList.toggle('in-cart', panierIds.has(c.dataset.id));
+    });
 
-    let total = 0;
     items.forEach(item => {
         const sous = item.prix * item.qty;
-        total += sous;
+        totalPanier += sous;
         const div = document.createElement('div');
         div.className = 'panier-item';
         div.innerHTML = `
@@ -234,23 +375,290 @@ function renderPanier() {
             <span class="panier-prix">${sous.toLocaleString('fr-FR')} CFA</span>
             <button class="panier-del" onclick="retirerDuPanier('${item.id}')">✕</button>
         `;
-        container.insertBefore(div, document.getElementById('panierEmpty'));
+        container.insertBefore(div, empty);
     });
-    totalVal.textContent = total.toLocaleString('fr-FR') + ' CFA';
+
+    totalVal.textContent = totalPanier.toLocaleString('fr-FR') + ' CFA';
+    btn.disabled = !document.getElementById('clientId').value;
+    recalculerPaiement();
 }
 
+/* ══════════════════════════
+   PRODUITS — Recherche dynamique
+══════════════════════════ */
+function normaliserTexte(s) {
+    return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+function filtrerProduits(q) {
+    q = normaliserTexte(q.trim());
+    document.querySelectorAll('.produit-card').forEach(el => {
+        const match = !q ||
+            normaliserTexte(el.dataset.nom).includes(q) ||
+            normaliserTexte(el.dataset.cat).includes(q);
+        el.style.display = match ? '' : 'none';
+    });
+}
+
+/* ══════════════════════════
+   CLIENT — Autocomplete
+══════════════════════════ */
+let searchTimeout = null;
+
+function rechercherClient(q) {
+    const results  = document.getElementById('clientResults');
+    const clientId = document.getElementById('clientId');
+    clientId.value = '';
+    document.getElementById('clientSearch').classList.remove('selected');
+    document.getElementById('btnVendre').disabled = true;
+    document.getElementById('sectionCarteCadeau').style.display = 'none';
+    document.getElementById('utiliserCarte').checked = false;
+    document.getElementById('carteDetail').style.display = 'none';
+
+    if (q.length < 2) { results.style.display = 'none'; return; }
+
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(async () => {
+        try {
+            const resp = await fetch('/api/clients/search/?q=' + encodeURIComponent(q));
+            const data = await resp.json();
+            results.innerHTML = '';
+            if (data.clients && data.clients.length) {
+                data.clients.forEach(c => {
+                    const div = document.createElement('div');
+                    div.className = 'autocomplete-item';
+                    div.textContent = `${c.prenom} ${c.nom} — ${c.telephone}`;
+                    div.onclick = () => selectionnerClient(c.id, `${c.prenom} ${c.nom}`);
+                    results.appendChild(div);
+                });
+            } else {
+                results.innerHTML = '<div class="autocomplete-item empty">Aucun client trouvé</div>';
+            }
+            results.style.display = 'block';
+        } catch(e) { results.style.display = 'none'; }
+    }, 250);
+}
+
+async function selectionnerClient(id, nom) {
+    document.getElementById('clientId').value = id;
+    document.getElementById('clientSearch').value = nom;
+    document.getElementById('clientSearch').classList.add('selected');
+    document.getElementById('clientResults').style.display = 'none';
+    document.getElementById('clientError').style.display = 'none';
+    if (Object.keys(panier).length) document.getElementById('btnVendre').disabled = false;
+    await chargerCartesClient(id);
+}
+
+document.addEventListener('click', e => {
+    if (!e.target.closest('.client-search-wrap')) {
+        document.getElementById('clientResults').style.display = 'none';
+    }
+});
+
+/* ══════════════════════════
+   CARTE CADEAU
+══════════════════════════ */
+async function chargerCartesClient(clientId) {
+    const section = document.getElementById('sectionCarteCadeau');
+    try {
+        const resp = await fetch(`/api/cartes-cadeaux/client/?client_id=${clientId}`);
+        const data = await resp.json();
+        const cartes = data.cartes || [];
+        if (cartes.length > 0) {
+            const select = document.getElementById('carteSelect');
+            select.innerHTML = '<option value="">— Choisir une carte —</option>';
+            cartes.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.dataset.solde = c.solde;
+                opt.textContent = `${c.code} — solde : ${c.solde.toLocaleString('fr-FR')} CFA${c.date_expiration ? ' (exp. ' + c.date_expiration + ')' : ''}`;
+                select.appendChild(opt);
+            });
+            section.style.display = 'block';
+        } else {
+            section.style.display = 'none';
+        }
+        document.getElementById('utiliserCarte').checked = false;
+        document.getElementById('carteDetail').style.display = 'none';
+        document.getElementById('montantCarte').value = '';
+        recalculerPaiement();
+    } catch(e) { section.style.display = 'none'; }
+}
+
+function toggleCarte() {
+    const checked = document.getElementById('utiliserCarte').checked;
+    document.getElementById('carteDetail').style.display = checked ? 'block' : 'none';
+    if (!checked) {
+        document.getElementById('montantCarte').value = '';
+        document.getElementById('carteSoldeInfo').textContent = '';
+        document.getElementById('montantCarte').removeAttribute('max');
+    } else {
+        // Auto-sélectionner la carte si le client n'en a qu'une
+        const select = document.getElementById('carteSelect');
+        if (select.options.length === 2) { // "— Choisir —" + 1 seule carte
+            select.selectedIndex = 1;
+            onCarteChange();
+            return;
+        }
+    }
+    recalculerPaiement();
+}
+
+function onCarteChange() {
+    const select = document.getElementById('carteSelect');
+    const opt = select.options[select.selectedIndex];
+    const montantInput = document.getElementById('montantCarte');
+    if (opt && opt.dataset.solde) {
+        const solde = parseInt(opt.dataset.solde);
+        document.getElementById('carteSoldeInfo').textContent = `Solde disponible : ${solde.toLocaleString('fr-FR')} CFA`;
+        montantInput.max = solde;
+        const suggest = Math.min(solde, totalPanier);
+        montantInput.value = suggest > 0 ? suggest : '';
+    } else {
+        document.getElementById('carteSoldeInfo').textContent = '';
+        montantInput.removeAttribute('max');
+        montantInput.value = '';
+    }
+    recalculerPaiement();
+}
+
+function validerMontantCarte() {
+    const select = document.getElementById('carteSelect');
+    const opt = select.options[select.selectedIndex];
+    const montantInput = document.getElementById('montantCarte');
+    if (opt && opt.dataset.solde) {
+        const solde = parseInt(opt.dataset.solde);
+        const val = parseInt(montantInput.value) || 0;
+        if (val > solde) montantInput.value = solde;
+        if (val < 0) montantInput.value = 0;
+    }
+    recalculerPaiement();
+}
+
+/* ══════════════════════════
+   PAIEMENT — Calculs
+══════════════════════════ */
+function getMontantCarte() {
+    if (!document.getElementById('utiliserCarte').checked) return 0;
+    if (!document.getElementById('carteSelect').value) return 0;
+    return parseInt(document.getElementById('montantCarte').value) || 0;
+}
+
+function getReste() {
+    return Math.max(0, totalPanier - getMontantCarte());
+}
+
+function recalculerPaiement() {
+    const reste        = getReste();
+    const montantCarte = getMontantCarte();
+    const resteEl      = document.getElementById('resteDisplay');
+
+    if (montantCarte > 0) {
+        const couleur = reste === 0 ? '#28a745' : '#e74c3c';
+        resteEl.innerHTML = `Reste à payer : <span style="color:${couleur};font-weight:700;">${reste.toLocaleString('fr-FR')} CFA</span>`;
+    } else {
+        resteEl.textContent = '';
+    }
+
+    const sectionPaiement = document.getElementById('sectionPaiement');
+    if (reste === 0 && montantCarte > 0) {
+        sectionPaiement.style.display = 'none';
+    } else {
+        sectionPaiement.style.display = 'block';
+        document.getElementById('labelModePaiement').innerHTML =
+            montantCarte > 0
+                ? `Mode de paiement pour le reste (${reste.toLocaleString('fr-FR')} CFA) <span style="color:#e74c3c;">*</span>`
+                : `Mode de paiement <span style="color:#e74c3c;">*</span>`;
+    }
+
+    if (document.getElementById('doublePaiement').checked) calculerMontant2();
+}
+
+function toggleDoublePaiement() {
+    const checked = document.getElementById('doublePaiement').checked;
+    document.getElementById('montant1Group').style.display = checked ? 'block' : 'none';
+    document.getElementById('mode2Group').style.display   = checked ? 'block' : 'none';
+    if (!checked) {
+        document.getElementById('montant1').value = '';
+        document.getElementById('montant2Val').textContent = '0 CFA';
+    } else {
+        calculerMontant2();
+    }
+}
+
+function calculerMontant2() {
+    const reste = getReste();
+    const m1    = parseInt(document.getElementById('montant1').value) || 0;
+    const m2    = Math.max(0, reste - m1);
+    document.getElementById('montant2Val').textContent = m2.toLocaleString('fr-FR') + ' CFA';
+    const errEl = document.getElementById('montant1Error');
+    if (m1 >= reste) {
+        errEl.textContent = `Le montant doit être inférieur à ${reste.toLocaleString('fr-FR')} CFA.`;
+        errEl.style.display = 'block';
+    } else {
+        errEl.style.display = 'none';
+    }
+}
+
+/* ══════════════════════════
+   FINALISER
+══════════════════════════ */
 async function finaliserVente() {
     const items = Object.values(panier);
     if (!items.length) return;
-    document.getElementById('btnVendre').disabled = true;
+
+    const clientId = document.getElementById('clientId').value;
+    if (!clientId) {
+        document.getElementById('clientError').style.display = 'block';
+        document.getElementById('clientSearch').focus();
+        return;
+    }
+
+    const montantCarte = getMontantCarte();
+    const carteId = (montantCarte > 0) ? document.getElementById('carteSelect').value : null;
+
+    if (document.getElementById('utiliserCarte').checked && !carteId) {
+        showError('Veuillez sélectionner une carte cadeau.'); return;
+    }
+    if (montantCarte > totalPanier) {
+        showError('Le montant carte ne peut pas dépasser le total.'); return;
+    }
+
+    const reste = getReste();
+    let mode1 = 'carte_cadeau', mode2 = null, montant1 = 0;
+
+    if (reste > 0) {
+        const m1el = document.querySelector('input[name="mode1"]:checked');
+        if (!m1el) { showError('Sélectionnez un mode de paiement.'); return; }
+        mode1 = m1el.value;
+
+        if (document.getElementById('doublePaiement').checked) {
+            montant1 = parseInt(document.getElementById('montant1').value) || 0;
+            if (montant1 <= 0 || montant1 >= reste) {
+                showError('Montant du 1er mode invalide.'); return;
+            }
+            const m2el = document.querySelector('input[name="mode2"]:checked');
+            if (!m2el) { showError('Sélectionnez le 2ème mode de paiement.'); return; }
+            mode2 = m2el.value;
+            if (mode2 === mode1) { showError('Les 2 modes doivent être différents.'); return; }
+        }
+    }
+
+    const btn = document.getElementById('btnVendre');
+    btn.disabled = true;
+    btn.textContent = 'Enregistrement…';
+
     try {
         const resp = await fetch("{% url 'gestion:api_vendre' %}", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
             body: JSON.stringify({
                 institut_id: INSTITUT_ID,
-                client_id: document.getElementById('clientSelect').value || null,
-                mode_paiement: document.getElementById('modePaiement').value,
+                client_id: clientId,
+                mode_paiement: mode1,
+                mode_paiement_2: mode2,
+                montant_paiement_1: montant1,
+                carte_id: carteId,
+                montant_carte: montantCarte,
                 items: items.map(i => ({ produit_id: i.id, quantite: i.qty })),
             }),
         });
@@ -259,23 +667,113 @@ async function finaliserVente() {
             showSuccess(data.message);
             panier = {};
             renderPanier();
-            setTimeout(() => location.reload(), 1200);
+            // Reset formulaire
+            document.getElementById('clientId').value = '';
+            document.getElementById('clientSearch').value = '';
+            document.getElementById('clientSearch').classList.remove('selected');
+            document.getElementById('sectionCarteCadeau').style.display = 'none';
+            document.getElementById('utiliserCarte').checked = false;
+            document.getElementById('carteDetail').style.display = 'none';
+            document.getElementById('doublePaiement').checked = false;
+            toggleDoublePaiement();
+            setTimeout(() => location.reload(), 1400);
         } else {
             showError(data.error);
-            document.getElementById('btnVendre').disabled = false;
+            btn.disabled = false;
+            btn.textContent = 'Enregistrer la vente';
         }
-    } catch (e) {
+    } catch(e) {
         showError('Erreur réseau');
-        document.getElementById('btnVendre').disabled = false;
+        btn.disabled = false;
+        btn.textContent = 'Enregistrer la vente';
     }
 }
 
-function filtrerProduits(q) {
-    q = q.toLowerCase();
-    document.querySelectorAll('.produit-card').forEach(el => {
-        const match = el.dataset.nom.toLowerCase().includes(q) || el.dataset.cat.toLowerCase().includes(q);
-        el.style.display = match ? '' : 'none';
+/* ══════════════════════════
+   MODAL CRÉATION CLIENT
+══════════════════════════ */
+function ouvrirModalClient() {
+    ['nc-prenom','nc-nom','nc-telephone','nc-email'].forEach(id => {
+        document.getElementById(id).value = '';
     });
+    document.getElementById('ncError').style.display = 'none';
+    document.getElementById('modalClient').style.display = 'flex';
+    setTimeout(() => document.getElementById('nc-prenom').focus(), 50);
 }
+
+function fermerModalClient() {
+    document.getElementById('modalClient').style.display = 'none';
+}
+
+async function creerClient() {
+    const prenom    = document.getElementById('nc-prenom').value.trim();
+    const nom       = document.getElementById('nc-nom').value.trim();
+    const telephone = document.getElementById('nc-telephone').value.trim();
+    const email     = document.getElementById('nc-email').value.trim();
+    const errEl     = document.getElementById('ncError');
+
+    if (!prenom || !nom || !telephone) {
+        errEl.textContent = 'Prénom, nom et téléphone sont requis.';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    const buildFd = (extra = {}) => {
+        const fd = new FormData();
+        fd.append('csrfmiddlewaretoken', CSRF);
+        fd.append('prenom', prenom);
+        fd.append('nom', nom);
+        fd.append('telephone', telephone);
+        if (email) fd.append('email', email);
+        for (const [k, v] of Object.entries(extra)) fd.append(k, v);
+        return fd;
+    };
+
+    const post = async (fd) => {
+        const r = await fetch('/api/clients/creer/', {
+            method: 'POST', body: fd, headers: { 'X-CSRFToken': CSRF }
+        });
+        return r.json();
+    };
+
+    try {
+        errEl.style.display = 'none';
+        const data = await post(buildFd());
+
+        if (data.success) {
+            showSuccess(data.message);
+            fermerModalClient();
+            await selectionnerClient(data.client_id, `${prenom} ${nom}`);
+
+        } else if ((data.duplicate || data.name_duplicate) && data.existing_client) {
+            const ec = data.existing_client;
+            if (confirm(`${data.message}\n\nVoulez-vous utiliser ce client existant ?`)) {
+                fermerModalClient();
+                await selectionnerClient(ec.id, ec.full_name);
+            } else if (data.name_duplicate) {
+                // Forcer création malgré le doublon de nom
+                const data2 = await post(buildFd({ confirmer_doublon: '1' }));
+                if (data2.success) {
+                    showSuccess(data2.message);
+                    fermerModalClient();
+                    await selectionnerClient(data2.client_id, `${prenom} ${nom}`);
+                } else {
+                    errEl.textContent = data2.message || 'Erreur';
+                    errEl.style.display = 'block';
+                }
+            }
+        } else {
+            errEl.textContent = data.message || 'Erreur';
+            errEl.style.display = 'block';
+        }
+    } catch(e) {
+        errEl.textContent = 'Erreur réseau';
+        errEl.style.display = 'block';
+    }
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') fermerModalClient();
+});
 </script>
 {% endblock %}

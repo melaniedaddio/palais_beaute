@@ -1,42 +1,68 @@
 {% extends 'base.html' %}
 
-{% block title %}Calcul des salaires{% endblock %}
+{% block title %}Salaires — {{ mois|date:"F Y" }}{% endblock %}
 
 {% block extra_css %}
 <style>
     .sal-container { max-width: 1200px; margin: 0 auto; }
-    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
     .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
 
-    .filters-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
-    .filters-bar select, .filters-bar input { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; color: var(--text-dark); }
-    .filters-bar button { padding: 8px 20px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+    .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; }
 
-    .totaux-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }
-    .total-card { background: white; border-radius: 14px; padding: 18px 20px; box-shadow: 0 2px 10px rgba(212,175,122,0.10); border: 1px solid var(--border); }
-    .total-card .label { font-size: 12px; color: var(--text-light); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .total-card .val { font-size: 24px; font-weight: 700; color: var(--text-dark); }
+    /* Filtres auto-submit */
+    .filters-bar { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+    .filters-bar select, .filters-bar input {
+        padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px;
+        background: var(--bg-light); font-size: 14px; color: var(--text-dark);
+    }
+    .filters-bar select[name="vue"] { font-weight: 600; border-color: var(--primary); color: var(--primary); }
+
+    /* Cards totaux */
+    .totaux-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .total-card { background: white; border-radius: 14px; padding: 16px 18px; box-shadow: 0 2px 10px rgba(212,175,122,0.10); border: 1px solid var(--border); }
+    .total-card .label { font-size: 12px; color: var(--text-light); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .total-card .val { font-size: 22px; font-weight: 700; color: var(--text-dark); }
     .total-card.gold .val { color: var(--secondary); }
     .total-card.green .val { color: #28a745; }
     .total-card.red .val { color: #e74c3c; }
 
+    /* Table */
     .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(212,175,122,0.10); border: 1px solid var(--border); }
     table { width: 100%; border-collapse: collapse; }
-    th { background: var(--bg-section); padding: 12px 14px; text-align: left; font-weight: 600; font-size: 13px; color: var(--text-dark); border-bottom: 2px solid var(--border); }
-    td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
+    th { background: var(--bg-section); padding: 12px 14px; text-align: left; font-weight: 600; font-size: 12px; color: #6c757d; border-bottom: 2px solid var(--border); text-transform: uppercase; letter-spacing: 0.4px; }
+    td { padding: 12px 14px; border-bottom: 1px solid #f0f0f0; font-size: 14px; vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
-    tr:hover td { background: var(--bg-light); }
+    tr:hover td { background: #fafafa; }
     .text-right { text-align: right; }
 
+    /* Cellules cliquables */
+    .cell-clickable {
+        cursor: pointer;
+        border-radius: 8px;
+        padding: 4px 8px;
+        transition: background 0.15s;
+        display: inline-block;
+    }
+    .cell-clickable:hover { background: #f0f4ff; color: #3b5bdb; }
+    .cell-clickable.green:hover { background: #e6f4ea; color: #1e7e34; }
+    .cell-clickable.red:hover { background: #fdecea; color: #c62828; }
+    .cell-clickable.base:hover { background: #fff8e1; color: #856404; }
+
+    /* Badges */
     .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
     .badge-brouillon { background: var(--bg-section); color: var(--text-light); }
     .badge-valide   { background: #d4edda; color: #155724; }
     .badge-paye     { background: #cce5ff; color: #004085; }
+    .badge-en_cours { background: #fff3cd; color: #856404; }
+    .badge-rembourse{ background: #d4edda; color: #155724; }
+    .badge-annule   { background: #f8d7da; color: #721c24; }
 
-    .net-amount { font-size: 16px; font-weight: 700; color: var(--secondary); }
-    .detail-line { font-size: 12px; color: var(--text-light); }
-    .detail-green { color: #28a745; }
-    .detail-red   { color: #e74c3c; }
+    .net-amount { font-size: 15px; font-weight: 700; color: var(--secondary); }
+    .detail-green { color: #28a745; font-weight: 600; }
+    .detail-red   { color: #e74c3c; font-weight: 600; }
+    .detail-line  { font-size: 11px; color: var(--text-light); }
+    .montant-cell { font-weight: 700; color: #28a745; }
 
     .btn-xs { padding: 4px 10px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
     .btn-validate { background: #d4edda; color: #155724; }
@@ -45,11 +71,36 @@
     .btn-pay:hover { background: #3498db; color: white; }
     .btn-recalc { background: var(--bg-section); color: var(--text-light); border: 1px solid var(--border); }
     .btn-recalc:hover { background: #e0e0e0; }
+    .btn-icon { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 13px; }
+    .btn-icon:hover { background: #ffeaea; border-color: #e74c3c; }
 
-    .links-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-    .link-btn { padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); }
-    .link-btn:hover { background: var(--border); }
-    .link-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+    /* Banner total (primes/avances) */
+    .total-banner { border-radius: 14px; padding: 18px 24px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; }
+    .total-banner.gold { background: linear-gradient(135deg, var(--secondary) 0%, var(--secondary-dark) 100%); color: white; }
+    .total-banner.red { background: #fdecea; border-left: 5px solid #e74c3c; }
+    .total-banner .label { font-size: 14px; opacity: 0.85; }
+    .total-banner .val { font-size: 26px; font-weight: 700; }
+    .total-banner.red .val { color: #e74c3c; }
+    .total-banner.red .label { color: #721c24; opacity: 1; }
+
+    /* Progress bar avances */
+    .progress-bar { background: #f0f0f0; border-radius: 10px; height: 7px; overflow: hidden; min-width: 70px; margin-bottom: 2px; }
+    .progress-fill { height: 100%; border-radius: 10px; background: var(--secondary); }
+
+    /* Modals */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+    .modal { background: white; border-radius: 20px; padding: 32px; width: 100%; max-width: 460px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+    .modal h2 { margin: 0 0 22px; font-size: 20px; color: var(--text-dark); }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-weight: 600; font-size: 13px; color: var(--text-dark); margin-bottom: 6px; }
+    .form-group select, .form-group input, .form-group textarea {
+        width: 100%; padding: 10px 14px; border: 2px solid var(--border); border-radius: 10px;
+        background: var(--bg-light); font-size: 14px; box-sizing: border-box;
+    }
+    .form-group textarea { resize: vertical; min-height: 70px; }
+    .modal-footer { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+    .btn-secondary { background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; }
+    .form-hint { font-size: 12px; color: var(--text-light); margin-top: 4px; }
 </style>
 {% endblock %}
 
@@ -57,29 +108,48 @@
 <div class="sal-container">
 
     <div class="page-header">
-        <h1>Calcul des salaires — {{ mois|date:"F Y" }}</h1>
+        <h1>
+            {% if vue == 'primes' %}Primes
+            {% elif vue == 'avances' %}Avances
+            {% else %}Salaires
+            {% endif %}
+            — {{ mois|date:"F Y" }}
+        </h1>
+        {% if vue == 'primes' %}
+        <button class="btn-primary" onclick="ouvrirModalPrime(null)">+ Ajouter une prime</button>
+        {% elif vue == 'avances' %}
+        <button class="btn-primary" onclick="document.getElementById('modalAvance').style.display='flex'">+ Enregistrer une avance</button>
+        {% endif %}
     </div>
 
-    <div class="links-bar">
-        <a href="{% url 'gestion:salaires_calcul' %}" class="link-btn active">Calcul mensuel</a>
-        <a href="{% url 'gestion:primes_liste' %}" class="link-btn">Primes</a>
-        <a href="{% url 'gestion:avances_liste' %}" class="link-btn">Avances</a>
-    </div>
-
-    <!-- Filtres -->
-    <form method="get" class="filters-bar">
-        <input type="month" name="mois" value="{{ mois|date:'Y-m' }}">
-        <select name="institut">
+    <!-- Filtres auto-submit -->
+    <form method="get" class="filters-bar" id="filters-form">
+        <input type="month" name="mois" value="{{ mois|date:'Y-m' }}" onchange="this.form.submit()">
+        <select name="institut" onchange="this.form.submit()">
             <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
             {% for inst in instituts %}
             <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
             {% endfor %}
             <option value="autres" {% if institut_code == 'autres' %}selected{% endif %}>Autres</option>
         </select>
-        <button type="submit">Filtrer</button>
+        <select name="vue" onchange="this.form.submit()">
+            <option value="calcul"  {% if vue == 'calcul' %}selected{% endif %}>Calcul mensuel</option>
+            <option value="primes"  {% if vue == 'primes' %}selected{% endif %}>Primes</option>
+            <option value="avances" {% if vue == 'avances' %}selected{% endif %}>Avances</option>
+        </select>
+        {% if vue == 'avances' %}
+        <select name="statut" onchange="this.form.submit()">
+            <option value="en_cours"  {% if statut_filtre == 'en_cours' %}selected{% endif %}>En cours</option>
+            <option value="rembourse" {% if statut_filtre == 'rembourse' %}selected{% endif %}>Remboursées</option>
+            <option value="annule"    {% if statut_filtre == 'annule' %}selected{% endif %}>Annulées</option>
+            <option value="tous"      {% if statut_filtre == 'tous' %}selected{% endif %}>Toutes</option>
+        </select>
+        {% endif %}
     </form>
 
-    <!-- Totaux -->
+    <!-- ===== VUE : CALCUL MENSUEL ===== -->
+    {% if vue == 'calcul' %}
+
     <div class="totaux-grid">
         <div class="total-card">
             <div class="label">Employés</div>
@@ -87,15 +157,14 @@
         </div>
         <div class="total-card">
             <div class="label">Total base</div>
-            <div class="val">{{ total_base|floatformat:0 }} <small style="font-size:13px;font-weight:400;">CFA</small></div>
+            <div class="val">{{ total_base|floatformat:0 }} <small style="font-size:12px;font-weight:400;">CFA</small></div>
         </div>
         <div class="total-card gold">
-            <div class="label">Total net à payer</div>
-            <div class="val">{{ total_net|floatformat:0 }} <small style="font-size:13px;font-weight:400;">CFA</small></div>
+            <div class="label">Net à payer</div>
+            <div class="val">{{ total_net|floatformat:0 }} <small style="font-size:12px;font-weight:400;">CFA</small></div>
         </div>
     </div>
 
-    <!-- Tableau salaires -->
     <div class="card">
         <table>
             <thead>
@@ -122,23 +191,45 @@
                         <br><small style="color:var(--text-light);">{{ c.employe.institut.nom }}</small>
                         {% endif %}
                     </td>
-                    <td class="text-right">{{ c.salaire_base|floatformat:0 }}</td>
+
+                    <!-- Base cliquable → modifier salaire -->
                     <td class="text-right">
-                        {% if c.total_primes > 0 %}
-                        <span class="detail-green">+{{ c.total_primes|floatformat:0 }}</span>
-                        {% else %}—{% endif %}
+                        <span class="cell-clickable base"
+                              onclick="ouvrirModalBase({{ c.employe.id }}, '{{ c.employe.get_full_name|escapejs }}', {{ c.employe.salaire_base }})"
+                              title="Modifier le salaire de base">
+                            {{ c.salaire_base|floatformat:0 }}
+                        </span>
                     </td>
+
+                    <!-- Primes cliquables → ajouter prime -->
+                    <td class="text-right">
+                        <span class="cell-clickable green"
+                              onclick="ouvrirModalPrime({{ c.employe.id }})"
+                              title="Ajouter / voir les primes">
+                            {% if c.total_primes > 0 %}
+                                <span class="detail-green">+{{ c.total_primes|floatformat:0 }}</span>
+                            {% else %}—{% endif %}
+                        </span>
+                    </td>
+
                     <td class="text-right">
                         {% if c.montant_retenue_absences > 0 %}
                         <span class="detail-red">-{{ c.montant_retenue_absences|floatformat:0 }}</span>
-                        <br><small class="detail-line">{{ c.jours_absence_non_payee }} j. non payé(s)</small>
+                        <br><small class="detail-line">{{ c.jours_absence_non_payee }} j.</small>
                         {% else %}—{% endif %}
                     </td>
+
+                    <!-- Avances cliquables → enregistrer avance -->
                     <td class="text-right">
-                        {% if c.total_avances_deduites > 0 %}
-                        <span class="detail-red">-{{ c.total_avances_deduites|floatformat:0 }}</span>
-                        {% else %}—{% endif %}
+                        <span class="cell-clickable red"
+                              onclick="ouvrirModalAvance({{ c.employe.id }})"
+                              title="Enregistrer / voir les avances">
+                            {% if c.total_avances_deduites > 0 %}
+                                <span class="detail-red">-{{ c.total_avances_deduites|floatformat:0 }}</span>
+                            {% else %}—{% endif %}
+                        </span>
                     </td>
+
                     <td class="text-right">
                         <span class="net-amount">{{ c.net_a_payer|floatformat:0 }} CFA</span>
                     </td>
@@ -163,14 +254,257 @@
         </table>
     </div>
 
+    <!-- ===== VUE : PRIMES ===== -->
+    {% elif vue == 'primes' %}
+
+    {% if total_primes > 0 %}
+    <div class="total-banner gold">
+        <div>
+            <div class="label">Total primes ce mois</div>
+            <div class="val">{{ total_primes|floatformat:0 }} CFA</div>
+        </div>
+        <div style="font-size:36px; opacity:0.5;">🏆</div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Employé</th>
+                    <th>Type de prime</th>
+                    <th>Montant</th>
+                    <th>Commentaire</th>
+                    <th>Saisi le</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in primes %}
+                <tr>
+                    <td>
+                        <strong>{{ p.employe.get_full_name }}</strong>
+                        {% if p.employe.institut %}<br><small style="color:var(--text-light);">{{ p.employe.institut.nom }}</small>{% endif %}
+                    </td>
+                    <td>{{ p.type_prime.nom }}</td>
+                    <td class="montant-cell">{{ p.montant|floatformat:0 }} CFA</td>
+                    <td>{{ p.commentaire|default:"—" }}</td>
+                    <td style="color:var(--text-light);">{{ p.date_creation|date:"d/m/Y" }}</td>
+                    <td>
+                        <button class="btn-icon" onclick="supprimerPrime({{ p.id }}, '{{ p.type_prime.nom|escapejs }}')" title="Supprimer">🗑️</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" style="text-align:center;color:var(--text-light);font-style:italic;padding:40px;">Aucune prime ce mois</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ===== VUE : AVANCES ===== -->
+    {% elif vue == 'avances' %}
+
+    {% if total_en_cours > 0 %}
+    <div class="total-banner red">
+        <div>
+            <div class="label">Total restant à rembourser (avances en cours)</div>
+            <div class="val">{{ total_en_cours|floatformat:0 }} CFA</div>
+        </div>
+        <div style="font-size:36px; opacity:0.4;">💳</div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Employé</th>
+                    <th>Date</th>
+                    <th>Montant</th>
+                    <th>Mensualité</th>
+                    <th>Progression</th>
+                    <th>Reste</th>
+                    <th>Statut</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for av in avances %}
+                <tr>
+                    <td>
+                        <strong>{{ av.employe.get_full_name }}</strong>
+                        {% if av.employe.institut %}<br><small style="color:var(--text-light);">{{ av.employe.institut.nom }}</small>{% endif %}
+                    </td>
+                    <td>{{ av.date|date:"d/m/Y" }}</td>
+                    <td><strong>{{ av.montant|floatformat:0 }} CFA</strong></td>
+                    <td>{{ av.montant_mensuel|floatformat:0 }} CFA / mois</td>
+                    <td>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width:{% widthratio av.montant_rembourse av.montant 100 %}%"></div>
+                        </div>
+                        <small style="color:var(--text-light);">{{ av.montant_rembourse|floatformat:0 }} / {{ av.montant|floatformat:0 }}</small>
+                    </td>
+                    <td style="font-weight:600; color:{% if av.reste_a_rembourser > 0 %}#e74c3c{% else %}#28a745{% endif %};">
+                        {{ av.reste_a_rembourser|floatformat:0 }} CFA
+                    </td>
+                    <td><span class="badge badge-{{ av.statut }}">{{ av.get_statut_display }}</span></td>
+                    <td>
+                        {% if av.statut == 'en_cours' %}
+                        <button class="btn-icon" onclick="supprimerAvance({{ av.id }}, '{{ av.employe.get_full_name|escapejs }}')" title="Supprimer">🗑️</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" style="text-align:center;color:var(--text-light);font-style:italic;padding:40px;">Aucune avance</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% endif %}
 </div>
+
+<!-- ===== MODAL PRIME ===== -->
+<div id="modalPrime" style="display:none;" class="modal-backdrop" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal">
+        <h2>Ajouter une prime</h2>
+        <form id="formPrime" onsubmit="submitPrime(event)">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Employé *</label>
+                <select name="employe_id" id="prime-employe-id" required>
+                    <option value="">— Choisir —</option>
+                    {% for emp in employes_all %}
+                    <option value="{{ emp.id }}">{{ emp.get_full_name }}{% if emp.institut %} ({{ emp.institut.nom }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Type de prime *</label>
+                <select name="type_prime_id" required>
+                    <option value="">— Choisir —</option>
+                    {% for t in types_prime %}
+                    <option value="{{ t.id }}">{{ t.nom }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Mois *</label>
+                <input type="month" name="mois" value="{{ mois|date:'Y-m' }}" required>
+            </div>
+            <div class="form-group">
+                <label>Montant (CFA) *</label>
+                <input type="number" name="montant" min="1" placeholder="Ex : 15000" required>
+            </div>
+            <div class="form-group">
+                <label>Commentaire</label>
+                <textarea name="commentaire" placeholder="Optionnel..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="document.getElementById('modalPrime').style.display='none'">Annuler</button>
+                <button type="submit" class="btn-primary">Ajouter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ===== MODAL AVANCE ===== -->
+<div id="modalAvance" style="display:none;" class="modal-backdrop" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal">
+        <h2>Enregistrer une avance</h2>
+        <form id="formAvance" onsubmit="submitAvance(event)">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Employé *</label>
+                <select name="employe_id" id="avance-employe-id" required>
+                    <option value="">— Choisir —</option>
+                    {% for emp in employes_all %}
+                    <option value="{{ emp.id }}">{{ emp.get_full_name }}{% if emp.institut %} ({{ emp.institut.nom }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Date *</label>
+                <input type="date" name="date" required value="{% now 'Y-m-d' %}">
+            </div>
+            <div class="form-group">
+                <label>Montant (CFA) *</label>
+                <input type="number" name="montant" min="1" placeholder="Ex : 50000" required oninput="calculerMensualite()">
+            </div>
+            <div class="form-group">
+                <label>Remboursement sur (mois) *</label>
+                <input type="number" name="nombre_mois_remboursement" min="1" max="12" value="1" required oninput="calculerMensualite()">
+                <div class="form-hint" id="hint-mensualite">Mensualité : —</div>
+            </div>
+            <div class="form-group">
+                <label>Commentaire</label>
+                <textarea name="commentaire" placeholder="Optionnel..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="document.getElementById('modalAvance').style.display='none'">Annuler</button>
+                <button type="submit" class="btn-primary">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ===== MODAL SALAIRE DE BASE ===== -->
+<div id="modalBase" style="display:none;" class="modal-backdrop" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal">
+        <h2 id="modal-base-titre">Modifier le salaire de base</h2>
+        <form id="formBase" onsubmit="submitBase(event)">
+            {% csrf_token %}
+            <input type="hidden" name="employe_id" id="base-employe-id">
+            <div class="form-group">
+                <label>Salaire de base (CFA) *</label>
+                <input type="number" name="salaire_base" id="base-montant" min="0" required>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="document.getElementById('modalBase').style.display='none'">Annuler</button>
+                <button type="submit" class="btn-primary">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
 const CSRF = '{{ csrf_token }}';
-const MOIS = '{{ mois|date:"Y-m" }}';
+const MOIS  = '{{ mois|date:"Y-m" }}';
 
+/* ========== Modals helpers ========== */
+function ouvrirModalPrime(employeId) {
+    if (employeId) {
+        document.getElementById('prime-employe-id').value = employeId;
+    }
+    document.getElementById('modalPrime').style.display = 'flex';
+}
+
+function ouvrirModalAvance(employeId) {
+    if (employeId) {
+        document.getElementById('avance-employe-id').value = employeId;
+    }
+    document.getElementById('modalAvance').style.display = 'flex';
+}
+
+function ouvrirModalBase(employeId, nom, salActuel) {
+    document.getElementById('modal-base-titre').textContent = `Salaire de base — ${nom}`;
+    document.getElementById('base-employe-id').value = employeId;
+    document.getElementById('base-montant').value = salActuel;
+    document.getElementById('modalBase').style.display = 'flex';
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        ['modalPrime', 'modalAvance', 'modalBase'].forEach(id => {
+            document.getElementById(id).style.display = 'none';
+        });
+    }
+});
+
+/* ========== Calcul mensuel ========== */
 async function recalculer(calculId, employeId, mois) {
     try {
         const resp = await fetch("{% url 'gestion:api_calculer_salaire' %}", {
@@ -179,33 +513,106 @@ async function recalculer(calculId, employeId, mois) {
             body: JSON.stringify({ employe_id: employeId, mois: mois })
         });
         const data = await resp.json();
-        if (data.success) {
-            showSuccess('Salaire recalculé');
-            setTimeout(() => location.reload(), 800);
-        } else {
-            showError(data.error);
-        }
+        if (data.success) { showSuccess('Salaire recalculé'); setTimeout(() => location.reload(), 800); }
+        else showError(data.error);
     } catch(e) { showError('Erreur réseau'); }
 }
 
 async function validerSalaire(calculId, action) {
-    const label = action === 'valider' ? 'valider ce salaire ?' : 'marquer ce salaire comme payé ?';
+    const label = action === 'valider' ? 'valider ce salaire ?' : 'marquer comme payé ?';
     if (!confirm(`Confirmer : ${label}`)) return;
-
-    const formData = new FormData();
-    formData.append('csrfmiddlewaretoken', CSRF);
-    formData.append('action', action);
-
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF);
+    fd.append('action', action);
     try {
-        const resp = await fetch(`/gestion/salaires/api/valider/${calculId}/`, { method: 'POST', body: formData });
+        const resp = await fetch(`/gestion/salaires/api/valider/${calculId}/`, { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) { showSuccess(data.message); setTimeout(() => location.reload(), 800); }
+        else showError(data.error);
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+/* ========== Primes ========== */
+async function submitPrime(e) {
+    e.preventDefault();
+    try {
+        const resp = await fetch("{% url 'gestion:api_prime_creer' %}", { method: 'POST', body: new FormData(e.target) });
         const data = await resp.json();
         if (data.success) {
             showSuccess(data.message);
-            setTimeout(() => location.reload(), 800);
-        } else {
-            showError(data.error);
-        }
-    } catch(e) { showError('Erreur réseau'); }
+            document.getElementById('modalPrime').style.display = 'none';
+            setTimeout(() => location.reload(), 900);
+        } else showError(data.error);
+    } catch(err) { showError('Erreur réseau'); }
+}
+
+async function supprimerPrime(id, nom) {
+    if (!confirm(`Supprimer la prime "${nom}" ?`)) return;
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF);
+    try {
+        const resp = await fetch(`/gestion/salaires/api/prime/${id}/supprimer/`, { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) { showSuccess(data.message); setTimeout(() => location.reload(), 900); }
+        else showError(data.error);
+    } catch(err) { showError('Erreur réseau'); }
+}
+
+/* ========== Avances ========== */
+function calculerMensualite() {
+    const montant = parseInt(document.querySelector('[name=montant]').value) || 0;
+    const nbMois  = parseInt(document.querySelector('[name=nombre_mois_remboursement]').value) || 1;
+    const m = nbMois > 0 ? Math.floor(montant / nbMois) : 0;
+    document.getElementById('hint-mensualite').textContent =
+        m > 0 ? `Mensualité : ${m.toLocaleString()} CFA / mois` : 'Mensualité : —';
+}
+
+async function submitAvance(e) {
+    e.preventDefault();
+    try {
+        const resp = await fetch("{% url 'gestion:api_avance_creer' %}", { method: 'POST', body: new FormData(e.target) });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            document.getElementById('modalAvance').style.display = 'none';
+            setTimeout(() => location.reload(), 900);
+        } else showError(data.error);
+    } catch(err) { showError('Erreur réseau'); }
+}
+
+async function supprimerAvance(id, nom) {
+    if (!confirm(`Supprimer/annuler l'avance de "${nom}" ?`)) return;
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF);
+    try {
+        const resp = await fetch(`/gestion/salaires/api/avance/${id}/supprimer/`, { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) { showSuccess(data.message); setTimeout(() => location.reload(), 900); }
+        else showError(data.error);
+    } catch(err) { showError('Erreur réseau'); }
+}
+
+/* ========== Salaire de base ========== */
+async function submitBase(e) {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const employeId   = fd.get('employe_id');
+    const salaireBase = fd.get('salaire_base');
+    try {
+        const fd2 = new FormData();
+        fd2.append('csrfmiddlewaretoken', CSRF);
+        fd2.append('salaire_base', salaireBase);
+        const resp = await fetch(`/core/api/employes/${employeId}/salaire-base/`, {
+            method: 'POST',
+            body: fd2
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess('Salaire de base mis à jour');
+            document.getElementById('modalBase').style.display = 'none';
+            setTimeout(() => location.reload(), 900);
+        } else showError(data.error || 'Erreur');
+    } catch(err) { showError('Erreur réseau'); }
 }
 </script>
 {% endblock %}
