@@ -1747,7 +1747,7 @@ def api_mouvement_creer(request):
             quantite_apres=produit.stock_actuel,
             prix_unitaire=int(request.POST.get('prix_unitaire', produit.prix_achat) or produit.prix_achat),
             commentaire=request.POST.get('commentaire', '').strip() or None,
-            cree_par=request.user if hasattr(request, 'user') and request.user else None,
+            cree_par=request.user.utilisateur if request.user.is_authenticated and hasattr(request.user, 'utilisateur') else None,
         )
 
         return JsonResponse({
@@ -2010,7 +2010,7 @@ def api_depense_creer(request):
             description=request.POST.get('description', '').strip() or None,
             beneficiaire=request.POST.get('beneficiaire', '').strip(),
             mode_paiement=request.POST.get('mode_paiement', 'especes'),
-            cree_par=request.user if hasattr(request, 'user') and request.user else None,
+            cree_par=request.user.utilisateur if request.user.is_authenticated and hasattr(request.user, 'utilisateur') else None,
         )
         return JsonResponse({'success': True, 'message': f'Dépense de {depense.montant} CFA enregistrée'})
     except Exception as e:
@@ -2541,10 +2541,15 @@ def inventaire_detail(request, inventaire_id):
             categories[cat_nom] = []
         categories[cat_nom].append(ligne)
 
+    stat_total = lignes.count()
+    stat_ecarts = lignes.exclude(ecart=0).count()
+
     return render(request, 'gestion/stocks/inventaire_detail.html', {
         'inv': inv,
         'categories': categories,
         'titre': f'Inventaire du {inv.date.strftime("%d/%m/%Y")}',
+        'stat_total': stat_total,
+        'stat_ecarts': stat_ecarts,
     })
 
 

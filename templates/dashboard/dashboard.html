@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Dashboard - Le Palais de la Beauté{% endblock %}
+{% block title %}Dashboard Recettes - Le Palais de la Beauté{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -505,16 +505,9 @@
 {% endblock %}
 
 {% block content %}
-<!-- Onglets -->
-<div class="page-tabs">
-    <a href="{% url 'dashboard:index' %}" class="page-tab {% if active_tab != 'bilan' %}active{% endif %}">Tableau de bord</a>
-    <a href="{% url 'dashboard:index' %}?tab=bilan&mois={{ bilan_mois|date:'Y-m' }}&nb_mois={{ nb_mois_bilan }}" class="page-tab {% if active_tab == 'bilan' %}active{% endif %}">Bilan mensuel</a>
-</div>
-
-{% if active_tab != 'bilan' %}
 <div class="dashboard-header">
     <div>
-        <h1 class="page-title">Dashboard Patron</h1>
+        <h1 class="page-title">Dashboard Recettes</h1>
         <p class="page-subtitle">Vue d'ensemble - {{ date_debut|date:"d/m/Y" }} au {{ date_fin|date:"d/m/Y" }}</p>
     </div>
     <div class="periode-selector" style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
@@ -1499,7 +1492,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-{% else %}
+{% comment %}BILAN MENSUEL DÉPLACÉ dans dashboard/bilan.html{% endcomment %}
+{% if False %}
 <!-- ═══════════════════ ONGLET BILAN MENSUEL ═══════════════════ -->
 <div style="max-width:1100px;margin:0 auto;">
 

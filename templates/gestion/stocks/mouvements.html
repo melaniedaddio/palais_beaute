@@ -37,6 +37,21 @@
     .pagination { display: flex; gap: 8px; justify-content: center; padding: 20px; flex-wrap: wrap; }
     .pagination a, .pagination span { padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border); font-size: 13px; text-decoration: none; color: var(--text-dark); }
     .pagination .current { background: var(--primary); color: white; border-color: var(--primary); }
+
+    /* Modal */
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1000; align-items:center; justify-content:center; }
+    .modal-overlay.open { display:flex; }
+    .modal-box { background:white; border-radius:18px; padding:28px; width:100%; max-width:480px; box-shadow:0 8px 32px rgba(0,0,0,0.18); }
+    .modal-box h2 { font-size:18px; color:var(--text-dark); margin:0 0 20px; }
+    .modal-field { margin-bottom:16px; }
+    .modal-field label { display:block; font-size:13px; font-weight:600; color:var(--text-dark); margin-bottom:6px; }
+    .modal-field select, .modal-field input { width:100%; padding:10px 14px; border:2px solid var(--border); border-radius:10px; font-size:14px; box-sizing:border-box; }
+    .modal-field select:focus, .modal-field input:focus { outline:none; border-color:var(--primary); }
+    .modal-footer { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
+    .btn-cancel { padding:10px 20px; border-radius:10px; border:1px solid var(--border); background:white; font-size:14px; cursor:pointer; }
+    .btn-submit { padding:10px 24px; border-radius:10px; border:none; background:var(--primary); color:white; font-size:14px; font-weight:600; cursor:pointer; }
+    .btn-submit:hover { opacity:0.9; }
+    .msg-error { color:#e74c3c; font-size:13px; margin-top:10px; display:none; }
 </style>
 {% endblock %}
 
@@ -45,6 +60,9 @@
 
     <div class="page-header">
         <h1>Mouvements de stock</h1>
+        <button class="btn-submit" onclick="document.getElementById('modalMouv').classList.add('open')">
+            + Nouveau mouvement
+        </button>
     </div>
 
     <div class="links-bar">
@@ -132,4 +150,127 @@
     {% endif %}
 
 </div>
+
+<!-- Modal nouveau mouvement -->
+<div class="modal-overlay" id="modalMouv">
+    <div class="modal-box">
+        <h2>Nouveau mouvement de stock</h2>
+        <div class="modal-field">
+            <label>Produit *</label>
+            <select id="m_produit">
+                <option value="">— Choisir un produit —</option>
+                {% for p in produits %}
+                <option value="{{ p.id }}" data-prix="{{ p.prix_achat }}" data-stock="{{ p.stock_actuel }}">{{ p.nom }} (stock : {{ p.stock_actuel }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="modal-field">
+            <label>Type de mouvement *</label>
+            <select id="m_type" onchange="majModal()">
+                <option value="entree">Entrée — livraison / achat</option>
+                <option value="sortie">Sortie — utilisation interne</option>
+                <option value="inventaire">Inventaire — recalage</option>
+                <option value="perte">Perte / Casse</option>
+            </select>
+        </div>
+        <div class="modal-field">
+            <label id="m_qte_label">Quantité reçue *</label>
+            <input type="number" id="m_quantite" min="1" placeholder="Ex : 10">
+        </div>
+        <div class="modal-field" id="m_prix_group">
+            <label>Prix unitaire (CFA) — requis pour comptabiliser la dépense</label>
+            <input type="number" id="m_prix" min="0" value="0">
+        </div>
+        <div class="modal-field">
+            <label>Commentaire</label>
+            <input type="text" id="m_commentaire" placeholder="Optionnel...">
+        </div>
+        <div class="msg-error" id="m_error"></div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="fermerModal()">Annuler</button>
+            <button class="btn-submit" id="m_btn" onclick="soumettreModal()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+
+function majModal() {
+    const type = document.getElementById('m_type').value;
+    const labels = {
+        entree: 'Quantité reçue *',
+        sortie: 'Quantité utilisée *',
+        inventaire: 'Nouveau stock total *',
+        perte: 'Quantité perdue *'
+    };
+    document.getElementById('m_qte_label').textContent = labels[type] || 'Quantité *';
+    document.getElementById('m_prix_group').style.display = type === 'entree' ? '' : 'none';
+}
+
+document.getElementById('m_produit').addEventListener('change', function() {
+    const opt = this.options[this.selectedIndex];
+    const prix = opt.dataset.prix || 0;
+    document.getElementById('m_prix').value = prix;
+});
+
+function fermerModal() {
+    document.getElementById('modalMouv').classList.remove('open');
+    document.getElementById('m_error').style.display = 'none';
+}
+
+async function soumettreModal() {
+    const produitId = document.getElementById('m_produit').value;
+    const type = document.getElementById('m_type').value;
+    const qte = document.getElementById('m_quantite').value;
+    const prix = document.getElementById('m_prix').value;
+    const commentaire = document.getElementById('m_commentaire').value;
+    const errDiv = document.getElementById('m_error');
+
+    if (!produitId) { errDiv.textContent = 'Veuillez choisir un produit.'; errDiv.style.display = 'block'; return; }
+    if (!qte || parseInt(qte) <= 0) { errDiv.textContent = 'La quantité doit être supérieure à 0.'; errDiv.style.display = 'block'; return; }
+    if (type === 'entree' && parseInt(prix) <= 0) {
+        if (!confirm('Le prix unitaire est à 0. Ce mouvement ne sera pas comptabilisé comme dépense. Continuer ?')) return;
+    }
+
+    errDiv.style.display = 'none';
+    const btn = document.getElementById('m_btn');
+    btn.disabled = true;
+    btn.textContent = 'Enregistrement...';
+
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF);
+    fd.append('produit_id', produitId);
+    fd.append('type_mouvement', type);
+    fd.append('quantite', qte);
+    fd.append('prix_unitaire', prix);
+    fd.append('commentaire', commentaire);
+
+    try {
+        const resp = await fetch('{% url "gestion:api_mouvement_creer" %}', { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) {
+            location.reload();
+        } else {
+            errDiv.textContent = data.error || 'Erreur inconnue';
+            errDiv.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = 'Enregistrer';
+        }
+    } catch(e) {
+        errDiv.textContent = 'Erreur réseau';
+        errDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Enregistrer';
+    }
+}
+
+// Fermer en cliquant en dehors
+document.getElementById('modalMouv').addEventListener('click', function(e) {
+    if (e.target === this) fermerModal();
+});
+</script>
 {% endblock %}

@@ -45,7 +45,6 @@
                     <th>Statut</th>
                     <th>Nb produits</th>
                     <th>Écarts</th>
-                    <th>Effectué par</th>
                     <th></th>
                 </tr>
             </thead>
@@ -59,12 +58,7 @@
                         {% else %}<span class="badge badge-annule">Annulé</span>{% endif %}
                     </td>
                     <td>{{ inv.lignes.count }}</td>
-                    <td>
-                        {% with nb=inv.lignes.count %}
-                        —
-                        {% endwith %}
-                    </td>
-                    <td>{{ inv.effectue_par.get_full_name|default:"—" }}</td>
+                    <td>{{ inv.nb_ecarts }}</td>
                     <td>
                         <a href="{% url 'gestion:inventaire_detail' inv.id %}" class="btn-link">Voir</a>
                     </td>

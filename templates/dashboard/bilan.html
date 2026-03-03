@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Bilan - Le Palais de la Beauté{% endblock %}
+
+{% block extra_css %}
+<style>
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+.bilan-selectors {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.bilan-selectors select, .bilan-selectors input[type="month"] {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 2px solid var(--primary);
+    font-weight: 500;
+    font-size: 14px;
+    background: white;
+    cursor: pointer;
+}
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+    margin-bottom: 28px;
+}
+.kpi-card {
+    background: white;
+    border-radius: 14px;
+    padding: 20px 22px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    border-left: 4px solid var(--primary);
+}
+.kpi-card.success  { border-left-color: #27ae60; }
+.kpi-card.danger   { border-left-color: #e74c3c; }
+.kpi-card.positive { border-left-color: #2ecc71; }
+.kpi-card.negative { border-left-color: #e74c3c; }
+.kpi-card.neutral  { border-left-color: #95a5a6; }
+.kpi-label { font-size: 12px; color: var(--text-light); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+.kpi-value { font-size: 24px; font-weight: 700; color: var(--text-dark); }
+.kpi-unit  { font-size: 13px; color: var(--text-light); font-weight: 400; }
+
+.section-card {
+    background: white;
+    border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    margin-bottom: 24px;
+    overflow: hidden;
+}
+.section-header {
+    padding: 16px 20px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-dark);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.section-body { padding: 0; }
+
+.bilan-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.bilan-table th {
+    background: #f9f9f9;
+    padding: 10px 16px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-light);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    border-bottom: 1px solid var(--border);
+}
+.bilan-table td {
+    padding: 11px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    color: var(--text-dark);
+}
+.bilan-table tr:last-child td { border-bottom: none; }
+.bilan-table tr:hover td { background: #fafafa; }
+.amount { text-align: right; font-weight: 600; }
+.total-row td { font-weight: 700; background: #fafafa; }
+
+.chart-container {
+    padding: 20px;
+    position: relative;
+    height: 300px;
+}
+
+.nb-mois-selector {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: auto;
+}
+.nb-mois-btn {
+    padding: 4px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-light);
+    text-decoration: none;
+}
+.nb-mois-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.recettes-detail {
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.detail-label { font-size: 12px; color: var(--text-light); font-weight: 600; }
+.detail-value { font-size: 16px; font-weight: 700; color: var(--text-dark); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <div>
+        <h1 class="page-title">Dashboard Bilan</h1>
+        <p class="page-subtitle">{{ bilan_mois|date:"F Y" }}</p>
+    </div>
+    <form method="get" class="bilan-selectors" id="bilan-form">
+        <input type="month"
+               name="mois"
+               value="{{ bilan_mois|date:'Y-m' }}"
+               onchange="this.form.submit()">
+        <select name="bilan_institut" onchange="this.form.submit()">
+            <option value="tous" {% if bilan_institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
+            {% for inst in instituts %}
+            <option value="{{ inst.code }}" {% if bilan_institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
+            {% endfor %}
+        </select>
+        <input type="hidden" name="nb_mois" value="{{ nb_mois_bilan }}">
+    </form>
+</div>
+
+<!-- KPIs principaux -->
+<div class="kpi-grid">
+    <div class="kpi-card success">
+        <div class="kpi-label">Recettes</div>
+        <div class="kpi-value">{{ bilan_total_recettes|floatformat:0 }} <span class="kpi-unit">CFA</span></div>
+    </div>
+    <div class="kpi-card danger">
+        <div class="kpi-label">Dépenses</div>
+        <div class="kpi-value">{{ bilan_total_depenses|floatformat:0 }} <span class="kpi-unit">CFA</span></div>
+    </div>
+    <div class="kpi-card {% if bilan_benefice >= 0 %}positive{% else %}negative{% endif %}">
+        <div class="kpi-label">Bénéfice net</div>
+        <div class="kpi-value">{{ bilan_benefice|floatformat:0 }} <span class="kpi-unit">CFA</span></div>
+    </div>
+    <div class="kpi-card neutral">
+        <div class="kpi-label">Taux de charges</div>
+        <div class="kpi-value">{{ bilan_taux_charges }} <span class="kpi-unit">%</span></div>
+    </div>
+</div>
+
+<!-- Détail recettes -->
+<div class="section-card">
+    <div class="section-header">
+        Détail des recettes
+        <span style="margin-left:auto;font-size:13px;font-weight:400;color:var(--text-light);">{{ bilan_total_recettes|floatformat:0 }} CFA</span>
+    </div>
+    <div class="recettes-detail">
+        <div class="detail-item">
+            <span class="detail-label">Prestations (RDV)</span>
+            <span class="detail-value">{{ bilan_ca_rdv|floatformat:0 }} CFA</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Cartes cadeaux</span>
+            <span class="detail-value">{{ bilan_ca_cartes|floatformat:0 }} CFA</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Crédits encaissés</span>
+            <span class="detail-value">{{ bilan_ca_credits|floatformat:0 }} CFA</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Forfaits</span>
+            <span class="detail-value">{{ bilan_ca_forfaits|floatformat:0 }} CFA</span>
+        </div>
+        <div class="detail-item">
+            <span class="detail-label">Ventes produits</span>
+            <span class="detail-value">{{ bilan_ca_ventes|floatformat:0 }} CFA</span>
+        </div>
+    </div>
+</div>
+
+<!-- Détail dépenses -->
+<div class="section-card">
+    <div class="section-header">
+        Détail des dépenses
+        <span style="margin-left:auto;font-size:13px;font-weight:400;color:var(--text-light);">{{ bilan_total_depenses|floatformat:0 }} CFA</span>
+    </div>
+    <div class="section-body">
+        <table class="bilan-table">
+            <thead>
+                <tr>
+                    <th>Poste</th>
+                    <th class="amount">Montant</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Dépenses ({{ bilan_depenses_par_cat|length }} catégorie{{ bilan_depenses_par_cat|length|pluralize }})</td>
+                    <td class="amount">{{ bilan_dep_depenses|floatformat:0 }} CFA</td>
+                </tr>
+                {% for cat in bilan_depenses_par_cat %}
+                <tr style="background:#fafafa;">
+                    <td style="padding-left:30px;font-size:13px;color:var(--text-light);">{{ cat.categorie__nom|default:"Non catégorisé" }}</td>
+                    <td class="amount" style="font-size:13px;color:var(--text-light);">{{ cat.total|floatformat:0 }} CFA</td>
+                </tr>
+                {% endfor %}
+                <tr>
+                    <td>Salaires</td>
+                    <td class="amount">{{ bilan_dep_salaires|floatformat:0 }} CFA</td>
+                </tr>
+                <tr>
+                    <td>Achats stock</td>
+                    <td class="amount">{{ bilan_dep_stock|floatformat:0 }} CFA</td>
+                </tr>
+                <tr class="total-row">
+                    <td>Total dépenses</td>
+                    <td class="amount">{{ bilan_total_depenses|floatformat:0 }} CFA</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Graphique évolution -->
+<div class="section-card">
+    <div class="section-header">
+        Évolution mensuelle
+        <div class="nb-mois-selector">
+            <a href="?mois={{ bilan_mois|date:'Y-m' }}&bilan_institut={{ bilan_institut_code }}&nb_mois=3"
+               class="nb-mois-btn {% if nb_mois_bilan == 3 %}active{% endif %}">3 mois</a>
+            <a href="?mois={{ bilan_mois|date:'Y-m' }}&bilan_institut={{ bilan_institut_code }}&nb_mois=6"
+               class="nb-mois-btn {% if nb_mois_bilan == 6 %}active{% endif %}">6 mois</a>
+            <a href="?mois={{ bilan_mois|date:'Y-m' }}&bilan_institut={{ bilan_institut_code }}&nb_mois=12"
+               class="nb-mois-btn {% if nb_mois_bilan == 12 %}active{% endif %}">12 mois</a>
+        </div>
+    </div>
+    <div class="chart-container">
+        <canvas id="bilanChart"></canvas>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const evolutionData = {{ bilan_evolution_json|safe }};
+const labels    = evolutionData.map(d => d.label);
+const recettes  = evolutionData.map(d => d.recettes);
+const depenses  = evolutionData.map(d => d.depenses);
+const benefices = evolutionData.map(d => d.benefice);
+
+const ctx = document.getElementById('bilanChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: labels,
+        datasets: [
+            {
+                label: 'Recettes',
+                data: recettes,
+                backgroundColor: 'rgba(39, 174, 96, 0.7)',
+                borderColor: '#27ae60',
+                borderWidth: 1,
+                order: 2,
+            },
+            {
+                label: 'Dépenses',
+                data: depenses,
+                backgroundColor: 'rgba(231, 76, 60, 0.7)',
+                borderColor: '#e74c3c',
+                borderWidth: 1,
+                order: 2,
+            },
+            {
+                label: 'Bénéfice net',
+                data: benefices,
+                type: 'line',
+                borderColor: '#3498db',
+                backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                borderWidth: 2,
+                pointRadius: 4,
+                pointBackgroundColor: '#3498db',
+                fill: false,
+                tension: 0.3,
+                order: 1,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'top' },
+            tooltip: {
+                callbacks: {
+                    label: ctx => `${ctx.dataset.label} : ${Math.round(ctx.raw).toLocaleString('fr-FR')} CFA`
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    callback: val => Math.round(val).toLocaleString('fr-FR') + ' CFA'
+                }
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

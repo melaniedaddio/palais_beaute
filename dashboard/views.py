@@ -9,7 +9,7 @@ from core.decorators import role_required
 from core.models import (
     Institut, Client, RendezVous, Paiement, Credit, PaiementCredit,
     ClotureCaisse, Employe, CarteCadeau, UtilisationCarteCadeau, ForfaitClient,
-    Depense, Produit, VenteProduit,
+    Depense, Produit, VenteProduit, CalculSalaire, MouvementStock,
 )
 import json
 
@@ -503,6 +503,29 @@ def index(request):
         ca_par_mode[mode1] = ca_par_mode.get(mode1, 0) + float(montant1)
         if carte.moyen_paiement_2 and carte.montant_paiement_2:
             ca_par_mode[carte.moyen_paiement_2] = ca_par_mode.get(carte.moyen_paiement_2, 0) + float(carte.montant_paiement_2)
+
+    # Ajouter les ventes de produits au graphique CA par moyen de paiement
+    ventes_produits_chart = base_ventes_produits
+    if express:
+        if dates_cloturees_express:
+            ventes_produits_chart = base_ventes_produits.filter(
+                Q(~Q(institut=express)) |
+                Q(institut=express, date__date__in=dates_cloturees_express)
+            )
+        else:
+            ventes_produits_chart = base_ventes_produits.exclude(institut=express)
+
+    for vente in ventes_produits_chart:
+        montant_cash = vente.montant_total - vente.montant_carte_utilise
+        if montant_cash <= 0:
+            continue
+        if vente.mode_paiement_2:
+            ca_par_mode[vente.mode_paiement] = ca_par_mode.get(vente.mode_paiement, 0) + float(vente.montant_paiement_1)
+            reste = montant_cash - vente.montant_paiement_1
+            if reste > 0:
+                ca_par_mode[vente.mode_paiement_2] = ca_par_mode.get(vente.mode_paiement_2, 0) + float(reste)
+        elif vente.mode_paiement != 'carte_cadeau':
+            ca_par_mode[vente.mode_paiement] = ca_par_mode.get(vente.mode_paiement, 0) + float(montant_cash)
 
     ca_par_paiement = sorted(
         [
@@ -1077,6 +1100,27 @@ def api_stats_institut(request):
         if carte.moyen_paiement_2 and carte.montant_paiement_2:
             ca_par_mode[carte.moyen_paiement_2] = ca_par_mode.get(carte.moyen_paiement_2, 0) + float(carte.montant_paiement_2)
 
+    # Ajouter les ventes de produits
+    ventes_qs = VenteProduit.objects.filter(institut=institut)
+    if institut.code == 'express':
+        ventes_qs = ventes_qs.filter(date__date__in=dates_cloturees)
+    else:
+        ventes_qs = ventes_qs.filter(
+            date__date__gte=date_debut,
+            date__date__lte=date_fin
+        )
+    for vente in ventes_qs:
+        montant_cash = vente.montant_total - vente.montant_carte_utilise
+        if montant_cash <= 0:
+            continue
+        if vente.mode_paiement_2:
+            ca_par_mode[vente.mode_paiement] = ca_par_mode.get(vente.mode_paiement, 0) + float(vente.montant_paiement_1)
+            reste = montant_cash - vente.montant_paiement_1
+            if reste > 0:
+                ca_par_mode[vente.mode_paiement_2] = ca_par_mode.get(vente.mode_paiement_2, 0) + float(reste)
+        elif vente.mode_paiement != 'carte_cadeau':
+            ca_par_mode[vente.mode_paiement] = ca_par_mode.get(vente.mode_paiement, 0) + float(montant_cash)
+
     paiements_data = sorted(
         [
             {'mode': mode_display_map.get(mode, mode), 'ca': ca}
@@ -1159,3 +1203,290 @@ def export_rdv_excel(request):
     wb.save(response)
 
     return response
+
+
+@login_required
+@role_required(['patron'])
+def dashboard_depenses(request):
+    """Dashboard Dépenses : salaires, dépenses, achats stock."""
+    from django.db.models import F, ExpressionWrapper, IntegerField as DjIntField
+
+    today = timezone.now().date()
+    periode = request.GET.get('periode', 'mois')
+
+    if periode == 'jour':
+        date_debut = today
+        date_fin = today
+    elif periode == 'semaine':
+        date_debut = today - timedelta(days=today.weekday())
+        date_fin = today
+    elif periode == 'mois':
+        date_debut = today.replace(day=1)
+        date_fin = today
+    elif periode == 'annee':
+        date_debut = today.replace(month=1, day=1)
+        date_fin = today
+    elif periode == 'mois_custom':
+        mois_param = request.GET.get('mois', '')
+        try:
+            from datetime import datetime as _dt
+            mois_date = _dt.strptime(mois_param, '%Y-%m').date()
+            date_debut = mois_date.replace(day=1)
+            date_fin = (date_debut.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        except ValueError:
+            date_debut = today.replace(day=1)
+            date_fin = today
+    elif periode == 'personnalisee':
+        date_debut_str = request.GET.get('date_debut_custom', '')
+        date_fin_str = request.GET.get('date_fin_custom', '')
+        try:
+            date_debut = dt_date.fromisoformat(date_debut_str)
+            date_fin = dt_date.fromisoformat(date_fin_str)
+            if date_fin < date_debut:
+                date_fin = date_debut
+        except ValueError:
+            date_debut = today.replace(day=1)
+            date_fin = today
+    else:
+        date_debut = today.replace(day=1)
+        date_fin = today
+
+    # ── Dépenses (informelles + récurrentes) ──
+    depenses_qs = Depense.objects.filter(
+        date__gte=date_debut, date__lte=date_fin
+    ).select_related('categorie', 'institut')
+    total_depenses = depenses_qs.aggregate(s=Sum('montant'))['s'] or 0
+    depenses_par_cat = list(
+        depenses_qs.values('categorie__nom', 'categorie__type')
+        .annotate(total=Sum('montant'))
+        .order_by('-total')
+    )
+    depenses_recentes = depenses_qs.order_by('-date', '-date_creation')[:20]
+
+    # ── Salaires (validés ou payés sur la période) ──
+    # mois couvert : tout mois dont le premier jour est dans [date_debut, date_fin]
+    salaires_qs = CalculSalaire.objects.filter(
+        mois__gte=date_debut,
+        mois__lte=date_fin,
+        statut__in=['valide', 'paye']
+    ).select_related('employe')
+    total_salaires = salaires_qs.aggregate(s=Sum('net_a_payer'))['s'] or 0
+    salaires_liste = list(salaires_qs.order_by('-mois', 'employe__nom'))
+
+    # ── Achats stock (mouvements d'entrée avec coût) ──
+    achats_qs = MouvementStock.objects.filter(
+        type_mouvement='entree',
+        date_creation__date__gte=date_debut,
+        date_creation__date__lte=date_fin,
+        prix_unitaire__gt=0
+    ).select_related('produit')
+    # Coût total = somme(quantite * prix_unitaire)
+    total_achats_stock = sum(m.quantite * m.prix_unitaire for m in achats_qs)
+    achats_liste = list(achats_qs.order_by('-date_creation')[:20])
+
+    total_global = total_depenses + total_salaires + total_achats_stock
+
+    context = {
+        'periode': periode,
+        'date_debut': date_debut,
+        'date_fin': date_fin,
+        'date_debut_custom': date_debut.isoformat() if periode == 'personnalisee' else '',
+        'date_fin_custom': date_fin.isoformat() if periode == 'personnalisee' else '',
+        'mois_custom': date_debut.strftime('%Y-%m') if periode == 'mois_custom' else today.replace(day=1).strftime('%Y-%m'),
+        'total_depenses': total_depenses,
+        'total_salaires': total_salaires,
+        'total_achats_stock': total_achats_stock,
+        'total_global': total_global,
+        'depenses_par_cat': depenses_par_cat,
+        'depenses_recentes': depenses_recentes,
+        'salaires_liste': salaires_liste,
+        'achats_liste': achats_liste,
+    }
+    return render(request, 'dashboard/depenses.html', context)
+
+
+@login_required
+@role_required(['patron'])
+def dashboard_bilan(request):
+    """Dashboard Bilan : vue mensuelle recettes vs dépenses complètes."""
+    today = timezone.now().date()
+    mois_param = request.GET.get('mois', '')
+    bilan_institut_code = request.GET.get('bilan_institut', 'tous')
+
+    try:
+        nb_mois_bilan = int(request.GET.get('nb_mois', 6))
+        if nb_mois_bilan not in (3, 6, 12):
+            nb_mois_bilan = 6
+    except (ValueError, TypeError):
+        nb_mois_bilan = 6
+
+    if mois_param:
+        try:
+            from datetime import datetime as _dt
+            bilan_mois = _dt.strptime(mois_param, '%Y-%m').date()
+        except ValueError:
+            bilan_mois = today.replace(day=1)
+    else:
+        bilan_mois = today.replace(day=1)
+
+    bilan_fin_mois = (bilan_mois.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+    instituts = Institut.objects.all()
+    express = Institut.objects.filter(code='express').first()
+
+    # ── RECETTES (même logique que ca_total dans index) ──
+    # Paiements RDV
+    paiements_bilan = Paiement.objects.filter(
+        rendez_vous__date__gte=bilan_mois,
+        rendez_vous__date__lte=bilan_fin_mois,
+        rendez_vous__statut='valide',
+    ).exclude(mode__in=['carte_cadeau', 'forfait', 'offert'])
+    if bilan_institut_code != 'tous':
+        paiements_bilan = paiements_bilan.filter(rendez_vous__institut__code=bilan_institut_code)
+    bilan_ca_rdv = paiements_bilan.aggregate(s=Sum('montant'))['s'] or 0
+
+    # Cartes cadeaux vendues
+    cartes_bilan = CarteCadeau.objects.filter(
+        date_achat__date__gte=bilan_mois,
+        date_achat__date__lte=bilan_fin_mois,
+        statut__in=['active', 'soldee']
+    )
+    if bilan_institut_code != 'tous':
+        cartes_bilan = cartes_bilan.filter(institut_achat__code=bilan_institut_code)
+    bilan_ca_cartes = cartes_bilan.aggregate(s=Sum('montant_initial'))['s'] or 0
+
+    # Crédits encaissés
+    credits_bilan = PaiementCredit.objects.filter(
+        date__date__gte=bilan_mois,
+        date__date__lte=bilan_fin_mois,
+    )
+    if bilan_institut_code != 'tous':
+        credits_bilan = credits_bilan.filter(credit__institut__code=bilan_institut_code)
+    bilan_ca_credits = credits_bilan.aggregate(s=Sum('montant'))['s'] or 0
+
+    # Forfaits
+    forfaits_bilan = ForfaitClient.objects.filter(
+        date_achat__date__gte=bilan_mois,
+        date_achat__date__lte=bilan_fin_mois,
+    )
+    if bilan_institut_code != 'tous':
+        forfaits_bilan = forfaits_bilan.filter(institut__code=bilan_institut_code)
+    bilan_ca_forfaits = forfaits_bilan.aggregate(s=Sum('montant_paye_initial'))['s'] or 0
+
+    # Ventes produits
+    ventes_bilan = VenteProduit.objects.filter(
+        date__date__gte=bilan_mois,
+        date__date__lte=bilan_fin_mois,
+    )
+    if bilan_institut_code != 'tous':
+        ventes_bilan = ventes_bilan.filter(institut__code=bilan_institut_code)
+    bilan_ca_ventes = ventes_bilan.aggregate(s=Sum('montant_total'))['s'] or 0
+
+    bilan_total_recettes = bilan_ca_rdv + bilan_ca_cartes + bilan_ca_credits + bilan_ca_forfaits + bilan_ca_ventes
+
+    # ── DÉPENSES (Depense + Salaires + Achats stock) ──
+    dep_qs = Depense.objects.filter(date__gte=bilan_mois, date__lte=bilan_fin_mois)
+    if bilan_institut_code != 'tous':
+        dep_qs = dep_qs.filter(Q(institut__code=bilan_institut_code) | Q(institut__isnull=True))
+    bilan_dep_depenses = dep_qs.aggregate(s=Sum('montant'))['s'] or 0
+    bilan_depenses_par_cat = list(dep_qs.values('categorie__nom').annotate(total=Sum('montant')).order_by('-total'))
+
+    sal_qs = CalculSalaire.objects.filter(
+        mois__gte=bilan_mois, mois__lte=bilan_fin_mois,
+        statut__in=['valide', 'paye']
+    )
+    bilan_dep_salaires = sal_qs.aggregate(s=Sum('net_a_payer'))['s'] or 0
+
+    stock_qs = MouvementStock.objects.filter(
+        type_mouvement='entree',
+        date_creation__date__gte=bilan_mois,
+        date_creation__date__lte=bilan_fin_mois,
+        prix_unitaire__gt=0
+    )
+    bilan_dep_stock = sum(m.quantite * m.prix_unitaire for m in stock_qs)
+
+    bilan_total_depenses = bilan_dep_depenses + bilan_dep_salaires + bilan_dep_stock
+    bilan_benefice = bilan_total_recettes - bilan_total_depenses
+    bilan_taux_charges = round(bilan_total_depenses / bilan_total_recettes * 100, 1) if bilan_total_recettes else 0
+
+    # ── Évolution sur nb_mois_bilan ──
+    bilan_evolution = []
+    for i in range(nb_mois_bilan - 1, -1, -1):
+        month = bilan_mois.month - i
+        year = bilan_mois.year
+        while month <= 0:
+            month += 12
+            year -= 1
+        m_debut = dt_date(year, month, 1)
+        m_fin = (m_debut.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+        # Recettes
+        rec_qs = Paiement.objects.filter(
+            rendez_vous__date__gte=m_debut, rendez_vous__date__lte=m_fin,
+            rendez_vous__statut='valide',
+        ).exclude(mode__in=['carte_cadeau', 'forfait', 'offert'])
+        if bilan_institut_code != 'tous':
+            rec_qs = rec_qs.filter(rendez_vous__institut__code=bilan_institut_code)
+        rec = rec_qs.aggregate(s=Sum('montant'))['s'] or 0
+
+        cc_qs = CarteCadeau.objects.filter(date_achat__date__gte=m_debut, date_achat__date__lte=m_fin, statut__in=['active', 'soldee'])
+        if bilan_institut_code != 'tous':
+            cc_qs = cc_qs.filter(institut_achat__code=bilan_institut_code)
+        rec += cc_qs.aggregate(s=Sum('montant_initial'))['s'] or 0
+
+        cr_qs = PaiementCredit.objects.filter(date__date__gte=m_debut, date__date__lte=m_fin)
+        if bilan_institut_code != 'tous':
+            cr_qs = cr_qs.filter(credit__institut__code=bilan_institut_code)
+        rec += cr_qs.aggregate(s=Sum('montant'))['s'] or 0
+
+        ff_qs = ForfaitClient.objects.filter(date_achat__date__gte=m_debut, date_achat__date__lte=m_fin)
+        if bilan_institut_code != 'tous':
+            ff_qs = ff_qs.filter(institut__code=bilan_institut_code)
+        rec += ff_qs.aggregate(s=Sum('montant_paye_initial'))['s'] or 0
+
+        vp_qs = VenteProduit.objects.filter(date__date__gte=m_debut, date__date__lte=m_fin)
+        if bilan_institut_code != 'tous':
+            vp_qs = vp_qs.filter(institut__code=bilan_institut_code)
+        rec += vp_qs.aggregate(s=Sum('montant_total'))['s'] or 0
+
+        # Dépenses
+        d_qs = Depense.objects.filter(date__gte=m_debut, date__lte=m_fin)
+        if bilan_institut_code != 'tous':
+            d_qs = d_qs.filter(Q(institut__code=bilan_institut_code) | Q(institut__isnull=True))
+        dep = d_qs.aggregate(s=Sum('montant'))['s'] or 0
+
+        s_qs = CalculSalaire.objects.filter(mois__gte=m_debut, mois__lte=m_fin, statut__in=['valide', 'paye'])
+        dep += s_qs.aggregate(s=Sum('net_a_payer'))['s'] or 0
+
+        st_qs = MouvementStock.objects.filter(type_mouvement='entree', date_creation__date__gte=m_debut, date_creation__date__lte=m_fin, prix_unitaire__gt=0)
+        dep += sum(m.quantite * m.prix_unitaire for m in st_qs)
+
+        bilan_evolution.append({
+            'label': m_debut.strftime('%b %Y'),
+            'recettes': rec,
+            'depenses': dep,
+            'benefice': rec - dep,
+        })
+
+    context = {
+        'bilan_mois': bilan_mois,
+        'bilan_fin_mois': bilan_fin_mois,
+        'bilan_institut_code': bilan_institut_code,
+        'nb_mois_bilan': nb_mois_bilan,
+        'instituts': instituts,
+        'bilan_ca_rdv': bilan_ca_rdv,
+        'bilan_ca_cartes': bilan_ca_cartes,
+        'bilan_ca_credits': bilan_ca_credits,
+        'bilan_ca_forfaits': bilan_ca_forfaits,
+        'bilan_ca_ventes': bilan_ca_ventes,
+        'bilan_total_recettes': bilan_total_recettes,
+        'bilan_dep_depenses': bilan_dep_depenses,
+        'bilan_dep_salaires': bilan_dep_salaires,
+        'bilan_dep_stock': bilan_dep_stock,
+        'bilan_total_depenses': bilan_total_depenses,
+        'bilan_depenses_par_cat': bilan_depenses_par_cat,
+        'bilan_benefice': bilan_benefice,
+        'bilan_taux_charges': bilan_taux_charges,
+        'bilan_evolution_json': json.dumps(bilan_evolution),
+    }
+    return render(request, 'dashboard/bilan.html', context)

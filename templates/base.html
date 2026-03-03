@@ -1092,11 +1092,14 @@
                     {% if request.user.utilisateur.is_patron %}
                         <!-- Navigation Patron -->
                         <div class="nav-section">
-                            <div class="nav-section-title">Principal</div>
-                            <a href="{% url 'dashboard:index' %}" class="nav-item {% if request.resolver_match.app_name == 'dashboard' and request.GET.tab != 'bilan' %}active{% endif %}">
-                                Dashboard
+                            <div class="nav-section-title">Dashboard</div>
+                            <a href="{% url 'dashboard:index' %}" class="nav-item {% if request.resolver_match.url_name == 'index' and request.resolver_match.app_name == 'dashboard' %}active{% endif %}">
+                                Recettes
                             </a>
-                            <a href="{% url 'dashboard:index' %}?tab=bilan" class="nav-item {% if request.resolver_match.app_name == 'dashboard' and request.GET.tab == 'bilan' %}active{% endif %}">
+                            <a href="{% url 'dashboard:depenses' %}" class="nav-item {% if request.resolver_match.url_name == 'depenses' %}active{% endif %}">
+                                Dépenses
+                            </a>
+                            <a href="{% url 'dashboard:bilan' %}" class="nav-item {% if request.resolver_match.url_name == 'bilan' %}active{% endif %}">
                                 Bilan
                             </a>
                         </div>

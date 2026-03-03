@@ -1761,12 +1761,16 @@ function afficherRdvSurGrille() {
                 // Noms combinés et prix total
                 const nomsCombines = rdvsGroupe.map(r => r.prestation).join(' + ');
                 const prixGroupeTotal = rdvsGroupe.reduce((s, r) => s + (r.prix_total || 0), 0);
-                // Durée : personnalisée si définie, sinon somme des créneaux
+                // Heure de début la plus tôt (pour positionner le bloc)
+                const toMins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+                const earliestDebut = rdvsGroupe.reduce((min, r) => r.heure_debut < min ? r.heure_debut : min, rdvsGroupe[0].heure_debut);
+                // Durée : personnalisée si définie, sinon span réel (fin max - début min)
                 const dureeCombinee = rdv.groupe_duree_personnalisee
                     ? Math.ceil(rdv.groupe_duree_personnalisee / 15)
-                    : rdvsGroupe.reduce((s, r) => s + (r.duree_creneaux || 1), 0);
+                    : Math.ceil((Math.max(...rdvsGroupe.map(r => toMins(r.heure_fin))) - toMins(earliestDebut)) / 15);
                 rdv = Object.assign({}, rdv, {
                     duree_creneaux: dureeCombinee,
+                    heure_debut: earliestDebut,
                     prestation: nomsCombines,
                     prix_total: prixGroupeTotal,
                     _nb_prestations: rdvsGroupe.length,
@@ -3132,7 +3136,7 @@ function creerNouveauClient() {
 // ============================
 
 // Données Django sérialisées pour le JS
-window.employes = [{% for e in employes %}{"id":{{ e.id }},"nom":"{{ e.nom|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}];
+window.employes = [{% for e in employes %}{"id":{{ e.id }},"nom":"{{ e.prenom|default:e.nom|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}];
 window.familles = [{% for f in familles %}{"id":{{ f.id }},"nom":"{{ f.nom|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}];
 window.options  = [{% for o in options %}{"id":{{ o.id }},"nom":"{{ o.nom|escapejs }}","prix":{{ o.prix }}}{% if not forloop.last %},{% endif %}{% endfor %}];
 

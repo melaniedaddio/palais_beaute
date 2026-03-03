@@ -61,17 +61,12 @@
     <!-- Stats -->
     <div class="status-bar">
         <div class="stat-box">
-            <div class="val" id="statTotal">{{ inv.lignes.count }}</div>
+            <div class="val">{{ stat_total }}</div>
             <div class="lbl">Produits</div>
         </div>
         <div class="stat-sep"></div>
         <div class="stat-box">
-            <div class="val" id="statSaisis">—</div>
-            <div class="lbl">Saisis</div>
-        </div>
-        <div class="stat-sep"></div>
-        <div class="stat-box">
-            <div class="val ecart-neg" id="statEcarts">—</div>
+            <div class="val {% if stat_ecarts > 0 %}ecart-neg{% else %}ecart-zero{% endif %}" id="statEcarts">{{ stat_ecarts }}</div>
             <div class="lbl">Écarts</div>
         </div>
     </div>
@@ -155,15 +150,13 @@ async function saisir(ligneId, invId) {
 }
 
 function updateStats() {
-    const inputs = document.querySelectorAll('.qty-input');
-    let saisis = 0, ecarts = 0;
-    inputs.forEach(inp => {
-        saisis++;
-        const ecartEl = document.getElementById('ecart-' + inp.id.replace('qty-', ''));
-        if (ecartEl && ecartEl.textContent.trim() !== '0') ecarts++;
+    const ecartEls = document.querySelectorAll('#statEcarts ~ * [class^="ecart-neg"], .ecart-neg');
+    let ecarts = 0;
+    document.querySelectorAll('[id^="ecart-"]').forEach(el => {
+        if (el.querySelector('.ecart-neg')) ecarts++;
     });
-    document.getElementById('statSaisis').textContent = saisis;
     document.getElementById('statEcarts').textContent = ecarts;
+    document.getElementById('statEcarts').className = 'val ' + (ecarts > 0 ? 'ecart-neg' : 'ecart-zero');
 }
 
 async function cloturer() {
@@ -183,7 +176,8 @@ async function cloturer() {
     } catch(e) { showError('Erreur réseau'); }
 }
 
-// Init stats
-document.addEventListener('DOMContentLoaded', updateStats);
+{% if inv.statut == 'en_cours' %}
+// Mise à jour des stats après chaque saisie
+{% endif %}
 </script>
 {% endblock %}

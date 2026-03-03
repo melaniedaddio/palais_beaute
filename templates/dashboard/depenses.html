@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Dépenses - Le Palais de la Beauté{% endblock %}
+
+{% block extra_css %}
+<style>
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+.periode-selector select {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 2px solid var(--primary);
+    font-weight: 500;
+    font-size: 14px;
+    background: white;
+    cursor: pointer;
+}
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+    margin-bottom: 28px;
+}
+.kpi-card {
+    background: white;
+    border-radius: 14px;
+    padding: 20px 22px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    border-left: 4px solid var(--primary);
+}
+.kpi-card.danger  { border-left-color: #e74c3c; }
+.kpi-card.warning { border-left-color: #e67e22; }
+.kpi-card.info    { border-left-color: #3498db; }
+.kpi-card.dark    { border-left-color: #2c3e50; }
+.kpi-label { font-size: 12px; color: var(--text-light); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+.kpi-value { font-size: 24px; font-weight: 700; color: var(--text-dark); }
+.kpi-unit  { font-size: 13px; color: var(--text-light); font-weight: 400; }
+
+.section-card {
+    background: white;
+    border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    margin-bottom: 24px;
+    overflow: hidden;
+}
+.section-header {
+    padding: 16px 20px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-dark);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.section-body { padding: 0; }
+
+.dep-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.dep-table th {
+    background: #f9f9f9;
+    padding: 10px 16px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-light);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    border-bottom: 1px solid var(--border);
+}
+.dep-table td {
+    padding: 11px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    color: var(--text-dark);
+}
+.dep-table tr:last-child td { border-bottom: none; }
+.dep-table tr:hover td { background: #fafafa; }
+.amount { text-align: right; font-weight: 600; }
+.dep-table th.amount { text-align: right; }
+.badge-statut {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.badge-paye    { background: #e8f5e9; color: #2e7d32; }
+.badge-valide  { background: #e3f2fd; color: #1565c0; }
+.badge-brouillon { background: #f5f5f5; color: #666; }
+.empty-row td { text-align: center; padding: 30px; color: var(--text-light); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <div>
+        <h1 class="page-title">Dashboard Dépenses</h1>
+        <p class="page-subtitle">{{ date_debut|date:"d/m/Y" }} — {{ date_fin|date:"d/m/Y" }}</p>
+    </div>
+    <div class="periode-selector">
+        <form method="get" id="periode-form">
+            <select name="periode" onchange="this.form.submit()">
+                <option value="jour"          {% if periode == 'jour' %}selected{% endif %}>Aujourd'hui</option>
+                <option value="semaine"       {% if periode == 'semaine' %}selected{% endif %}>Cette semaine</option>
+                <option value="mois"          {% if periode == 'mois' %}selected{% endif %}>Ce mois</option>
+                <option value="mois_custom"   {% if periode == 'mois_custom' %}selected{% endif %}>Mois spécifique</option>
+                <option value="annee"         {% if periode == 'annee' %}selected{% endif %}>Cette année</option>
+                <option value="personnalisee" {% if periode == 'personnalisee' %}selected{% endif %}>Personnalisée</option>
+            </select>
+            {% if periode == 'mois_custom' %}
+            <div style="display:flex;gap:8px;margin-top:8px;align-items:center;">
+                <input type="month" name="mois" value="{{ mois_custom }}"
+                       class="form-control" style="width:180px;"
+                       onchange="this.form.submit()">
+            </div>
+            {% endif %}
+            {% if periode == 'personnalisee' %}
+            <div style="display:flex;gap:8px;margin-top:8px;">
+                <input type="date" name="date_debut_custom" value="{{ date_debut_custom }}" class="form-control" style="width:140px;">
+                <input type="date" name="date_fin_custom"   value="{{ date_fin_custom }}"   class="form-control" style="width:140px;">
+                <button type="submit" class="btn btn-primary" style="padding:8px 16px;">OK</button>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-grid">
+    <div class="kpi-card danger">
+        <div class="kpi-label">Dépenses</div>
+        <div class="kpi-value">{{ total_depenses|floatformat:0 }} <span class="kpi-unit">CFA</span></div>
+    </div>
+    <div class="kpi-card warning">
+        <div class="kpi-label">Salaires</div>
+        <div class="kpi-value">{{ total_salaires|floatformat:0 }} <span class="kpi-unit">CFA</span></div>
+    </div>
+    <div class="kpi-card info">
+        <div class="kpi-label">Achats stock</div>
+        <div class="kpi-value">{{ total_achats_stock|floatformat:0 }} <span class="kpi-unit">CFA</span></div>
+    </div>
+    <div class="kpi-card dark">
+        <div class="kpi-label">Total dépenses</div>
+        <div class="kpi-value">{{ total_global|floatformat:0 }} <span class="kpi-unit">CFA</span></div>
+    </div>
+</div>
+
+<!-- Dépenses par catégorie -->
+<div class="section-card">
+    <div class="section-header">
+        Dépenses par catégorie
+        <span style="margin-left:auto;font-size:13px;font-weight:400;color:var(--text-light);">{{ total_depenses|floatformat:0 }} CFA</span>
+    </div>
+    <div class="section-body">
+        <table class="dep-table">
+            <thead>
+                <tr>
+                    <th>Catégorie</th>
+                    <th>Type</th>
+                    <th class="amount">Montant</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cat in depenses_par_cat %}
+                <tr>
+                    <td>{{ cat.categorie__nom|default:"Non catégorisé" }}</td>
+                    <td>
+                        {% if cat.categorie__type == 'informelle' %}Informelle
+                        {% elif cat.categorie__type == 'recurrente' %}Récurrente
+                        {% else %}{{ cat.categorie__type|default:"-" }}{% endif %}
+                    </td>
+                    <td class="amount">{{ cat.total|floatformat:0 }} CFA</td>
+                </tr>
+                {% empty %}
+                <tr class="empty-row"><td colspan="3">Aucune dépense sur cette période</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Dépenses récentes -->
+<div class="section-card">
+    <div class="section-header">Dépenses récentes</div>
+    <div class="section-body" style="overflow-x:auto;">
+        <table class="dep-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Catégorie</th>
+                    <th>Bénéficiaire</th>
+                    <th>Institut</th>
+                    <th class="amount">Montant</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for dep in depenses_recentes %}
+                <tr>
+                    <td>{{ dep.date|date:"d/m/Y" }}</td>
+                    <td>{{ dep.description|default:"-"|truncatechars:40 }}</td>
+                    <td>{{ dep.categorie.nom|default:"-" }}</td>
+                    <td>{{ dep.beneficiaire }}</td>
+                    <td>{{ dep.institut.nom|default:"Global" }}</td>
+                    <td class="amount">{{ dep.montant|floatformat:0 }} CFA</td>
+                </tr>
+                {% empty %}
+                <tr class="empty-row"><td colspan="6">Aucune dépense</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Salaires -->
+<div class="section-card">
+    <div class="section-header">
+        Salaires
+        <span style="margin-left:auto;font-size:13px;font-weight:400;color:var(--text-light);">{{ total_salaires|floatformat:0 }} CFA</span>
+    </div>
+    <div class="section-body" style="overflow-x:auto;">
+        <table class="dep-table">
+            <thead>
+                <tr>
+                    <th>Employé</th>
+                    <th>Mois</th>
+                    <th>Salaire base</th>
+                    <th>Primes</th>
+                    <th>Retenues</th>
+                    <th>Statut</th>
+                    <th class="amount">Net à payer</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sal in salaires_liste %}
+                <tr>
+                    <td>{{ sal.employe.prenom|default:sal.employe.nom }}</td>
+                    <td>{{ sal.mois|date:"F Y" }}</td>
+                    <td>{{ sal.salaire_base|floatformat:0 }} CFA</td>
+                    <td>{{ sal.total_primes|floatformat:0 }} CFA</td>
+                    <td>{{ sal.montant_retenue_absences|floatformat:0 }} CFA</td>
+                    <td>
+                        {% if sal.statut == 'paye' %}
+                            <span class="badge-statut badge-paye">Payé</span>
+                        {% elif sal.statut == 'valide' %}
+                            <span class="badge-statut badge-valide">Validé</span>
+                        {% else %}
+                            <span class="badge-statut badge-brouillon">Brouillon</span>
+                        {% endif %}
+                    </td>
+                    <td class="amount">{{ sal.net_a_payer|floatformat:0 }} CFA</td>
+                </tr>
+                {% empty %}
+                <tr class="empty-row"><td colspan="7">Aucun salaire validé sur cette période</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Achats stock -->
+<div class="section-card">
+    <div class="section-header">
+        Achats stock / Marchandise
+        <span style="margin-left:auto;font-size:13px;font-weight:400;color:var(--text-light);">{{ total_achats_stock|floatformat:0 }} CFA</span>
+    </div>
+    <div class="section-body" style="overflow-x:auto;">
+        <table class="dep-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Produit</th>
+                    <th>Quantité</th>
+                    <th>Prix unitaire</th>
+                    <th>Commentaire</th>
+                    <th class="amount">Coût total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for achat in achats_liste %}
+                <tr>
+                    <td>{{ achat.date_creation|date:"d/m/Y" }}</td>
+                    <td>{{ achat.produit.nom }}</td>
+                    <td>{{ achat.quantite }}</td>
+                    <td>{{ achat.prix_unitaire|floatformat:0 }} CFA</td>
+                    <td>{{ achat.commentaire|default:"-"|truncatechars:40 }}</td>
+                    <td class="amount">{% widthratio achat.quantite 1 achat.prix_unitaire %} CFA</td>
+                </tr>
+                {% empty %}
+                <tr class="empty-row"><td colspan="6">Aucun achat de stock sur cette période</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
