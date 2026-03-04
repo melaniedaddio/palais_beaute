@@ -706,42 +706,6 @@
                 </div>
             </div>
         </div>
-        <!-- Section durée personnalisée (visible si ≥2 prestations) -->
-        <div id="res-section-duree" style="display: none; margin: 0 0 15px 0; padding: 12px 16px; background: #f0f8ff; border: 1px solid #b8d4e8; border-radius: 8px;">
-            <div style="font-size: 13px; color: #555; margin-bottom: 8px;">
-                ⏱ <strong>Durée catalogue :</strong> <span id="res-duree-catalogue">-</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
-                <input type="checkbox" id="res-personnaliser-duree" onchange="toggleDureePersonnalisee()" style="width: auto;">
-                <label for="res-personnaliser-duree" style="margin: 0; font-size: 13px; font-weight: 500; cursor: pointer;">Personnaliser la durée totale</label>
-            </div>
-            <div id="res-duree-inputs" style="display: none; gap: 10px; align-items: center; margin-top: 8px;">
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <select id="res-duree-heures" class="form-control" style="width: 75px; padding: 6px 8px;" onchange="mettreAJourDureePersonnalisee()">
-                        <option value="0">0</option>
-                        <option value="1">1</option>
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                        <option value="4">4</option>
-                        <option value="5">5</option>
-                        <option value="6">6</option>
-                        <option value="7">7</option>
-                        <option value="8">8</option>
-                        <option value="9">9</option>
-                        <option value="10">10</option>
-                    </select>
-                    <span style="font-size: 13px;">h</span>
-                    <select id="res-duree-minutes" class="form-control" style="width: 75px; padding: 6px 8px;" onchange="mettreAJourDureePersonnalisee()">
-                        <option value="0">0</option>
-                        <option value="15">15</option>
-                        <option value="30">30</option>
-                        <option value="45">45</option>
-                    </select>
-                    <span style="font-size: 13px;">min</span>
-                </div>
-                <div style="font-size: 12px; color: #888;">→ Total : <strong id="res-duree-perso-display">0 min</strong></div>
-            </div>
-        </div>
         <div class="modal-footer" style="position: sticky; bottom: 0; background: white; z-index: 10;">
             <button type="button" class="btn btn-secondary" onclick="fermerModalReservation()">Annuler</button>
             <button type="button" id="res-btn-creer" class="btn btn-primary" onclick="creerRdvGroupe()">
@@ -1957,127 +1921,188 @@ function modifierRdvById(rdvId) {
         .catch(() => { hidePageLoader(); showError('Erreur réseau'); });
 }
 
-// Modal de modification d'un groupe : heure, durée totale, retirer prestation
+// Modal de modification d'un groupe : début + fin par prestation + détection conflits
 function ouvrirModalModifierGroupe(rdv) {
     let modal = document.getElementById('modal-modifier-groupe');
     if (modal) modal.remove();
 
-    const rdvsGroupe   = getRdvsGroupe(rdv.groupe_id);
-    const groupeId     = rdv.groupe_id;
-    const dureePers    = rdv.groupe_duree_personnalisee || rdvsGroupe[0]?.groupe_duree_personnalisee || null;
-    const heureDebut   = rdvsGroupe.length > 0 ? rdvsGroupe[0].heure_debut.substring(0,5) : '08:00';
+    const rdvsGroupe = getRdvsGroupe(rdv.groupe_id);
+    const groupeId   = rdv.groupe_id;
 
-    const dureeCochee  = dureePers ? 'checked' : '';
-    const hPerso       = dureePers ? Math.floor(dureePers / 60) : 0;
-    const mPerso       = dureePers ? dureePers % 60 : 0;
-    const dureeTexte   = dureePers
-        ? (hPerso > 0 ? (mPerso > 0 ? `${hPerso}h${String(mPerso).padStart(2,'0')}` : `${hPerso}h`) : `${mPerso} min`)
-        : '—';
-
-    const lignes = rdvsGroupe.map(r => `
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #f0e8d5;">
-            <div style="flex:1;min-width:0;">
-                <span style="font-weight:700;font-size:14px;color:#3d2b1f;">${r.heure_debut.substring(0,5)}</span>
-                <span style="font-size:13px;color:#3d2b1f;margin-left:8px;">${r.prestation}</span>
-                <div style="font-size:12px;color:#888;margin-top:2px;">${r.employe} · ${r.prix_total.toLocaleString('fr-FR')} CFA</div>
-            </div>
-            <button onclick="retirerPrestationGroupe(${r.id})"
-                    style="background:#fff0f0;color:#dc3545;border:1px solid #f5c2c7;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">
-                ✕ Retirer
-            </button>
-        </div>
-    `).join('');
-
+    // Squelette du modal
     modal = document.createElement('div');
     modal.id = 'modal-modifier-groupe';
     modal.className = 'modal';
     modal.style.display = 'flex';
-    modal.innerHTML = `
-        <div class="modal-content" style="max-width:480px;max-height:90vh;overflow-y:auto;">
-            <div class="modal-header" style="position:sticky;top:0;background:white;z-index:10;">
-                <h2>✏️ Modifier le groupe — ${rdv.client}</h2>
-                <button class="modal-close" onclick="document.getElementById('modal-modifier-groupe').style.display='none'">&times;</button>
-            </div>
-            <div class="modal-body">
 
-                <!-- Heure de début du groupe -->
-                <div style="margin-bottom:16px;">
-                    <label style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:6px;">⏰ Heure de début du groupe</label>
-                    <select id="mg-heure-debut" class="form-control">
-                        ${genererOptionsHoraires(heureDebut)}
-                    </select>
-                    <div style="font-size:12px;color:#888;margin-top:4px;">Toutes les prestations seront décalées ensemble.</div>
-                </div>
+    const content = document.createElement('div');
+    content.className = 'modal-content';
+    content.style.cssText = 'max-width:520px;max-height:90vh;overflow-y:auto;';
 
-                <!-- Durée totale personnalisée -->
-                <div style="padding:12px 16px;background:#f0f8ff;border:1px solid #b8d4e8;border-radius:8px;margin-bottom:16px;">
-                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-                        <input type="checkbox" id="mg-personnaliser-duree" ${dureeCochee}
-                               onchange="document.getElementById('mg-duree-inputs').style.display=this.checked?'flex':'none'"
-                               style="width:auto;">
-                        <label for="mg-personnaliser-duree" style="margin:0;font-size:13px;font-weight:600;cursor:pointer;">⏱ Durée totale personnalisée</label>
-                    </div>
-                    <div id="mg-duree-inputs" style="display:${dureePers ? 'flex' : 'none'};gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
-                        <div style="display:flex;gap:8px;align-items:center;">
-                            <select id="mg-duree-heures" class="form-control" style="width:75px;padding:6px 8px;" onchange="mettreAJourDureeGroupeModal()">
-                                ${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}"${v===hPerso?' selected':''}>${v}</option>`).join('')}
-                            </select>
-                            <span style="font-size:13px;">h</span>
-                            <select id="mg-duree-minutes" class="form-control" style="width:75px;padding:6px 8px;" onchange="mettreAJourDureeGroupeModal()">
-                                ${[0,15,30,45].map(v=>`<option value="${v}"${v===mPerso?' selected':''}>${v}</option>`).join('')}
-                            </select>
-                            <span style="font-size:13px;">min</span>
-                        </div>
-                        <div style="font-size:12px;color:#888;">→ <strong id="mg-duree-display">${dureeTexte}</strong></div>
-                    </div>
-                </div>
+    // Header
+    const header = document.createElement('div');
+    header.className = 'modal-header';
+    header.style.cssText = 'position:sticky;top:0;background:white;z-index:10;';
+    const h2 = document.createElement('h2');
+    h2.textContent = `✏️ Modifier le groupe — ${rdv.client}`;
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'modal-close';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.onclick = () => { modal.style.display = 'none'; };
+    header.appendChild(h2);
+    header.appendChild(closeBtn);
 
-                <!-- Liste des prestations -->
-                <div>
-                    <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:6px;">📋 Prestations (${rdvsGroupe.length})</div>
-                    ${lignes}
-                </div>
+    // Body
+    const body = document.createElement('div');
+    body.className = 'modal-body';
 
-                <!-- Ajouter une prestation -->
-                <div style="margin-top:14px;">
-                    <button class="btn-popup-action" style="background:#3498db;color:white;"
-                            onclick="document.getElementById('modal-modifier-groupe').style.display='none'; ouvrirModalAjouterPrestation(window._actionRdv)">
-                        ➕ Ajouter une prestation à ce groupe
-                    </button>
-                </div>
-            </div>
-            <div class="modal-footer" style="position:sticky;bottom:0;background:white;z-index:10;">
-                <button class="btn btn-secondary" onclick="document.getElementById('modal-modifier-groupe').style.display='none'">Annuler</button>
-                <button class="btn btn-primary" onclick="enregistrerModificationsGroupe(${groupeId})">✅ Enregistrer</button>
-            </div>
-        </div>
-    `;
+    const titre = document.createElement('div');
+    titre.style.cssText = 'font-size:13px;font-weight:600;color:#555;margin-bottom:8px;';
+    titre.textContent = `📋 Prestations (${rdvsGroupe.length})`;
+    body.appendChild(titre);
+
+    rdvsGroupe.forEach(r => {
+        const card = document.createElement('div');
+        card.style.cssText = 'background:#fdfaf5;border:1px solid #e0d5b8;border-radius:8px;padding:12px;margin-bottom:10px;';
+
+        // Ligne info + retirer
+        const infoRow = document.createElement('div');
+        infoRow.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;';
+        const infoTxt = document.createElement('div');
+        infoTxt.innerHTML = '<strong style="font-size:14px;color:#c9a86a;">' + r.prestation + '</strong>'
+            + '<div style="font-size:12px;color:#888;margin-top:2px;">' + r.employe + ' · ' + r.prix_total.toLocaleString('fr-FR') + ' CFA</div>';
+        const retirBtn = document.createElement('button');
+        retirBtn.textContent = '✕ Retirer';
+        retirBtn.style.cssText = 'background:#fff0f0;color:#dc3545;border:1px solid #f5c2c7;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;margin-left:8px;';
+        retirBtn.onclick = () => retirerPrestationGroupe(r.id);
+        infoRow.appendChild(infoTxt);
+        infoRow.appendChild(retirBtn);
+
+        // Grille début / fin
+        const grid = document.createElement('div');
+        grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;';
+
+        function makeTimeCol(labelTxt, selectId, valeur) {
+            const wrap = document.createElement('div');
+            const lbl = document.createElement('label');
+            lbl.textContent = labelTxt;
+            lbl.style.cssText = 'font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:3px;';
+            const sel = document.createElement('select');
+            sel.id = selectId;
+            sel.style.cssText = 'width:100%;padding:5px 8px;font-size:13px;border:1px solid #ddd;border-radius:4px;background:white;';
+            sel.innerHTML = genererOptionsHoraires(valeur);
+            sel.addEventListener('change', () => verifierConflitModifier(r.id, r.employe_id));
+            wrap.appendChild(lbl);
+            wrap.appendChild(sel);
+            return wrap;
+        }
+
+        grid.appendChild(makeTimeCol('Début', 'mg-debut-' + r.id, r.heure_debut.substring(0, 5)));
+        grid.appendChild(makeTimeCol('Fin',   'mg-fin-'   + r.id, r.heure_fin ? r.heure_fin.substring(0, 5) : ''));
+
+        // Indicateur de conflit
+        const conflitEl = document.createElement('div');
+        conflitEl.id = 'mg-conflit-' + r.id;
+        conflitEl.style.cssText = 'display:none;background:#fff5f5;border:1px solid #dc3545;border-radius:6px;padding:8px 12px;font-size:12px;color:#dc3545;margin-top:4px;';
+
+        card.appendChild(infoRow);
+        card.appendChild(grid);
+        card.appendChild(conflitEl);
+        body.appendChild(card);
+
+        // Vérifier les conflits à l'ouverture
+        verifierConflitModifier(r.id, r.employe_id);
+    });
+
+    // Bouton ajouter prestation
+    const ajouterDiv = document.createElement('div');
+    ajouterDiv.style.marginTop = '10px';
+    const ajouterBtn = document.createElement('button');
+    ajouterBtn.className = 'btn-popup-action';
+    ajouterBtn.style.cssText = 'background:#3498db;color:white;';
+    ajouterBtn.textContent = '➕ Ajouter une prestation à ce groupe';
+    ajouterBtn.onclick = () => { modal.style.display = 'none'; ouvrirModalAjouterPrestation(window._actionRdv); };
+    ajouterDiv.appendChild(ajouterBtn);
+    body.appendChild(ajouterDiv);
+
+    // Footer
+    const footer = document.createElement('div');
+    footer.className = 'modal-footer';
+    footer.style.cssText = 'position:sticky;bottom:0;background:white;z-index:10;';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.textContent = 'Annuler';
+    cancelBtn.onclick = () => { modal.style.display = 'none'; };
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-primary';
+    saveBtn.textContent = '✅ Enregistrer';
+    saveBtn.onclick = () => enregistrerModificationsGroupe(groupeId);
+    footer.appendChild(cancelBtn);
+    footer.appendChild(saveBtn);
+
+    content.appendChild(header);
+    content.appendChild(body);
+    content.appendChild(footer);
+    modal.appendChild(content);
     document.body.appendChild(modal);
     modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
 }
 
-function mettreAJourDureeGroupeModal() {
-    const h   = parseInt(document.getElementById('mg-duree-heures').value)  || 0;
-    const m   = parseInt(document.getElementById('mg-duree-minutes').value) || 0;
-    const tot = h * 60 + m;
-    const el  = document.getElementById('mg-duree-display');
-    if (el) el.textContent = tot > 0
-        ? (h > 0 ? (m > 0 ? `${h}h${String(m).padStart(2,'0')}` : `${h}h`) : `${m} min`)
-        : '0 min';
+function verifierConflitModifier(rdvId, employeId) {
+    const conflitEl = document.getElementById('mg-conflit-' + rdvId);
+    if (!conflitEl) return;
+    const debutEl = document.getElementById('mg-debut-' + rdvId);
+    const finEl   = document.getElementById('mg-fin-'   + rdvId);
+    const dateVal = document.getElementById('date-selector')?.value || '{{ date_selectionnee|date:"Y-m-d" }}';
+    if (!employeId || !dateVal || !debutEl?.value || !finEl?.value) {
+        conflitEl.style.display = 'none'; conflitEl.dataset.conflit = ''; return;
+    }
+    fetch(`/agenda/{{ institut.code }}/api/verifier-conflit/?employe_id=${employeId}&date=${dateVal}&heure_debut=${debutEl.value}&heure_fin=${finEl.value}&rdv_exclude_id=${rdvId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.conflit) {
+                conflitEl.innerHTML = '⚠️ Conflit : RDV de ' + data.rdv.heure_debut + ' à ' + data.rdv.heure_fin + ' — ' + data.rdv.client + ' (' + data.rdv.prestation + ')';
+                conflitEl.style.display = 'block';
+                conflitEl.dataset.conflit = 'true';
+            } else {
+                conflitEl.style.display = 'none';
+                conflitEl.dataset.conflit = '';
+            }
+        })
+        .catch(() => { conflitEl.style.display = 'none'; conflitEl.dataset.conflit = ''; });
 }
 
 function enregistrerModificationsGroupe(groupeId) {
-    const heureDebut = document.getElementById('mg-heure-debut')?.value || null;
-    const cbDuree    = document.getElementById('mg-personnaliser-duree');
-    let dureePers    = null;
-
-    if (cbDuree && cbDuree.checked) {
-        const h = parseInt(document.getElementById('mg-duree-heures').value)  || 0;
-        const m = parseInt(document.getElementById('mg-duree-minutes').value) || 0;
-        dureePers = h * 60 + m > 0 ? h * 60 + m : null;
-    } else {
-        dureePers = 0; // 0 = supprimer la durée personnalisée
+    // Vérifier conflits
+    const conflits = document.querySelectorAll('[id^="mg-conflit-"][data-conflit="true"]');
+    if (conflits.length > 0) {
+        showError('Conflit de planning détecté. Corrigez les horaires avant d\'enregistrer.');
+        return;
     }
+
+    // Vérifier que heure_fin > heure_debut pour chaque prestation
+    let heureInvalide = false;
+    document.querySelectorAll('[id^="mg-debut-"]').forEach(debutSel => {
+        const rdvId = debutSel.id.replace('mg-debut-', '');
+        const finSel = document.getElementById('mg-fin-' + rdvId);
+        if (debutSel.value && finSel?.value && finSel.value <= debutSel.value) {
+            heureInvalide = true;
+        }
+    });
+    if (heureInvalide) {
+        showError("L'heure de fin doit être après l'heure de début.");
+        return;
+    }
+
+    // Collecter les mises à jour par RDV
+    const rdvMisesAJour = [];
+    document.querySelectorAll('[id^="mg-debut-"]').forEach(debutSel => {
+        const rdvId = debutSel.id.replace('mg-debut-', '');
+        const finSel = document.getElementById('mg-fin-' + rdvId);
+        if (debutSel.value && finSel?.value) {
+            rdvMisesAJour.push({ id: parseInt(rdvId), heure_debut: debutSel.value, heure_fin: finSel.value });
+        }
+    });
 
     document.getElementById('modal-modifier-groupe').style.display = 'none';
     showPageLoader('Enregistrement...');
@@ -2085,7 +2110,7 @@ function enregistrerModificationsGroupe(groupeId) {
     fetch(`/agenda/{{ institut.code }}/api/groupe/${groupeId}/modifier/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-        body: JSON.stringify({ heure_debut: heureDebut, duree_personnalisee: dureePers })
+        body: JSON.stringify({ rdv_mises_a_jour: rdvMisesAJour })
     })
     .then(r => r.json())
     .then(data => {
@@ -3158,13 +3183,6 @@ function ouvrirModalReservation(employeId, heure) {
     }
     resBlocs = [];
     resBlocCount = 0;
-    // Reset section durée
-    const sectionDuree = document.getElementById('res-section-duree');
-    if (sectionDuree) sectionDuree.style.display = 'none';
-    const checkDuree = document.getElementById('res-personnaliser-duree');
-    if (checkDuree) checkDuree.checked = false;
-    const inputsDuree = document.getElementById('res-duree-inputs');
-    if (inputsDuree) inputsDuree.style.display = 'none';
     document.getElementById('modal-reservation').style.display = 'flex';
     ajouterBlocPrestationReservation(employeId, heure);
 }
@@ -3209,18 +3227,22 @@ function ajouterBlocPrestationReservation(preEmployeId, preHeure) {
             <strong style="color:#c9a86a;">Prestation ${index + 1}</strong>
             ${index > 0 ? `<button type="button" onclick="supprimerBlocPrestationReservation(${index})" style="background:none;border:none;color:#dc3545;cursor:pointer;font-size:22px;padding:0;line-height:1;" title="Supprimer">×</button>` : ''}
         </div>
-        <div style="display:grid;grid-template-columns:1fr 130px;gap:10px;margin-bottom:4px;">
+        <div style="display:grid;grid-template-columns:1fr 110px 110px;gap:10px;margin-bottom:8px;">
             <div class="form-group" style="margin:0;">
                 <label style="font-size:12px;">Employé *</label>
                 <select id="res-employe-${index}" class="form-control" style="font-size:13px;">${employeOptions}</select>
             </div>
             <div class="form-group" style="margin:0;">
-                <label style="font-size:12px;">Heure *</label>
+                <label style="font-size:12px;">Début *</label>
                 <select id="res-heure-${index}" onchange="mettreAJourHeureFin(${index})"
                         class="form-control" style="font-size:13px;">${genererOptionsHoraires(preHeure || '')}</select>
             </div>
+            <div class="form-group" style="margin:0;">
+                <label style="font-size:12px;">Fin *</label>
+                <select id="res-heure-fin-${index}" onchange="syncHeureFin(${index})"
+                        class="form-control" style="font-size:13px;">${genererOptionsHoraires('')}</select>
+            </div>
         </div>
-        <div id="res-heure-fin-${index}" style="font-size:12px;color:#c9a86a;text-align:right;margin-bottom:4px;min-height:14px;"></div>
         <div id="res-conflit-${index}" style="display:none;background:#fff5f5;border:1px solid #dc3545;border-radius:6px;padding:8px 12px;font-size:12px;color:#dc3545;margin-bottom:8px;"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
             <div class="form-group" style="margin:0;">
@@ -3277,7 +3299,6 @@ function selectionnerPrestationReservation(index) {
     mettreAJourHeureFin(index);
     calculerSousTotalBlocReservation(index);
     calculerTotalReservation();
-    mettreAJourSectionDuree();
 }
 
 function ajusterOptionReservation(blocIndex, optionId, delta) {
@@ -3334,77 +3355,6 @@ function mettreAJourRecapReservation(total) {
     document.getElementById('res-recap-lignes').innerHTML = lignesHtml;
     document.getElementById('res-total-display').textContent = (total || 0) + ' CFA';
     recapDiv.style.display = 'block';
-    mettreAJourSectionDuree();
-}
-
-function mettreAJourSectionDuree() {
-    const blocsActifs = resBlocs.filter(b => document.getElementById(`res-bloc-${b.index}`));
-    const sectionDuree = document.getElementById('res-section-duree');
-    if (!sectionDuree) return;
-
-    if (blocsActifs.length < 1) {
-        sectionDuree.style.display = 'none';
-        return;
-    }
-
-    // Calculer la durée catalogue (somme des prestations)
-    let dureeTotaleMin = 0;
-    blocsActifs.forEach(bloc => {
-        const prestSel = document.getElementById(`res-prestation-${bloc.index}`);
-        const selOpt = prestSel && prestSel.selectedIndex > 0 ? prestSel.options[prestSel.selectedIndex] : null;
-        if (selOpt && selOpt.dataset.duree) {
-            // dataset.duree est en heures (ex: 1.5 = 1h30)
-            dureeTotaleMin += Math.round(parseFloat(selOpt.dataset.duree) * 60) || 0;
-        }
-    });
-
-    const h = Math.floor(dureeTotaleMin / 60);
-    const m = dureeTotaleMin % 60;
-    const displayDuree = h > 0 ? (m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`) : `${m} min`;
-    document.getElementById('res-duree-catalogue').textContent = displayDuree || '-';
-
-    sectionDuree.style.display = 'block';
-}
-
-function toggleDureePersonnalisee() {
-    const checked = document.getElementById('res-personnaliser-duree').checked;
-    const inputs = document.getElementById('res-duree-inputs');
-    inputs.style.display = checked ? 'flex' : 'none';
-    if (checked) {
-        mettreAJourDureePersonnalisee();
-    } else {
-        // Décochée → rétablir la durée catalogue pour chaque bloc
-        const blocsActifs = resBlocs.filter(b => document.getElementById(`res-bloc-${b.index}`));
-        blocsActifs.forEach(b => mettreAJourHeureFin(b.index));
-    }
-}
-
-function mettreAJourDureePersonnalisee() {
-    const h = parseInt(document.getElementById('res-duree-heures').value) || 0;
-    const m = parseInt(document.getElementById('res-duree-minutes').value) || 0;
-    const total = h * 60 + m;
-    document.getElementById('res-duree-perso-display').textContent = total > 0
-        ? (h > 0 ? (m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`) : `${m} min`)
-        : '0 min';
-    // Pour une seule prestation : la durée du groupe = durée de cette prestation
-    // → recalculer heureFin et relancer la vérification de conflit
-    const blocsActifs = resBlocs.filter(b => document.getElementById(`res-bloc-${b.index}`));
-    if (blocsActifs.length === 1 && total > 0) {
-        const bloc = blocsActifs[0];
-        const heureEl = document.getElementById(`res-heure-${bloc.index}`);
-        if (heureEl && heureEl.value) {
-            const [bh, bm] = heureEl.value.split(':').map(Number);
-            const finMin = bh * 60 + bm + total;
-            const heureFin = `${String(Math.floor(finMin / 60)).padStart(2,'0')}:${String(finMin % 60).padStart(2,'0')}`;
-            const affEl = document.getElementById(`res-heure-fin-${bloc.index}`);
-            if (affEl) {
-                affEl.textContent = `${heureEl.value} → ${heureFin}`;
-                affEl.style.color = '#c9a86a';
-            }
-            bloc.heureFin = heureFin;
-            verifierConflitBloc(bloc.index);
-        }
-    }
 }
 
 function ouvrirModalNouveauClientDepuisReservation() {
@@ -3442,9 +3392,15 @@ function creerRdvGroupe() {
         const selOpt = prestSel?.options[prestSel.selectedIndex];
         const prixBase = bloc.isForfait ? 0 : (selOpt ? parseInt(selOpt.dataset.prix) || 0 : 0);
 
+        const heureFin = document.getElementById(`res-heure-fin-${bloc.index}`)?.value || null;
+        if (heureFin && heureFin <= heure) {
+            showError(`Prestation ${num} : l'heure de fin doit être après l'heure de début.`);
+            return;
+        }
         prestations.push({
             employe_id: parseInt(employeId),
             heure_debut: heure,
+            heure_fin: heureFin,
             prestation_id: parseInt(prestId),
             prix_base: prixBase,
             options: optionsList,
@@ -3462,21 +3418,11 @@ function creerRdvGroupe() {
         return;
     }
 
-    // Durée personnalisée si cochée
-    let dureePersonnalisee = null;
-    const checkDuree = document.getElementById('res-personnaliser-duree');
-    if (checkDuree && checkDuree.checked) {
-        const h = parseInt(document.getElementById('res-duree-heures').value) || 0;
-        const m = parseInt(document.getElementById('res-duree-minutes').value) || 0;
-        const total = h * 60 + m;
-        if (total > 0) dureePersonnalisee = total;
-    }
-
     showPageLoader('Création des rendez-vous...');
     fetch(`/agenda/{{ institut.code }}/api/rdv/creer-groupe/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-        body: JSON.stringify({ client_id: parseInt(clientId), date: date, prestations: prestations, duree_personnalisee: dureePersonnalisee })
+        body: JSON.stringify({ client_id: parseInt(clientId), date: date, prestations: prestations })
     })
     .then(r => r.json())
     .then(data => {
@@ -3541,12 +3487,20 @@ function genererOptionsHoraires(selected) {
     return html;
 }
 
-// Calcule et affiche "HH:MM → HH:MM" pour un bloc du modal réservation
+// Sync manuel quand l'utilisateur change l'heure de fin
+function syncHeureFin(blocIndex) {
+    const finEl = document.getElementById(`res-heure-fin-${blocIndex}`);
+    const bloc = resBlocs.find(b => b.index === blocIndex);
+    if (bloc) bloc.heureFin = finEl?.value || null;
+    verifierConflitBloc(blocIndex);
+}
+
+// Calcule et pré-remplit l'heure de fin selon la prestation/heure de début
 function mettreAJourHeureFin(blocIndex) {
     const heureEl  = document.getElementById(`res-heure-${blocIndex}`);
     const prestSel = document.getElementById(`res-prestation-${blocIndex}`);
-    const affEl    = document.getElementById(`res-heure-fin-${blocIndex}`);
-    if (!heureEl || !affEl) return;
+    const finEl    = document.getElementById(`res-heure-fin-${blocIndex}`);
+    if (!heureEl || !finEl) return;
 
     const heure   = heureEl.value;
     const selOpt  = prestSel ? prestSel.options[prestSel.selectedIndex] : null;
@@ -3556,15 +3510,9 @@ function mettreAJourHeureFin(blocIndex) {
         const [h, m]   = heure.split(':').map(Number);
         const finMin   = h * 60 + m + Math.round(duree * 60);
         const heureFin = `${String(Math.floor(finMin / 60)).padStart(2,'0')}:${String(finMin % 60).padStart(2,'0')}`;
-        affEl.textContent = `${heure} → ${heureFin}`;
-        affEl.style.color = '#c9a86a';
+        finEl.value = heureFin;
         const bloc = resBlocs.find(b => b.index === blocIndex);
         if (bloc) bloc.heureFin = heureFin;
-    } else {
-        affEl.textContent = heure ? `${heure} → ?` : '';
-        affEl.style.color = '#aaa';
-        const bloc = resBlocs.find(b => b.index === blocIndex);
-        if (bloc) bloc.heureFin = null;
     }
     verifierConflitBloc(blocIndex);
 }
@@ -3576,7 +3524,8 @@ function ajouterPrestationSuivante() {
     let dernierEmployeId = null;
     if (blocsActifs.length > 0) {
         const last = blocsActifs[blocsActifs.length - 1];
-        prochainHeure    = last.heureFin || null;
+        const finSel = document.getElementById(`res-heure-fin-${last.index}`);
+        prochainHeure    = finSel?.value || last.heureFin || null;
         const sel        = document.getElementById(`res-employe-${last.index}`);
         dernierEmployeId = sel?.value || null;
     }
@@ -3709,7 +3658,7 @@ function verifierConflitBloc(blocIndex) {
     const employe_id  = document.getElementById(`res-employe-${blocIndex}`)?.value || '';
     const heure_debut = document.getElementById(`res-heure-${blocIndex}`)?.value  || '';
     const date        = document.getElementById('res-date')?.value || '';
-    const heure_fin   = bloc.heureFin;
+    const heure_fin   = document.getElementById(`res-heure-fin-${blocIndex}`)?.value || bloc.heureFin;
 
     if (!employe_id || !date || !heure_debut || !heure_fin) {
         conflitEl.style.display = 'none';

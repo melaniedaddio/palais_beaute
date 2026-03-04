@@ -1212,12 +1212,13 @@ class RendezVous(models.Model):
         return f"{self.client} - {self.prestation.nom} - {self.date} {self.heure_debut}"
 
     def save(self, *args, **kwargs):
-        # Calculer l'heure de fin automatiquement
-        from datetime import datetime, timedelta
-        debut = datetime.combine(self.date, self.heure_debut)
-        duree_minutes = int(float(self.prestation.duree) * 60)
-        fin = debut + timedelta(minutes=duree_minutes)
-        self.heure_fin = fin.time()
+        # Calculer l'heure de fin automatiquement seulement si pas déjà définie
+        if self.heure_fin is None:
+            from datetime import datetime, timedelta
+            debut = datetime.combine(self.date, self.heure_debut)
+            duree_minutes = int(float(self.prestation.duree) * 60)
+            fin = debut + timedelta(minutes=duree_minutes)
+            self.heure_fin = fin.time()
 
         # Calculer le prix total
         self.prix_total = self.prix_base + self.prix_options

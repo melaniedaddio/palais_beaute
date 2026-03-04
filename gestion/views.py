@@ -897,7 +897,7 @@ def api_option_details(request, institut_code, option_id):
 def presences_pointage(request):
     """Page de pointage du jour."""
     utilisateur = request.user.utilisateur
-    today = date.today()
+    today = timezone.localtime(timezone.now()).date()
 
     if utilisateur.is_patron():
         instituts = list(Institut.objects.all().order_by('nom'))
@@ -1148,12 +1148,13 @@ def api_pointer(request):
         employe = get_object_or_404(Employe, id=data['employe_id'])
 
         # Récupérer la présence existante ou construire en mémoire sans sauvegarder
+        today_abidjan = timezone.localtime(timezone.now()).date()
         try:
-            presence = Presence.objects.get(employe=employe, date=date.today())
+            presence = Presence.objects.get(employe=employe, date=today_abidjan)
         except Presence.DoesNotExist:
             presence = Presence(
                 employe=employe,
-                date=date.today(),
+                date=today_abidjan,
                 saisi_par=request.user.utilisateur,
                 statut_arrivee='present',  # valeur temporaire, écrasée juste après
             )

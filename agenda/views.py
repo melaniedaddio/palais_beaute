@@ -67,6 +67,7 @@ def index(request, institut_code):
                 'employe': rdv.employe.prenom or rdv.employe.nom,
                 'employe_id': rdv.employe.id,
                 'prestation': rdv.prestation.nom,
+                'date': rdv.date.strftime('%Y-%m-%d'),
                 'heure_debut': rdv.heure_debut.strftime('%H:%M'),
                 'heure_fin': rdv.heure_fin.strftime('%H:%M'),
                 'duree_creneaux': int((datetime.combine(date.today(), rdv.heure_fin) -
@@ -440,6 +441,8 @@ def api_rdv_creer_groupe(request, institut_code):
             employe    = get_object_or_404(Employe, id=employe_id, institut=institut)
             prestation = get_object_or_404(Prestation, id=prestation_id)
             heure_debut = datetime.strptime(heure_str, '%H:%M').time()
+            heure_fin_str = prest_data.get('heure_fin')
+            heure_fin_obj = datetime.strptime(heure_fin_str, '%H:%M').time() if heure_fin_str else None
 
             # Gérer la séance de forfait (Klinic)
             seance_forfait  = None
@@ -491,6 +494,7 @@ def api_rdv_creer_groupe(request, institut_code):
                 famille=prestation.famille,
                 date=date_rdv,
                 heure_debut=heure_debut,
+                heure_fin=heure_fin_obj,
                 prix_base=prix_base,
                 prix_options=prix_options,
                 statut='planifie',
@@ -1678,8 +1682,22 @@ def api_groupe_modifier(request, institut_code, groupe_id):
         if not rdvs_actifs:
             return JsonResponse({'success': False, 'message': 'Aucun RDV actif dans ce groupe'}, status=400)
 
-        # --- Décaler l'heure de début de tous les RDVs ---
-        if nouvelle_heure_str:
+        # --- Mises à jour individuelles par RDV (heure_debut + heure_fin) ---
+        rdv_mises_a_jour = data.get('rdv_mises_a_jour', [])
+        for item in rdv_mises_a_jour:
+            try:
+                rdv_obj = RendezVous.objects.get(id=item['id'], groupe=groupe)
+                heure_debut_new = datetime.strptime(item['heure_debut'], '%H:%M').time()
+                heure_fin_new   = datetime.strptime(item['heure_fin'],   '%H:%M').time()
+                RendezVous.objects.filter(id=rdv_obj.id).update(
+                    heure_debut=heure_debut_new,
+                    heure_fin=heure_fin_new,
+                )
+            except (RendezVous.DoesNotExist, KeyError, ValueError):
+                pass
+
+        # --- Décaler l'heure de début de tous les RDVs (compatibilité ancienne API) ---
+        if nouvelle_heure_str and not rdv_mises_a_jour:
             nouvelle_heure = datetime.strptime(nouvelle_heure_str, '%H:%M').time()
             ancienne_heure = rdvs_actifs[0].heure_debut
             decalage_min = int(
@@ -1687,13 +1705,13 @@ def api_groupe_modifier(request, institut_code, groupe_id):
                  datetime.combine(date.today(), ancienne_heure)).total_seconds() / 60
             )
             if decalage_min != 0:
-                for rdv in rdvs_actifs:
-                    nouvelle_dt = datetime.combine(date.today(), rdv.heure_debut) + timedelta(minutes=decalage_min)
-                    rdv.heure_debut = nouvelle_dt.time()
-                    rdv.save(update_fields=['heure_debut'])
+                for rdv_obj in rdvs_actifs:
+                    nouvelle_dt = datetime.combine(date.today(), rdv_obj.heure_debut) + timedelta(minutes=decalage_min)
+                    rdv_obj.heure_debut = nouvelle_dt.time()
+                    rdv_obj.save(update_fields=['heure_debut'])
 
-        # --- Durée personnalisée ---
-        if duree_personnalisee is not None:
+        # --- Durée personnalisée (compatibilité ancienne API) ---
+        if duree_personnalisee is not None and not rdv_mises_a_jour:
             try:
                 duree_int = int(duree_personnalisee)
                 groupe.duree_personnalisee = duree_int if duree_int > 0 else None
