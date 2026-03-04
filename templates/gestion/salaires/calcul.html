@@ -87,6 +87,30 @@
     .progress-bar { background: #f0f0f0; border-radius: 10px; height: 7px; overflow: hidden; min-width: 70px; margin-bottom: 2px; }
     .progress-fill { height: 100%; border-radius: 10px; background: var(--secondary); }
 
+    /* Sélection multiple */
+    .row-check { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
+    tr.selected-row > td { background: #f0f4ff !important; }
+    .th-check { width: 40px; text-align: center; }
+    .td-check { text-align: center; }
+
+    /* Barre d'action groupée */
+    .bulk-bar {
+        position: sticky; bottom: 20px;
+        background: var(--primary); color: white;
+        border-radius: 14px; padding: 13px 20px;
+        display: flex; align-items: center; gap: 12px;
+        box-shadow: 0 6px 24px rgba(0,0,0,.18);
+        margin-top: 16px; flex-wrap: wrap;
+    }
+    .bulk-count { font-weight: 600; font-size: 14px; flex: 1; }
+    .btn-bulk { padding: 7px 18px; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn-bulk-valider { background: white; color: var(--primary); }
+    .btn-bulk-valider:hover { background: #f0f4ff; }
+    .btn-bulk-payer { background: rgba(255,255,255,.15); color: white; border: 2px solid rgba(255,255,255,.6); }
+    .btn-bulk-payer:hover { background: rgba(255,255,255,.25); }
+    .btn-bulk-cancel { background: transparent; color: rgba(255,255,255,.8); border: none; font-size: 20px; line-height: 1; padding: 4px 8px; cursor: pointer; margin-left: auto; }
+    .btn-bulk-cancel:hover { color: white; }
+
     /* Modals */
     .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; }
     .modal { background: white; border-radius: 20px; padding: 32px; width: 100%; max-width: 460px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
@@ -176,7 +200,10 @@
                     <th class="text-right">Avances</th>
                     <th class="text-right">Net à payer</th>
                     <th>Statut</th>
-                    <th>Actions</th>
+                    <th>
+                        Actions
+                        <input type="checkbox" id="select-all" class="row-check" onchange="toggleSelectAll(this)" title="Tout sélectionner" style="margin-left:8px;vertical-align:middle;">
+                    </th>
                 </tr>
             </thead>
             <tbody>
@@ -213,10 +240,20 @@
                     </td>
 
                     <td class="text-right">
-                        {% if c.montant_retenue_absences > 0 %}
-                        <span class="detail-red">-{{ c.montant_retenue_absences|floatformat:0 }}</span>
-                        <br><small class="detail-line">{{ c.jours_absence_non_payee }} j.</small>
+                        {% with total_ret=c.montant_retenue_absences|add:c.deduction_absences_pointage %}
+                        {% if total_ret > 0 %}
+                        <span class="detail-red">-{{ total_ret|floatformat:0 }}</span>
+                        {% if c.jours_absence_non_payee > 0 %}
+                        <br><small class="detail-line">{{ c.jours_absence_non_payee }} j. (absence)</small>
+                        {% endif %}
+                        {% if c.nb_absences_non_justifiees > 0 %}
+                        <br><small class="detail-line" style="color:#c62828;">{{ c.nb_absences_non_justifiees }} j. (pointage)</small>
+                        {% endif %}
+                        {% if c.nb_retards > 0 %}
+                        <br><small class="detail-line" style="color:#fd7e14;">{{ c.nb_retards }} retard(s)</small>
+                        {% endif %}
                         {% else %}—{% endif %}
+                        {% endwith %}
                     </td>
 
                     <!-- Avances cliquables → enregistrer avance -->
@@ -237,12 +274,15 @@
                         <span class="badge badge-{{ c.statut }}">{{ c.get_statut_display }}</span>
                     </td>
                     <td>
-                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
                             {% if c.statut == 'brouillon' %}
                             <button class="btn-xs btn-recalc" onclick="recalculer({{ c.id }}, {{ c.employe.id }}, '{{ mois|date:'Y-m' }}')">↺</button>
                             <button class="btn-xs btn-validate" onclick="validerSalaire({{ c.id }}, 'valider')">Valider</button>
                             {% elif c.statut == 'valide' %}
                             <button class="btn-xs btn-pay" onclick="validerSalaire({{ c.id }}, 'payer')">Payé ✓</button>
+                            {% endif %}
+                            {% if c.statut != 'paye' %}
+                            <input type="checkbox" class="row-check" value="{{ c.id }}" data-statut="{{ c.statut }}" onchange="updateBulkBar()" title="Sélectionner" style="margin-left:4px;">
                             {% endif %}
                         </div>
                     </td>
@@ -252,6 +292,14 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+
+    <!-- Barre d'action groupée -->
+    <div class="bulk-bar" id="bulk-bar" style="display:none;">
+        <span class="bulk-count" id="bulk-count">0 sélectionné(s)</span>
+        <button class="btn-bulk btn-bulk-valider" onclick="validerSelection('valider')">✓ Valider la sélection</button>
+        <button class="btn-bulk btn-bulk-payer" onclick="validerSelection('payer')">Marquer payé</button>
+        <button class="btn-bulk-cancel" onclick="deselectionnerTout()" title="Annuler la sélection">✕</button>
     </div>
 
     <!-- ===== VUE : PRIMES ===== -->
@@ -503,6 +551,88 @@ document.addEventListener('keydown', e => {
         });
     }
 });
+
+/* ========== Sélection multiple ========== */
+function toggleSelectAll(cb) {
+    document.querySelectorAll('tbody .row-check').forEach(c => {
+        c.checked = cb.checked;
+        c.closest('tr').classList.toggle('selected-row', cb.checked);
+    });
+    updateBulkBar();
+}
+
+function updateBulkBar() {
+    const checked = document.querySelectorAll('tbody .row-check:checked');
+    const all = document.querySelectorAll('tbody .row-check');
+    const bar = document.getElementById('bulk-bar');
+    const countEl = document.getElementById('bulk-count');
+    const sa = document.getElementById('select-all');
+
+    // Surligner les lignes
+    document.querySelectorAll('tbody .row-check').forEach(c => {
+        c.closest('tr').classList.toggle('selected-row', c.checked);
+    });
+
+    // État du select-all
+    if (sa) {
+        sa.indeterminate = checked.length > 0 && checked.length < all.length;
+        sa.checked = all.length > 0 && checked.length === all.length;
+    }
+
+    if (checked.length > 0) {
+        bar.style.display = 'flex';
+        countEl.textContent = `${checked.length} ligne(s) sélectionnée(s)`;
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+function deselectionnerTout() {
+    document.querySelectorAll('.row-check').forEach(c => {
+        c.checked = false;
+        c.closest('tr').classList.remove('selected-row');
+    });
+    const sa = document.getElementById('select-all');
+    if (sa) { sa.checked = false; sa.indeterminate = false; }
+    document.getElementById('bulk-bar').style.display = 'none';
+}
+
+async function validerSelection(action) {
+    const checked = [...document.querySelectorAll('tbody .row-check:checked')];
+    if (checked.length === 0) return;
+
+    const compatibles = checked.filter(c =>
+        action === 'valider' ? c.dataset.statut === 'brouillon' : c.dataset.statut === 'valide'
+    );
+
+    if (compatibles.length === 0) {
+        showError(action === 'valider'
+            ? 'Aucune ligne sélectionnée n\'est en statut "brouillon" (déjà validée ou payée ?)'
+            : 'Aucune ligne sélectionnée n\'est en statut "validé"');
+        return;
+    }
+
+    const label = action === 'valider'
+        ? `valider ${compatibles.length} salaire(s)`
+        : `marquer ${compatibles.length} salaire(s) comme payé(s)`;
+    if (!confirm(`Confirmer : ${label} ?`)) return;
+
+    let success = 0, errors = 0;
+    for (const c of compatibles) {
+        const fd = new FormData();
+        fd.append('csrfmiddlewaretoken', CSRF);
+        fd.append('action', action);
+        try {
+            const resp = await fetch(`/gestion/salaires/api/valider/${c.value}/`, { method: 'POST', body: fd });
+            const data = await resp.json();
+            if (data.success) success++; else errors++;
+        } catch(e) { errors++; }
+    }
+
+    if (errors === 0) showSuccess(`${success} salaire(s) traité(s) avec succès`);
+    else showError(`${success} traité(s), ${errors} erreur(s)`);
+    setTimeout(() => location.reload(), 900);
+}
 
 /* ========== Calcul mensuel ========== */
 async function recalculer(calculId, employeId, mois) {

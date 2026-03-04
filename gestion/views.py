@@ -7,6 +7,7 @@ from core.decorators import role_required, institut_required
 from core.models import (
     Institut, FamillePrestation, Prestation, Option,
     Employe, Presence, TypeAbsence, Absence, Avertissement,
+    HoraireEmploye, ModificationPointage,
     TypePrime, Prime, Avance, CalculSalaire,
     CategorieProduit, UniteMesure, Fournisseur, Produit, MouvementStock,
     Inventaire, LigneInventaire,
@@ -915,12 +916,19 @@ def presences_pointage(request):
 
     presences = {p.employe_id: p for p in Presence.objects.filter(employe__in=employes, date=today)}
 
+    # Horaires théoriques par employé pour affichage et vérification JS
+    horaires = {}
+    for emp in employes:
+        hd, hf = HoraireEmploye.get_horaire_pour_date(emp, today)
+        horaires[emp.id] = {'debut': hd.strftime('%H:%M'), 'fin': hf.strftime('%H:%M')}
+
     return render(request, 'gestion/presences/pointage.html', {
         'instituts': instituts,
         'institut_actif': institut_actif,
         'institut_code': institut_code,
         'employes': employes,
         'presences': presences,
+        'horaires': horaires,
         'today': today,
         'is_patron': utilisateur.is_patron(),
     })
@@ -929,20 +937,34 @@ def presences_pointage(request):
 @login_required
 @role_required(['patron', 'manager'])
 def presences_historique(request):
-    """Historique des présences avec filtres."""
+    """Historique unifié des présences (remplace absences + retards + ancien historique)."""
     utilisateur = request.user.utilisateur
 
-    # Paramètres de filtre
-    mois_str = request.GET.get('mois')
-    if mois_str:
-        try:
-            mois = date.fromisoformat(f"{mois_str}-01")
-        except ValueError:
-            mois = date.today().replace(day=1)
-    else:
-        mois = date.today().replace(day=1)
+    # Période : semaine / mois / custom
+    periode = request.GET.get('periode', 'mois')  # 'semaine', 'mois', 'custom'
+    today = date.today()
 
-    fin_mois = (mois.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+    if periode == 'semaine':
+        d_debut = today - timedelta(days=today.weekday())
+        d_fin = d_debut + timedelta(days=6)
+    elif periode == 'custom':
+        try:
+            d_debut = date.fromisoformat(request.GET.get('date_debut', ''))
+            d_fin = date.fromisoformat(request.GET.get('date_fin', ''))
+        except ValueError:
+            d_debut = today.replace(day=1)
+            d_fin = today
+    else:  # mois
+        mois_str = request.GET.get('mois')
+        if mois_str:
+            try:
+                mois = date.fromisoformat(f"{mois_str}-01")
+            except ValueError:
+                mois = today.replace(day=1)
+        else:
+            mois = today.replace(day=1)
+        d_debut = mois
+        d_fin = (mois.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
 
     if utilisateur.is_patron():
         instituts = list(Institut.objects.all().order_by('nom'))
@@ -951,62 +973,64 @@ def presences_historique(request):
         instituts = [utilisateur.institut]
         institut_code = utilisateur.institut.code
 
-    statut_filtre = request.GET.get('statut', 'tous')  # 'tous', 'retard', 'absent', 'anticipe'
+    employe_id_filtre = request.GET.get('employe_id', '')
+    statut_filtre = request.GET.get('statut', 'tous')  # 'tous', 'retard', 'absent', 'absent_nj', 'valide'
 
-    # Filtrer les présences
     presences_qs = Presence.objects.filter(
-        date__range=[mois, fin_mois]
-    ).select_related('employe', 'employe__categorie', 'employe__institut')
+        date__range=[d_debut, d_fin]
+    ).select_related('employe', 'employe__categorie', 'employe__institut', 'valide_par')
 
-    if institut_code == 'tous':
-        pass
-    elif institut_code == 'autres':
+    if institut_code == 'autres':
         presences_qs = presences_qs.filter(employe__institut__isnull=True)
-    else:
+    elif institut_code != 'tous':
         presences_qs = presences_qs.filter(employe__institut__code=institut_code)
+
+    if utilisateur.is_manager():
+        presences_qs = presences_qs.filter(employe__institut=utilisateur.institut)
+
+    if employe_id_filtre:
+        presences_qs = presences_qs.filter(employe_id=employe_id_filtre)
 
     if statut_filtre == 'retard':
         presences_qs = presences_qs.filter(statut_arrivee='retard')
     elif statut_filtre == 'absent':
         presences_qs = presences_qs.filter(statut_arrivee='absent')
-    elif statut_filtre == 'anticipe':
-        presences_qs = presences_qs.filter(statut_depart='anticipe')
+    elif statut_filtre == 'absent_nj':
+        presences_qs = presences_qs.filter(statut_journee='absent_non_justifie')
+    elif statut_filtre == 'valide':
+        presences_qs = presences_qs.filter(est_valide=True)
 
-    # Statistiques par employé
-    employe_filter = {}
-    if institut_code not in ('tous', 'autres') and institut_code:
-        employe_filter['institut__code'] = institut_code
-    elif institut_code == 'autres':
-        employe_filter['institut__isnull'] = True
+    # Stats résumé
+    nb_total = presences_qs.count()
+    nb_retards = presences_qs.filter(statut_arrivee='retard').count()
+    nb_absents = presences_qs.filter(statut_arrivee='absent').count()
+    nb_valides = presences_qs.filter(est_valide=True).count()
 
+    # Liste des employés pour le filtre
+    employe_filter_q = {}
+    if institut_code == 'autres':
+        employe_filter_q['institut__isnull'] = True
+    elif institut_code != 'tous':
+        employe_filter_q['institut__code'] = institut_code
     if utilisateur.is_manager():
-        employe_filter['institut'] = utilisateur.institut
-
-    employes = Employe.objects.filter(actif=True, **employe_filter).order_by('nom')
-
-    stats_employes = []
-    for emp in employes:
-        emp_presences = presences_qs.filter(employe=emp)
-        nb_present = emp_presences.filter(statut_arrivee='present').count()
-        nb_retard = emp_presences.filter(statut_arrivee='retard').count()
-        nb_absent = emp_presences.filter(statut_arrivee='absent').count()
-        stats_employes.append({
-            'employe': emp,
-            'nb_present': nb_present,
-            'nb_retard': nb_retard,
-            'nb_absent': nb_absent,
-            'total_pointe': nb_present + nb_retard + nb_absent,
-        })
+        employe_filter_q['institut'] = utilisateur.institut
+    employes_filtre = Employe.objects.filter(actif=True, **employe_filter_q).order_by('nom')
 
     return render(request, 'gestion/presences/historique.html', {
         'instituts': instituts,
         'institut_code': institut_code,
-        'mois': mois,
-        'fin_mois': fin_mois,
-        'stats_employes': stats_employes,
+        'periode': periode,
+        'd_debut': d_debut,
+        'd_fin': d_fin,
         'presences': presences_qs.order_by('-date', 'employe__nom'),
-        'is_patron': utilisateur.is_patron(),
+        'nb_total': nb_total,
+        'nb_retards': nb_retards,
+        'nb_absents': nb_absents,
+        'nb_valides': nb_valides,
+        'employes_filtre': employes_filtre,
+        'employe_id_filtre': employe_id_filtre,
         'statut_filtre': statut_filtre,
+        'is_patron': utilisateur.is_patron(),
     })
 
 
@@ -1132,23 +1156,28 @@ def retards_suivi(request):
 @role_required(['patron', 'manager'])
 @require_POST
 def api_pointer(request):
-    """API pour enregistrer une présence (arrivée ou départ).
+    """API pour enregistrer une présence.
 
-    Si statut n'est pas fourni, l'heure actuelle détermine automatiquement :
-    - Arrivée : présent si <= 9h15, retard sinon
-    - Départ  : présent si >= 18h45, anticipe sinon
+    Types supportés : 'arrivee', 'depart', 'depart_midi', 'retour_midi'
+    - Arrivée : présent si <= heure_debut+15min (depuis HoraireEmploye), retard sinon
+    - Départ  : présent si >= heure_fin, anticipe sinon
     Si statut='absent' est fourni explicitement, on marque absent.
     """
-    from datetime import time as dtime
-    SEUIL_RETARD   = dtime(9, 15)
-    SEUIL_ANTICIPE = dtime(18, 45)
+    from datetime import time as dtime, timedelta as td
+
+    TOLERANCE_RETARD_MINUTES = 15
 
     try:
         data = json.loads(request.body)
         employe = get_object_or_404(Employe, id=data['employe_id'])
 
-        # Récupérer la présence existante ou construire en mémoire sans sauvegarder
         today_abidjan = timezone.localtime(timezone.now()).date()
+
+        # Vérifier si une absence longue couvre la date
+        absence_active = Absence.objects.filter(
+            employe=employe, date_debut__lte=today_abidjan, date_fin__gte=today_abidjan
+        ).first()
+
         try:
             presence = Presence.objects.get(employe=employe, date=today_abidjan)
         except Presence.DoesNotExist:
@@ -1156,26 +1185,52 @@ def api_pointer(request):
                 employe=employe,
                 date=today_abidjan,
                 saisi_par=request.user.utilisateur,
-                statut_arrivee='present',  # valeur temporaire, écrasée juste après
+                statut_arrivee='present',
             )
 
-        type_pointage = data.get('type')   # 'arrivee' ou 'depart'
-        statut_force  = data.get('statut') # 'absent' si marqué manuellement absent
+        type_pointage = data.get('type')
+        statut_force  = data.get('statut')
 
         now_local  = timezone.localtime(timezone.now())
         heure_now  = now_local.time()
         heure_str  = heure_now.strftime('%H:%M')
 
+        # Lire l'horaire théorique de l'employé
+        heure_debut_theo, heure_fin_theo = HoraireEmploye.get_horaire_pour_date(employe, today_abidjan)
+
+        # Seuil retard = heure_debut + TOLERANCE_RETARD_MINUTES
+        from datetime import datetime as dt_cls, date as date_cls
+        seuil_retard_dt = dt_cls.combine(date_cls.today(), heure_debut_theo) + td(minutes=TOLERANCE_RETARD_MINUTES)
+        seuil_retard = seuil_retard_dt.time()
+
         if type_pointage == 'arrivee':
-            if statut_force == 'absent':
+            if absence_active:
+                presence.statut_arrivee = 'absent'
+                presence.heure_arrivee = None
+                presence.statut_journee = 'conge_long'
+                statut_result = 'absent'
+                heure_str = None
+            elif statut_force == 'absent':
                 presence.statut_arrivee = 'absent'
                 presence.heure_arrivee  = None
+                presence.statut_journee = 'absent_non_justifie'
+                presence.minutes_retard = 0
+                # Auto-valider : c'est le patron/manager qui marque manuellement
+                presence.est_valide = True
+                presence.date_validation = timezone.now()
                 statut_result = 'absent'
                 heure_str = None
             else:
-                statut_result = 'retard' if heure_now > SEUIL_RETARD else 'present'
+                is_retard = heure_now > seuil_retard
+                statut_result = 'retard' if is_retard else 'present'
                 presence.statut_arrivee = statut_result
                 presence.heure_arrivee  = heure_now
+                if is_retard:
+                    debut_dt = dt_cls.combine(date_cls.today(), heure_debut_theo)
+                    now_dt = dt_cls.combine(date_cls.today(), heure_now)
+                    presence.minutes_retard = int((now_dt - debut_dt).total_seconds() / 60)
+                else:
+                    presence.minutes_retard = 0
 
         elif type_pointage == 'depart':
             if statut_force == 'absent':
@@ -1184,9 +1239,18 @@ def api_pointer(request):
                 statut_result = 'absent'
                 heure_str = None
             else:
-                statut_result = 'anticipe' if heure_now < SEUIL_ANTICIPE else 'present'
+                statut_result = 'anticipe' if heure_now < heure_fin_theo else 'present'
                 presence.statut_depart = statut_result
                 presence.heure_depart  = heure_now
+
+        elif type_pointage == 'depart_midi':
+            presence.heure_depart_midi = heure_now
+            statut_result = 'depart_midi'
+
+        elif type_pointage == 'retour_midi':
+            presence.heure_retour_midi = heure_now
+            statut_result = 'retour_midi'
+
         else:
             return JsonResponse({'success': False, 'error': 'type invalide'}, status=400)
 
@@ -1196,6 +1260,8 @@ def api_pointer(request):
             'success': True,
             'statut': statut_result,
             'heure':  heure_str,
+            'heure_debut_theo': heure_debut_theo.strftime('%H:%M'),
+            'heure_fin_theo': heure_fin_theo.strftime('%H:%M'),
         })
 
     except Exception as e:
@@ -1289,6 +1355,359 @@ def api_avertissement_creer(request):
             'message': f'Avertissement créé pour {employe.get_full_name()}',
         })
 
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+# ============================================================
+# VUES PRÉSENCES — DASHBOARD / VALIDATION / HORAIRES / EXPORT
+# ============================================================
+
+@login_required
+@role_required(['patron'])
+def presences_dashboard(request):
+    """Tableau de bord journalier des présences (patron seulement)."""
+    utilisateur = request.user.utilisateur
+    instituts = list(Institut.objects.all().order_by('nom'))
+
+    date_str = request.GET.get('date')
+    if date_str:
+        try:
+            jour = date.fromisoformat(date_str)
+        except ValueError:
+            jour = date.today()
+    else:
+        jour = date.today()
+
+    institut_code = request.GET.get('institut', instituts[0].code if instituts else 'palais')
+    if institut_code == 'autres':
+        institut_actif = None
+        employes = Employe.objects.filter(institut__isnull=True, actif=True).order_by('ordre_affichage', 'nom')
+    else:
+        institut_actif = Institut.objects.filter(code=institut_code).first()
+        employes = Employe.objects.filter(institut=institut_actif, actif=True).order_by('ordre_affichage', 'nom')
+
+    presences_map = {p.employe_id: p for p in Presence.objects.filter(employe__in=employes, date=jour).select_related('valide_par')}
+
+    donnees = []
+    nb_presents = nb_absents = nb_retards = nb_valides = 0
+    for emp in employes:
+        p = presences_map.get(emp.id)
+        absence = Absence.objects.filter(employe=emp, date_debut__lte=jour, date_fin__gte=jour).first()
+        heure_debut_theo, heure_fin_theo = HoraireEmploye.get_horaire_pour_date(emp, jour)
+
+        if p:
+            if p.est_valide:
+                nb_valides += 1
+            if p.statut_arrivee == 'absent' or p.statut_journee == 'conge_long':
+                nb_absents += 1
+            elif p.statut_arrivee in ('present', 'retard'):
+                nb_presents += 1
+                if p.minutes_retard > 0:
+                    nb_retards += 1
+        elif absence:
+            nb_absents += 1
+
+        donnees.append({
+            'employe': emp,
+            'presence': p,
+            'absence_longue': absence,
+            'heure_debut_theo': heure_debut_theo.strftime('%H:%M'),
+            'heure_fin_theo': heure_fin_theo.strftime('%H:%M'),
+        })
+
+    return render(request, 'gestion/presences/dashboard.html', {
+        'donnees': donnees,
+        'instituts': instituts,
+        'institut_actif': institut_actif,
+        'institut_code': institut_code,
+        'jour': jour,
+        'nb_presents': nb_presents,
+        'nb_absents': nb_absents,
+        'nb_retards': nb_retards,
+        'nb_valides': nb_valides,
+        'total_employes': len(donnees),
+        'is_patron': True,
+    })
+
+
+@login_required
+@role_required(['patron'])
+@require_POST
+def api_valider_journee(request):
+    """Valider (qualifier) une journée de présence — patron seulement."""
+    try:
+        data = json.loads(request.body)
+        presence_id = data.get('presence_id')
+        statut_journee = data.get('statut_journee', 'present')
+        notes = data.get('notes', '')
+
+        presence = get_object_or_404(Presence, id=presence_id)
+        utilisateur = request.user.utilisateur
+
+        presence.statut_journee = statut_journee
+        presence.est_valide = True
+        presence.date_validation = timezone.now()
+        # Enregistrer les notes (+ qui a validé si commentaire existait)
+        commentaire_parts = []
+        if notes:
+            commentaire_parts.append(notes)
+        commentaire_parts.append(f"Validé par {utilisateur.user.get_full_name() or utilisateur.user.username}")
+        presence.commentaire = ' | '.join(commentaire_parts)
+        presence.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Journée de {presence.employe.get_full_name()} validée',
+            'statut_journee': statut_journee,
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@role_required(['patron'])
+@require_POST
+def api_modifier_pointage(request):
+    """Modifier une heure de pointage avec audit trail — patron seulement."""
+    CHAMPS_AUTORISES = ('heure_arrivee', 'heure_depart', 'heure_depart_midi', 'heure_retour_midi')
+    try:
+        data = json.loads(request.body)
+        presence_id = data.get('presence_id')
+        champ = data.get('champ')
+        valeur = data.get('valeur', '').strip()
+        motif = data.get('motif', '').strip()
+
+        if champ not in CHAMPS_AUTORISES:
+            return JsonResponse({'success': False, 'error': 'Champ non autorisé'}, status=400)
+
+        presence = get_object_or_404(Presence, id=presence_id)
+        ancienne_valeur = str(getattr(presence, champ) or '')
+
+        if valeur:
+            from datetime import time as dtime
+            h, m = map(int, valeur.split(':'))
+            setattr(presence, champ, dtime(h, m))
+        else:
+            setattr(presence, champ, None)
+        presence.save()
+
+        ModificationPointage.objects.create(
+            presence=presence,
+            modifie_par=request.user.utilisateur,
+            champ_modifie=champ,
+            ancienne_valeur=ancienne_valeur,
+            nouvelle_valeur=valeur,
+            motif=motif,
+        )
+
+        return JsonResponse({'success': True, 'message': 'Pointage modifié'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@role_required(['patron'])
+def export_presences(request):
+    """Export CSV des présences sur une période — patron seulement."""
+    import csv
+    from django.http import HttpResponse
+
+    date_debut_str = request.GET.get('date_debut')
+    date_fin_str = request.GET.get('date_fin')
+    institut_code = request.GET.get('institut', 'tous')
+
+    try:
+        d_debut = date.fromisoformat(date_debut_str) if date_debut_str else date.today().replace(day=1)
+        d_fin = date.fromisoformat(date_fin_str) if date_fin_str else date.today()
+    except ValueError:
+        d_debut = date.today().replace(day=1)
+        d_fin = date.today()
+
+    qs = Presence.objects.filter(date__range=[d_debut, d_fin]).select_related(
+        'employe', 'employe__institut', 'valide_par'
+    ).order_by('date', 'employe__nom')
+
+    if institut_code == 'autres':
+        qs = qs.filter(employe__institut__isnull=True)
+    elif institut_code != 'tous':
+        qs = qs.filter(employe__institut__code=institut_code)
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    filename = f"presences_{d_debut.strftime('%Y%m%d')}_{d_fin.strftime('%Y%m%d')}.csv"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response.write('\ufeff')  # BOM UTF-8 pour Excel
+
+    writer = csv.writer(response, delimiter=';')
+    writer.writerow([
+        'Date', 'Employé', 'Institut',
+        'Heure arrivée', 'Statut arrivée', 'Retard (min)',
+        'Départ midi', 'Retour midi',
+        'Heure départ', 'Statut départ',
+        'Durée travaillée', 'Statut journée', 'Validé', 'Validé par',
+    ])
+
+    for p in qs:
+        writer.writerow([
+            p.date.strftime('%d/%m/%Y'),
+            p.employe.get_full_name(),
+            p.employe.institut.nom if p.employe.institut else 'Autres',
+            p.heure_arrivee.strftime('%H:%M') if p.heure_arrivee else '',
+            p.get_statut_arrivee_display(),
+            p.minutes_retard if p.minutes_retard else '',
+            p.heure_depart_midi.strftime('%H:%M') if p.heure_depart_midi else '',
+            p.heure_retour_midi.strftime('%H:%M') if p.heure_retour_midi else '',
+            p.heure_depart.strftime('%H:%M') if p.heure_depart else '',
+            p.get_statut_depart_display() if p.statut_depart else '',
+            p.duree_travaillee or '',
+            p.get_statut_journee_display(),
+            'Oui' if p.est_valide else 'Non',
+            p.valide_par.get_full_name() if p.valide_par else '',
+        ])
+
+    return response
+
+
+@login_required
+@role_required(['patron'])
+def horaires_config(request):
+    """Configuration des horaires théoriques par employé — patron seulement."""
+    instituts = list(Institut.objects.all().order_by('nom'))
+    institut_code = request.GET.get('institut', 'tous')
+
+    employes_qs = Employe.objects.filter(actif=True).order_by('nom')
+    if institut_code == 'autres':
+        employes_qs = employes_qs.filter(institut__isnull=True)
+    elif institut_code != 'tous':
+        employes_qs = employes_qs.filter(institut__code=institut_code)
+
+    # Pour chaque employé, son horaire actif
+    donnees = []
+    for emp in employes_qs:
+        horaires = HoraireEmploye.objects.filter(employe=emp).order_by('-date_debut')[:5]
+        hd, hf = HoraireEmploye.get_horaire_pour_date(emp, date.today())
+        donnees.append({
+            'employe': emp,
+            'horaires': horaires,
+            'horaire_actif_debut': hd.strftime('%H:%M'),
+            'horaire_actif_fin': hf.strftime('%H:%M'),
+        })
+
+    if request.method == 'POST':
+        employe_id = request.POST.get('employe_id')
+        heure_debut_str = request.POST.get('heure_debut', '08:00')
+        heure_fin_str = request.POST.get('heure_fin', '17:00')
+        date_debut_str = request.POST.get('date_debut')
+        date_fin_str = request.POST.get('date_fin')
+
+        from datetime import time as dtime
+        try:
+            emp = get_object_or_404(Employe, id=employe_id)
+            hd_h, hd_m = map(int, heure_debut_str.split(':'))
+            hf_h, hf_m = map(int, heure_fin_str.split(':'))
+            d_debut = date.fromisoformat(date_debut_str)
+            d_fin = date.fromisoformat(date_fin_str) if date_fin_str else None
+
+            HoraireEmploye.objects.create(
+                employe=emp,
+                heure_debut=dtime(hd_h, hd_m),
+                heure_fin=dtime(hf_h, hf_m),
+                date_debut=d_debut,
+                date_fin=d_fin,
+            )
+            from django.contrib import messages
+            messages.success(request, f'Horaire créé pour {emp.get_full_name()}')
+        except Exception as e:
+            from django.contrib import messages
+            messages.error(request, f'Erreur : {e}')
+
+        from django.shortcuts import redirect
+        return redirect(f'{request.path}?institut={institut_code}')
+
+    return render(request, 'gestion/presences/horaires_config.html', {
+        'donnees': donnees,
+        'instituts': instituts,
+        'institut_code': institut_code,
+        'employes': employes_qs,
+        'today': date.today().isoformat(),
+    })
+
+
+@login_required
+@role_required(['patron'])
+@require_POST
+def api_horaire_supprimer(request, horaire_id):
+    """Supprimer un horaire employé — patron seulement."""
+    try:
+        horaire = get_object_or_404(HoraireEmploye, id=horaire_id)
+        nom = horaire.employe.get_full_name()
+        horaire.delete()
+        return JsonResponse({'success': True, 'message': f'Horaire supprimé pour {nom}'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@role_required(['patron'])
+def api_horaires_employe(request, employe_id):
+    """Retourne les horaires d'un employé sous forme JSON."""
+    employe = get_object_or_404(Employe, id=employe_id)
+    horaires = HoraireEmploye.objects.filter(employe=employe).order_by('-date_debut')
+    heure_actif_debut, heure_actif_fin = HoraireEmploye.get_horaire_pour_date(employe, date.today())
+    return JsonResponse({
+        'employe': employe.get_full_name(),
+        'horaire_actif': f"{heure_actif_debut.strftime('%H:%M')} – {heure_actif_fin.strftime('%H:%M')}",
+        'horaires': [
+            {
+                'id': h.id,
+                'heure_debut': h.heure_debut.strftime('%H:%M'),
+                'heure_fin': h.heure_fin.strftime('%H:%M'),
+                'date_debut': h.date_debut.strftime('%d/%m/%Y'),
+                'date_debut_iso': h.date_debut.isoformat(),
+                'date_fin': h.date_fin.strftime('%d/%m/%Y') if h.date_fin else None,
+                'date_fin_iso': h.date_fin.isoformat() if h.date_fin else None,
+                'actif': not h.date_fin or h.date_fin >= date.today(),
+            }
+            for h in horaires
+        ],
+    })
+
+
+@login_required
+@role_required(['patron'])
+@require_POST
+def api_horaire_creer(request):
+    """Créer un horaire pour un employé — retourne JSON."""
+    from datetime import time as dtime
+    try:
+        data = json.loads(request.body)
+        employe = get_object_or_404(Employe, id=data['employe_id'])
+        hd_h, hd_m = map(int, data['heure_debut'].split(':'))
+        hf_h, hf_m = map(int, data['heure_fin'].split(':'))
+        d_debut = date.fromisoformat(data['date_debut'])
+        d_fin = date.fromisoformat(data['date_fin']) if data.get('date_fin') else None
+
+        horaire = HoraireEmploye.objects.create(
+            employe=employe,
+            heure_debut=dtime(hd_h, hd_m),
+            heure_fin=dtime(hf_h, hf_m),
+            date_debut=d_debut,
+            date_fin=d_fin,
+        )
+        return JsonResponse({
+            'success': True,
+            'message': f'Horaire créé pour {employe.get_full_name()}',
+            'horaire': {
+                'id': horaire.id,
+                'heure_debut': horaire.heure_debut.strftime('%H:%M'),
+                'heure_fin': horaire.heure_fin.strftime('%H:%M'),
+                'date_debut': horaire.date_debut.strftime('%d/%m/%Y'),
+                'date_debut_iso': horaire.date_debut.isoformat(),
+                'date_fin': horaire.date_fin.strftime('%d/%m/%Y') if horaire.date_fin else None,
+                'date_fin_iso': horaire.date_fin.isoformat() if horaire.date_fin else None,
+                'actif': True,
+            }
+        })
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
 

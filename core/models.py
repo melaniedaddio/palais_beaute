@@ -179,12 +179,53 @@ class TypeAbsence(models.Model):
         return self.nom
 
 
+class HoraireEmploye(models.Model):
+    """Horaire théorique configurable par employé (période avec heure début/fin)."""
+    employe = models.ForeignKey(Employe, on_delete=models.CASCADE, related_name='horaires')
+    heure_debut = models.TimeField(default='08:00')
+    heure_fin = models.TimeField(default='17:00')
+    date_debut = models.DateField()
+    date_fin = models.DateField(null=True, blank=True)  # null = en cours
+
+    class Meta:
+        verbose_name = "Horaire employé"
+        verbose_name_plural = "Horaires employés"
+        ordering = ['-date_debut']
+
+    def __str__(self):
+        fin = self.date_fin.strftime('%d/%m/%Y') if self.date_fin else 'en cours'
+        return f"{self.employe.get_full_name()} — {self.heure_debut.strftime('%H:%M')}-{self.heure_fin.strftime('%H:%M')} ({self.date_debut.strftime('%d/%m/%Y')} → {fin})"
+
+    @staticmethod
+    def get_horaire_pour_date(employe, date):
+        """Retourne l'horaire actif pour un employé à une date donnée.
+        Si aucun horaire trouvé, retourne des valeurs par défaut 08:00-17:00."""
+        from datetime import time as dtime
+        horaire = HoraireEmploye.objects.filter(
+            employe=employe,
+            date_debut__lte=date,
+        ).filter(
+            models.Q(date_fin__isnull=True) | models.Q(date_fin__gte=date)
+        ).order_by('-date_debut').first()
+        if horaire:
+            return horaire.heure_debut, horaire.heure_fin
+        return dtime(8, 0), dtime(17, 0)
+
+
 class Presence(models.Model):
     """Pointage journalier d'un employé."""
     STATUT_CHOICES = [
         ('present', 'Présent'),
         ('retard', 'Retard'),
         ('absent', 'Absent'),
+    ]
+    STATUT_JOURNEE_CHOICES = [
+        ('present', 'Présent'),
+        ('absent_justifie', 'Absent justifié'),
+        ('absent_non_justifie', 'Absent non justifié'),
+        ('conge_long', 'Congé / arrêt long terme'),
+        ('demi_journee_matin', 'Demi-journée matin'),
+        ('demi_journee_apmidi', 'Demi-journée après-midi'),
     ]
 
     employe = models.ForeignKey(Employe, on_delete=models.CASCADE, related_name='presences')
@@ -193,6 +234,25 @@ class Presence(models.Model):
     heure_arrivee = models.TimeField(null=True, blank=True)
     statut_depart = models.CharField(max_length=20, choices=STATUT_CHOICES, null=True, blank=True)
     heure_depart = models.TimeField(null=True, blank=True)
+
+    # Pause midi
+    heure_depart_midi = models.TimeField(null=True, blank=True)
+    heure_retour_midi = models.TimeField(null=True, blank=True)
+
+    # Qualification journée (remplie par patron lors de validation)
+    statut_journee = models.CharField(max_length=30, choices=STATUT_JOURNEE_CHOICES, default='present')
+
+    # Validation patron
+    est_valide = models.BooleanField(default=False)
+    valide_par = models.ForeignKey(
+        Employe, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='validations_presence'
+    )
+    date_validation = models.DateTimeField(null=True, blank=True)
+
+    # Retard calculé en minutes (>0 si en retard)
+    minutes_retard = models.IntegerField(default=0)
+
     saisi_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True, blank=True)
     date_saisie = models.DateTimeField(auto_now_add=True)
     commentaire = models.TextField(blank=True, null=True)
@@ -223,6 +283,27 @@ class Presence(models.Model):
             return None
         h, m = divmod(total_min, 60)
         return f"{h}h{str(m).zfill(2)}" if m else f"{h}h"
+
+
+class ModificationPointage(models.Model):
+    """Audit trail des modifications de pointage effectuées par le patron."""
+    presence = models.ForeignKey(Presence, on_delete=models.CASCADE, related_name='modifications')
+    modifie_par = models.ForeignKey(
+        'Utilisateur', on_delete=models.SET_NULL, null=True, related_name='modifications_pointage'
+    )
+    date_modification = models.DateTimeField(auto_now_add=True)
+    champ_modifie = models.CharField(max_length=50)   # ex: 'heure_arrivee'
+    ancienne_valeur = models.CharField(max_length=50, blank=True)
+    nouvelle_valeur = models.CharField(max_length=50, blank=True)
+    motif = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Modification de pointage"
+        verbose_name_plural = "Modifications de pointage"
+        ordering = ['-date_modification']
+
+    def __str__(self):
+        return f"{self.presence} — {self.champ_modifie} modifié le {self.date_modification.strftime('%d/%m/%Y %H:%M')}"
 
 
 class Absence(models.Model):
@@ -675,6 +756,11 @@ class CalculSalaire(models.Model):
     total_avances_deduites = models.IntegerField(default=0)
     net_a_payer = models.IntegerField(default=0)
 
+    # Données issues du pointage validé
+    nb_absences_non_justifiees = models.DecimalField(max_digits=4, decimal_places=1, default=0)
+    nb_retards = models.IntegerField(default=0)
+    deduction_absences_pointage = models.IntegerField(default=0)
+
     details_primes = models.JSONField(default=list, blank=True)
     details_absences = models.JSONField(default=list, blank=True)
     details_avances = models.JSONField(default=list, blank=True)
@@ -713,7 +799,21 @@ class CalculSalaire(models.Model):
             statut_arrivee__in=['present', 'retard']
         ).count()
 
-        # Absences non payées
+        # Absences non justifiées : toutes (même non validées formellement)
+        # car le patron les a marquées explicitement via le tableau de bord
+        nb_abs_nj = float(presences.filter(statut_journee='absent_non_justifie').count())
+        # Demi-journées : uniquement validées (qualification manuelle du patron)
+        nb_abs_nj += 0.5 * presences.filter(
+            est_valide=True,
+            statut_journee__in=['demi_journee_matin', 'demi_journee_apmidi']
+        ).count()
+        # Retards : uniquement validés
+        nb_retards_pts = presences.filter(est_valide=True, minutes_retard__gt=0).count()
+        self.nb_absences_non_justifiees = nb_abs_nj
+        self.nb_retards = nb_retards_pts
+        self.deduction_absences_pointage = int(float(nb_abs_nj) * (self.salaire_base / 30)) if self.salaire_base else 0
+
+        # Absences non payées (via modèle Absence historique)
         absences = Absence.objects.filter(
             employe=self.employe,
             date_debut__lte=fin_mois,
@@ -753,10 +853,11 @@ class CalculSalaire(models.Model):
         self.total_avances_deduites = total_avances
         self.details_avances = details_av
 
-        # Net à payer
+        # Net à payer (inclut déduction pointage si données validées disponibles)
+        deduction_totale = self.montant_retenue_absences + self.deduction_absences_pointage
         self.net_a_payer = max(0,
             self.salaire_base + self.total_primes
-            - self.montant_retenue_absences
+            - deduction_totale
             - self.total_avances_deduites
         )
         self.save()

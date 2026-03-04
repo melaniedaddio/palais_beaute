@@ -1128,7 +1128,7 @@
                             <a href="{% url 'core:cartes_cadeaux_list' %}" class="nav-item {% if request.resolver_match.url_name == 'cartes_cadeaux_list' %}active{% endif %}">
                                 Cartes Cadeaux
                             </a>
-                            <a href="{% url 'gestion:presences_pointage' %}" class="nav-item {% if request.resolver_match.url_name and 'presences' in request.resolver_match.url_name %}active{% endif %}">
+                            <a href="{% url 'gestion:presences_pointage' %}" class="nav-item {% if request.resolver_match.url_name and 'presences' in request.resolver_match.url_name or request.resolver_match.url_name and 'horaire' in request.resolver_match.url_name %}active{% endif %}">
                                 Présences
                             </a>
                         </div>
@@ -1193,6 +1193,12 @@
                             </a>
                             <a href="{% url 'credits:index' institut_code=request.user.utilisateur.institut.code %}" class="nav-item">
                                 Crédits
+                            </a>
+                            <a href="{% url 'gestion:presences_pointage' %}" class="nav-item {% if request.resolver_match.url_name == 'presences_pointage' %}active{% endif %}">
+                                Pointage
+                            </a>
+                            <a href="{% url 'gestion:presences_historique' %}" class="nav-item {% if request.resolver_match.url_name == 'presences_historique' %}active{% endif %}">
+                                Historique présences
                             </a>
                         </div>
                     {% endif %}

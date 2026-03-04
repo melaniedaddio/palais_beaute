@@ -26,24 +26,10 @@
         font-weight: 500;
     }
 
-    .links-bar {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-    }
-    .link-btn {
-        padding: 7px 16px;
-        border-radius: 20px;
-        font-size: 13px;
-        font-weight: 500;
-        text-decoration: none;
-        background: var(--bg-section);
-        color: var(--text-dark);
-        border: 1px solid var(--border);
-        transition: background 0.2s;
-    }
-    .link-btn:hover { background: var(--border); }
+    .nav-links { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .nav-link { padding: 8px 18px; border-radius: 10px; border: 2px solid var(--border); background: var(--bg-light); font-size: 13px; font-weight: 600; color: var(--text-dark); text-decoration: none; transition: all .15s; }
+    .nav-link:hover:not(.active) { background: var(--bg-section); border-color: var(--primary); color: var(--primary); }
+    .nav-link.active { background: var(--primary); color: white; border-color: var(--primary); }
 
     .institut-tabs {
         display: flex;
@@ -170,6 +156,14 @@
     .btn-point.depart:hover:not(:disabled)  { background: #f0f4ff; }
     .btn-point.absent  { border-color: #dc3545; color: #dc3545; }
     .btn-point.absent:hover:not(:disabled)  { background: #fdecea; }
+    .btn-point.midi-out { border-color: #fd7e14; color: #fd7e14; }
+    .btn-point.midi-out:hover:not(:disabled) { background: #fff3cd; }
+    .btn-point.midi-in  { border-color: #20c997; color: #20c997; }
+    .btn-point.midi-in:hover:not(:disabled)  { background: #d3f9d8; }
+    .heure-badge.midi-out { background: #fff3cd; color: #856404; }
+    .heure-badge.midi-out .indicator { background: #fd7e14; }
+    .heure-badge.midi-in  { background: #d3f9d8; color: #155724; }
+    .heure-badge.midi-in .indicator  { background: #20c997; }
 
     .btn-modifier {
         background: none;
@@ -223,10 +217,12 @@
         <span class="date-badge">{{ today|date:"l d F Y" }}</span>
     </div>
 
-    <div class="links-bar">
-        <a href="{% url 'gestion:presences_historique' %}" class="link-btn">Historique</a>
-        <a href="{% url 'gestion:absences_liste' %}" class="link-btn">Absences</a>
-        <a href="{% url 'gestion:retards_suivi' %}" class="link-btn">Suivi retards</a>
+    <div class="nav-links">
+        <a href="{% url 'gestion:presences_pointage' %}" class="nav-link active">Pointage</a>
+        {% if is_patron %}
+        <a href="{% url 'gestion:presences_dashboard' %}" class="nav-link">Tableau de bord</a>
+        {% endif %}
+        <a href="{% url 'gestion:presences_historique' %}" class="nav-link">Historique</a>
     </div>
 
     <div class="institut-tabs">
@@ -249,12 +245,13 @@
         <table class="presence-table">
             <thead>
                 <tr>
-                    <th style="width:22%">Employé</th>
-                    <th style="width:16%">Shift prévu</th>
-                    <th style="width:22%">Arrivée</th>
-                    <th style="width:22%">Départ</th>
+                    <th style="width:18%">Employé</th>
+                    <th style="width:12%">Shift prévu</th>
+                    <th style="width:18%">Arrivée</th>
+                    <th style="width:14%">Pause midi</th>
+                    <th style="width:18%">Départ</th>
                     <th style="width:10%">Durée</th>
-                    <th style="width:8%">Statut</th>
+                    <th style="width:10%">Statut</th>
                 </tr>
             </thead>
             <tbody>
@@ -274,9 +271,9 @@
 
                     <!-- Shift prévu -->
                     <td>
-                        <span class="shift-prevu">
+                        <span class="shift-prevu" id="shift-{{ emp.id }}">
                             <span class="dot"></span>
-                            09:00 – 19:00
+                            <span id="shift-txt-{{ emp.id }}">…</span>
                         </span>
                     </td>
 
@@ -312,6 +309,35 @@
                                     Absent
                                 </button>
                             </div>
+                        {% endif %}
+                    </td>
+
+                    <!-- Pause midi -->
+                    <td id="midi-{{ emp.id }}">
+                        {% for eid, ep in presences.items %}{% if eid == emp.id %}
+                            {% if ep.heure_depart_midi %}
+                                <div style="display:flex;flex-direction:column;gap:4px;">
+                                    <span class="heure-badge midi-out">
+                                        <span class="indicator"></span>
+                                        ↗ {{ ep.heure_depart_midi|time:"H\hi" }}
+                                    </span>
+                                    {% if ep.heure_retour_midi %}
+                                    <span class="heure-badge midi-in">
+                                        <span class="indicator"></span>
+                                        ↙ {{ ep.heure_retour_midi|time:"H\hi" }}
+                                    </span>
+                                    {% else %}
+                                    <button class="btn-point midi-in" onclick="pointerMidi({{ emp.id }}, 'retour_midi')">↙ Retour</button>
+                                    {% endif %}
+                                </div>
+                            {% elif ep.statut_arrivee and ep.statut_arrivee != 'absent' and not ep.statut_depart %}
+                                <button class="btn-point midi-out" onclick="pointerMidi({{ emp.id }}, 'depart_midi')">↗ Sortie midi</button>
+                            {% else %}
+                                <span class="duree-vide">—</span>
+                            {% endif %}
+                        {% endif %}{% endfor %}
+                        {% if emp.id not in presences %}
+                            <span class="duree-vide">—</span>
                         {% endif %}
                     </td>
 
@@ -400,6 +426,22 @@
 const CSRF = '{{ csrf_token }}';
 const URL_POINTER = "{% url 'gestion:api_pointer' %}";
 
+// Horaires théoriques par employé (depuis le contexte Django)
+const HORAIRES = {
+{% for emp_id, h in horaires.items %}
+    {{ emp_id }}: { debut: "{{ h.debut }}", fin: "{{ h.fin }}" },
+{% endfor %}
+};
+
+// Afficher les horaires théoriques dans les cellules
+document.addEventListener('DOMContentLoaded', function() {
+    Object.entries(HORAIRES).forEach(([empId, h]) => {
+        const el = document.getElementById('shift-txt-' + empId);
+        if (el) el.textContent = h.debut + ' – ' + h.fin;
+    });
+});
+
+
 async function envoyerPointage(employeId, type, statut = null) {
     const payload = { employe_id: employeId, type: type };
     if (statut) payload.statut = statut;
@@ -439,8 +481,15 @@ function renderArrivee(empId, statut, heure) {
 
     if (statut !== 'absent') {
         renderDepartBoutons(empId);
+        // Activer le bouton sortie midi
+        const midiCell = document.getElementById('midi-' + empId);
+        if (midiCell) {
+            midiCell.innerHTML = `<button class="btn-point midi-out" onclick="pointerMidi(${empId}, 'depart_midi')">↗ Sortie midi</button>`;
+        }
     } else {
         document.getElementById('depart-' + empId).innerHTML = '<span class="duree-vide">—</span>';
+        const midiCell = document.getElementById('midi-' + empId);
+        if (midiCell) midiCell.innerHTML = '<span class="duree-vide">—</span>';
     }
     updateStatut(empId, statut, null, null, null);
 }
@@ -573,6 +622,44 @@ function resetArrivee(empId) {
 
 function resetDepart(empId) {
     renderDepartBoutons(empId);
+}
+
+/* ---- Pause midi ---- */
+async function pointerMidi(empId, type) {
+    const btn = event.currentTarget;
+    btn.disabled = true;
+    try {
+        const data = await envoyerPointage(empId, type);
+        if (data.success) {
+            const midiCell = document.getElementById('midi-' + empId);
+            if (type === 'depart_midi') {
+                midiCell.innerHTML = `
+                    <div style="display:flex;flex-direction:column;gap:4px;">
+                        <span class="heure-badge midi-out">
+                            <span class="indicator"></span>
+                            ↗ ${data.heure}
+                        </span>
+                        <button class="btn-point midi-in" onclick="pointerMidi(${empId}, 'retour_midi')">↙ Retour</button>
+                    </div>`;
+                showSuccess('Sortie midi enregistrée');
+            } else {
+                const existingOut = midiCell.querySelector('.heure-badge.midi-out');
+                const outHtml = existingOut ? existingOut.outerHTML : '';
+                midiCell.innerHTML = `
+                    <div style="display:flex;flex-direction:column;gap:4px;">
+                        ${outHtml}
+                        <span class="heure-badge midi-in">
+                            <span class="indicator"></span>
+                            ↙ ${data.heure}
+                        </span>
+                    </div>`;
+                showSuccess('Retour midi enregistré');
+            }
+        } else {
+            showError(data.error || 'Erreur');
+            btn.disabled = false;
+        }
+    } catch(e) { showError('Erreur réseau'); btn.disabled = false; }
 }
 </script>
 {% endblock %}

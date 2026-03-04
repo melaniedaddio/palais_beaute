@@ -319,6 +319,18 @@
         display: flex;
     }
 
+    /* Horaires par employé */
+    .horaire-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid #f0f0f0; flex-wrap:wrap; }
+    .horaire-row:last-child { border-bottom:none; }
+    .horaire-row.actif { background:#f8fff8; border-radius:8px; padding:10px 8px; }
+    .horaire-heures { font-size:14px; font-weight:700; color:#1a1a1a; min-width:110px; }
+    .horaire-dates { font-size:12px; color:#666; flex:1; }
+    .horaire-statut { min-width:60px; }
+    .badge-actif { background:#e6f4ea; color:#155724; border-radius:8px; padding:2px 8px; font-size:11px; font-weight:600; }
+    .btn-del-h { background:none; border:1px solid #dc3545; color:#dc3545; border-radius:6px; padding:3px 8px; font-size:12px; cursor:pointer; }
+    .btn-del-h:hover { background:#fdecea; }
+    .horaires-sep { border:none; border-top:2px dashed #e0e0e0; margin:16px 0 14px; }
+
     .modal {
         background: white;
         border-radius: 16px;
@@ -519,6 +531,10 @@
                             onclick="supprimerEmploye('{{ employe.id }}', '{{ employe.get_full_name|escapejs }}')">
                         🗑️ Supprimer
                     </button>
+                    <button class="btn-action" style="background:#f0f4ff;color:#3b5bdb;"
+                            onclick="ouvrirHoraires({{ employe.id }}, '{{ employe.get_full_name|escapejs }}')">
+                        ⏰ Horaires
+                    </button>
                 </div>
             </div>
             {% endfor %}
@@ -591,6 +607,10 @@
                     <button class="btn-action btn-delete"
                             onclick="supprimerEmploye('{{ employe.id }}', '{{ employe.get_full_name|escapejs }}')">
                         🗑️ Supprimer
+                    </button>
+                    <button class="btn-action" style="background:#f0f4ff;color:#3b5bdb;"
+                            onclick="ouvrirHoraires({{ employe.id }}, '{{ employe.get_full_name|escapejs }}')">
+                        ⏰ Horaires
                     </button>
                 </div>
             </div>
@@ -746,6 +766,26 @@
                     <input type="checkbox" id="est_dans_agenda" name="est_dans_agenda" checked>
                     <label for="est_dans_agenda">Apparaît dans l'agenda</label>
                 </div>
+
+                <!-- Section horaires (visible seulement à la création) -->
+                <div id="horaire-creation-section" style="display:none;">
+                    <hr class="section-separator">
+                    <div class="form-section-title">Horaires de travail</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="h-new-debut">Heure d'arrivée</label>
+                            <input type="time" class="form-control" id="h-new-debut" value="08:00">
+                        </div>
+                        <div class="form-group">
+                            <label for="h-new-fin">Heure de départ</label>
+                            <input type="time" class="form-control" id="h-new-fin" value="17:00">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="h-new-date">Applicable dès le</label>
+                        <input type="date" class="form-control" id="h-new-date">
+                    </div>
+                </div>
             </div>
 
             <div class="modal-footer">
@@ -791,11 +831,16 @@ function openModal(id = null, nom = '', prenom = '', telephone = '', institut = 
         document.getElementById('salaire_base').value = salaire_base;
         document.getElementById('date_embauche').value = date_embauche;
         document.getElementById('est_dans_agenda').checked = est_dans_agenda;
+        document.getElementById('horaire-creation-section').style.display = 'none';
     } else {
         isEditMode = false;
         title.textContent = 'Ajouter un employé';
         btnSubmit.textContent = 'Ajouter';
         document.getElementById('est_dans_agenda').checked = true;
+        document.getElementById('horaire-creation-section').style.display = 'block';
+        document.getElementById('h-new-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('h-new-debut').value = '08:00';
+        document.getElementById('h-new-fin').value = '17:00';
     }
 
     modal.classList.add('active');
@@ -832,6 +877,21 @@ async function submitForm(e) {
         const data = await response.json();
 
         if (data.success) {
+            // Si création, enregistrer l'horaire si les champs sont renseignés
+            if (!isEditMode && data.employe_id) {
+                const hDebut = document.getElementById('h-new-debut').value;
+                const hFin = document.getElementById('h-new-fin').value;
+                const hDate = document.getElementById('h-new-date').value;
+                if (hDebut && hFin && hDate) {
+                    try {
+                        await fetch('/gestion/presences/api/horaire/creer/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+                            body: JSON.stringify({ employe_id: data.employe_id, heure_debut: hDebut, heure_fin: hFin, date_debut: hDate, date_fin: null }),
+                        });
+                    } catch(e) { /* silencieux, l'employé est créé */ }
+                }
+            }
             showSuccess(data.message);
             setTimeout(() => location.reload(), 1000);
         } else {
@@ -964,5 +1024,151 @@ async function supprimerCategorie(id, nom) {
         showError('Erreur : ' + error.message);
     }
 }
+
+/* ======================================================
+   GESTION DES HORAIRES PAR EMPLOYÉ
+   ====================================================== */
+const CSRF_TOKEN = '{{ csrf_token }}';
+let horairesEmployeActif = null;
+
+async function ouvrirHoraires(employeId, nomEmploye) {
+    horairesEmployeActif = employeId;
+    document.getElementById('horaire-modal-titre').textContent = `Horaires — ${nomEmploye}`;
+    document.getElementById('horaire-employe-id').value = employeId;
+    document.getElementById('horaire-modal').style.display = 'flex';
+    await chargerHoraires(employeId);
+}
+
+async function chargerHoraires(employeId) {
+    const container = document.getElementById('horaires-liste');
+    container.innerHTML = '<p style="color:#999;font-style:italic;text-align:center;padding:20px;">Chargement…</p>';
+    try {
+        const resp = await fetch(`/gestion/presences/api/horaire/employe/${employeId}/`);
+        const data = await resp.json();
+
+        // Badge horaire actif
+        document.getElementById('horaire-actif-badge').textContent = `⏰ Actif : ${data.horaire_actif}`;
+
+        if (data.horaires.length === 0) {
+            container.innerHTML = '<p style="color:#999;font-style:italic;text-align:center;padding:10px;">Aucun horaire configuré (défaut : 08:00 – 17:00)</p>';
+            return;
+        }
+
+        container.innerHTML = data.horaires.map(h => `
+            <div class="horaire-row ${h.actif ? 'actif' : ''}">
+                <div class="horaire-heures"><strong>${h.heure_debut} – ${h.heure_fin}</strong></div>
+                <div class="horaire-dates">
+                    du ${h.date_debut}
+                    ${h.date_fin ? `au ${h.date_fin}` : '<em>en cours</em>'}
+                </div>
+                <div class="horaire-statut">
+                    ${h.actif ? '<span class="badge-actif">Actif</span>' : '<span style="color:#999;font-size:11px;">Terminé</span>'}
+                </div>
+                <button class="btn-del-h" onclick="supprimerHoraire(${h.id})">✕</button>
+            </div>
+        `).join('');
+    } catch(e) {
+        container.innerHTML = '<p style="color:#dc3545;">Erreur de chargement</p>';
+    }
+}
+
+function fermerHoraires() {
+    document.getElementById('horaire-modal').style.display = 'none';
+    document.getElementById('horaire-form').reset();
+    horairesEmployeActif = null;
+}
+
+async function sauvegarderHoraire() {
+    const employeId = document.getElementById('horaire-employe-id').value;
+    const debut = document.getElementById('h-heure-debut').value;
+    const fin = document.getElementById('h-heure-fin').value;
+    const dDebut = document.getElementById('h-date-debut').value;
+    const dFin = document.getElementById('h-date-fin').value;
+
+    if (!debut || !fin || !dDebut) { alert('Heure début, heure fin et date de début sont obligatoires.'); return; }
+
+    try {
+        const resp = await fetch('/gestion/presences/api/horaire/creer/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+            body: JSON.stringify({ employe_id: employeId, heure_debut: debut, heure_fin: fin, date_debut: dDebut, date_fin: dFin || null }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            document.getElementById('horaire-form').reset();
+            document.getElementById('h-date-debut').value = new Date().toISOString().split('T')[0];
+            await chargerHoraires(employeId);
+        } else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+async function supprimerHoraire(horaireId) {
+    if (!confirm('Supprimer cet horaire ?')) return;
+    try {
+        const resp = await fetch(`/gestion/presences/api/horaire/${horaireId}/supprimer/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json' },
+            body: '{}',
+        });
+        const data = await resp.json();
+        if (data.success) { showSuccess(data.message); await chargerHoraires(horairesEmployeActif); }
+        else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+</script>
+
+<!-- Modal Horaires -->
+<div class="modal-backdrop" id="horaire-modal" style="display:none;">
+    <div class="modal" style="max-width:560px;">
+        <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
+            <h2 class="modal-title" id="horaire-modal-titre">Horaires</h2>
+            <button onclick="fermerHoraires()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;">✕</button>
+        </div>
+
+        <div style="background:#f0f4ff;border-radius:8px;padding:8px 14px;margin-bottom:16px;font-size:13px;font-weight:600;color:#3b5bdb;" id="horaire-actif-badge">
+            ⏰ Actif : …
+        </div>
+
+        <div id="horaires-liste" style="min-height:60px;max-height:260px;overflow-y:auto;margin-bottom:4px;"></div>
+
+        <hr class="horaires-sep">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#666;letter-spacing:.5px;margin-bottom:12px;">Ajouter un horaire</div>
+
+        <form id="horaire-form" onsubmit="event.preventDefault();sauvegarderHoraire();">
+            <input type="hidden" id="horaire-employe-id">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:#666;display:block;margin-bottom:4px;">Heure début</label>
+                    <input type="time" id="h-heure-debut" value="08:00" required style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:#666;display:block;margin-bottom:4px;">Heure fin</label>
+                    <input type="time" id="h-heure-fin" value="17:00" required style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:#666;display:block;margin-bottom:4px;">Applicable dès le</label>
+                    <input type="date" id="h-date-debut" required style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:#666;display:block;margin-bottom:4px;">Jusqu'au (vide = en cours)</label>
+                    <input type="date" id="h-date-fin" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-cancel" onclick="fermerHoraires()">Annuler</button>
+                <button type="submit" class="btn-submit">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Pré-remplir la date du jour à l'ouverture
+document.getElementById('h-date-debut').value = new Date().toISOString().split('T')[0];
+// Fermer en cliquant l'overlay
+document.getElementById('horaire-modal').addEventListener('click', function(e) {
+    if (e.target === this) fermerHoraires();
+});
 </script>
 {% endblock %}

@@ -1,0 +1,456 @@
+{% extends 'base.html' %}
+
+{% block title %}Tableau de bord Présences{% endblock %}
+
+{% block extra_css %}
+<style>
+    .db-container { max-width: 1200px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+    .date-badge { background: var(--bg-section); border: 1px solid var(--border); border-radius: 20px; padding: 6px 16px; font-size: 14px; font-weight: 500; }
+
+    /* Institut tabs */
+    .institut-tabs { display: flex; gap: 10px; overflow-x: auto; margin-bottom: 20px; }
+    .institut-tab { padding: 9px 22px; border-radius: 25px; font-weight: 500; font-size: 13px; cursor: pointer; border: none; background: var(--bg-section); color: var(--text-light); transition: all .2s; text-decoration: none; white-space: nowrap; }
+    .institut-tab.active { background: var(--primary); color: white; }
+    .institut-tab:hover:not(.active) { background: #e0e0e0; }
+
+    /* Date picker */
+    .date-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .date-nav a, .date-nav button { padding: 7px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); cursor: pointer; }
+    .date-nav input[type=date] { padding: 7px 12px; border: 1px solid var(--border); border-radius: 20px; font-size: 13px; }
+
+    /* KPI cards */
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .kpi-card { background: white; border-radius: 14px; padding: 16px 18px; box-shadow: 0 2px 8px rgba(0,0,0,.06); border: 1px solid var(--border); text-align: center; }
+    .kpi-card .val { font-size: 28px; font-weight: 700; }
+    .kpi-card .lbl { font-size: 12px; color: var(--text-light); text-transform: uppercase; letter-spacing: .5px; margin-top: 4px; }
+    .kpi-present .val { color: #28a745; }
+    .kpi-absent .val  { color: #dc3545; }
+    .kpi-retard .val  { color: #fd7e14; }
+    .kpi-valide .val  { color: #3b5bdb; }
+
+    /* Table */
+    .card { background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,.07); border: 1px solid var(--border); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f8f9fa; padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #6c757d; border-bottom: 1px solid var(--border); }
+    td { padding: 13px 16px; border-bottom: 1px solid #f0f0f0; font-size: 13px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+    .badge-present { background: #e6f4ea; color: #1e7e34; } .badge-present .dot { background: #28a745; }
+    .badge-retard  { background: #fff8e1; color: #856404; } .badge-retard .dot  { background: #ffc107; }
+    .badge-absent  { background: #fdecea; color: #c62828; } .badge-absent .dot  { background: #dc3545; }
+    .badge-conge   { background: #e8ecff; color: #3b5bdb; } .badge-conge .dot   { background: #4c6ef5; }
+    .badge-encours { background: #f0f4ff; color: #3b5bdb; } .badge-encours .dot { background: #4c6ef5; }
+    .badge-vide    { background: #f5f5f5; color: #999; }
+
+    .valide-badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; background: #e6f4ea; color: #155724; }
+
+    /* Actions */
+    .action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+    .btn-sm { padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 11px; cursor: pointer; background: white; color: var(--text-dark); font-weight: 500; }
+    .btn-sm:hover { background: var(--bg-light); }
+    .btn-sm.danger { border-color: #dc3545; color: #dc3545; }
+    .btn-sm.primary { border-color: var(--primary); color: var(--primary); }
+
+    /* Modals */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; display: none; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: white; border-radius: 16px; padding: 28px; max-width: 480px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,.15); }
+    .modal h3 { margin: 0 0 18px; font-size: 16px; }
+    .modal .field { margin-bottom: 14px; }
+    .modal label { display: block; font-size: 12px; font-weight: 600; color: var(--text-light); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .4px; }
+    .modal input, .modal select, .modal textarea { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; box-sizing: border-box; }
+    .modal textarea { height: 70px; resize: vertical; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+    .btn-cancel { padding: 9px 20px; border: 1px solid var(--border); border-radius: 10px; background: white; font-size: 13px; cursor: pointer; }
+    .btn-save { padding: 9px 20px; border: none; border-radius: 10px; background: var(--primary); color: white; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+    /* Qualification radio */
+    .radio-group { display: flex; flex-direction: column; gap: 8px; }
+    .radio-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; border: 2px solid var(--border); cursor: pointer; transition: border-color .15s; }
+    .radio-item:hover { border-color: var(--primary); }
+    .radio-item.selected { border-color: var(--primary); background: #f0f4ff; }
+    .radio-item input[type=radio] { accent-color: var(--primary); }
+
+    .emp-name { font-weight: 600; }
+    .emp-cat { font-size: 11px; color: var(--text-light); }
+    .heure-info { font-weight: 500; color: var(--text-dark); }
+    .retard-info { color: #fd7e14; font-weight: 600; font-size: 12px; }
+    .shift-info { font-size: 12px; color: var(--text-light); }
+    .link-btn { padding: 7px 16px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); transition: background 0.2s; display: inline-block; }
+    .link-btn:hover { background: var(--border); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="db-container">
+
+    <div class="page-header">
+        <h1>Tableau de bord Présences</h1>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <a href="{% url 'gestion:presences_historique' %}" class="link-btn">Historique</a>
+            <a href="{% url 'gestion:presences_pointage' %}" class="link-btn">← Pointage</a>
+            <span class="date-badge">{{ jour|date:"l d F Y" }}</span>
+        </div>
+    </div>
+
+    <!-- Institut tabs -->
+    <div class="institut-tabs">
+        {% for inst in instituts %}
+        <a href="?institut={{ inst.code }}&date={{ jour|date:'Y-m-d' }}"
+           class="institut-tab {% if institut_code == inst.code %}active{% endif %}">
+            {{ inst.nom }}
+        </a>
+        {% endfor %}
+        <a href="?institut=autres&date={{ jour|date:'Y-m-d' }}"
+           class="institut-tab {% if institut_code == 'autres' %}active{% endif %}">Autres</a>
+    </div>
+
+    <!-- Navigation date -->
+    <div class="date-nav">
+        <a href="?institut={{ institut_code }}&date={{ jour|date:'Y-m-d'|add:'-1' }}">← Hier</a>
+        <form method="get" style="display:inline-flex;align-items:center;gap:6px;">
+            <input type="hidden" name="institut" value="{{ institut_code }}">
+            <input type="date" name="date" value="{{ jour|date:'Y-m-d' }}" onchange="this.form.submit()">
+        </form>
+        <a href="?institut={{ institut_code }}&date={% now 'Y-m-d' %}">Aujourd'hui</a>
+        {% if is_patron %}
+        <a href="{% url 'gestion:export_presences' %}?date_debut={{ jour|date:'Y-m-d' }}&date_fin={{ jour|date:'Y-m-d' }}&institut={{ institut_code }}" style="margin-left:auto;">⬇ Export CSV</a>
+        {% endif %}
+    </div>
+
+    <!-- KPI -->
+    <div class="kpi-row">
+        <div class="kpi-card kpi-present">
+            <div class="val">{{ nb_presents }}</div>
+            <div class="lbl">Présents</div>
+        </div>
+        <div class="kpi-card kpi-absent">
+            <div class="val">{{ nb_absents }}</div>
+            <div class="lbl">Absents</div>
+        </div>
+        <div class="kpi-card kpi-retard">
+            <div class="val">{{ nb_retards }}</div>
+            <div class="lbl">Retards</div>
+        </div>
+        <div class="kpi-card kpi-valide">
+            <div class="val">{{ nb_valides }}/{{ total_employes }}</div>
+            <div class="lbl">Validées</div>
+        </div>
+    </div>
+
+    <!-- Tableau principal -->
+    <div class="card">
+        {% if donnees %}
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:20%">Employé</th>
+                    <th style="width:12%">Shift</th>
+                    <th style="width:14%">Arrivée</th>
+                    <th style="width:10%">Pause midi</th>
+                    <th style="width:14%">Départ</th>
+                    <th style="width:10%">Statut journée</th>
+                    <th style="width:8%">Validé</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in donnees %}
+                {% with emp=d.employe p=d.presence %}
+                <tr id="row-db-{{ emp.id }}">
+
+                    <!-- Employé -->
+                    <td>
+                        <div class="emp-name">{{ emp.get_full_name }}</div>
+                        {% if emp.categorie %}
+                        <div class="emp-cat" style="color:{{ emp.categorie.couleur }};">{{ emp.categorie.nom }}</div>
+                        {% endif %}
+                    </td>
+
+                    <!-- Shift théorique -->
+                    <td><span class="shift-info">{{ d.heure_debut_theo }} – {{ d.heure_fin_theo }}</span></td>
+
+                    <!-- Arrivée -->
+                    <td>
+                        {% if d.absence_longue %}
+                            <span class="badge badge-conge"><span class="dot"></span>Congé</span>
+                        {% elif p %}
+                            {% if p.statut_arrivee == 'present' %}
+                                <span class="badge badge-present"><span class="dot"></span>
+                                    {% if p.heure_arrivee %}{{ p.heure_arrivee|time:"H\hi" }}{% else %}Présent{% endif %}
+                                </span>
+                            {% elif p.statut_arrivee == 'retard' %}
+                                <span class="badge badge-retard"><span class="dot"></span>
+                                    {% if p.heure_arrivee %}{{ p.heure_arrivee|time:"H\hi" }}{% else %}Retard{% endif %}
+                                </span>
+                                {% if p.minutes_retard %}<div class="retard-info">+{{ p.minutes_retard }} min</div>{% endif %}
+                            {% elif p.statut_arrivee == 'absent' %}
+                                <span class="badge badge-absent"><span class="dot"></span>Absent</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge badge-vide">—</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Pause midi -->
+                    <td>
+                        {% if p and p.heure_depart_midi %}
+                            <div style="font-size:12px;color:var(--text-light);">
+                                ↗ {{ p.heure_depart_midi|time:"H\hi" }}
+                                {% if p.heure_retour_midi %}↙ {{ p.heure_retour_midi|time:"H\hi" }}{% endif %}
+                            </div>
+                        {% else %}
+                            <span style="color:#ccc;">—</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Départ -->
+                    <td>
+                        {% if p and p.statut_depart %}
+                            {% if p.statut_depart == 'present' %}
+                                <span class="badge badge-present"><span class="dot"></span>
+                                    {% if p.heure_depart %}{{ p.heure_depart|time:"H\hi" }}{% else %}Départ{% endif %}
+                                </span>
+                            {% elif p.statut_depart == 'anticipe' %}
+                                <span class="badge badge-retard"><span class="dot"></span>
+                                    Anticipé{% if p.heure_depart %} {{ p.heure_depart|time:"H\hi" }}{% endif %}
+                                </span>
+                            {% elif p.statut_depart == 'absent' %}
+                                <span class="badge badge-absent"><span class="dot"></span>Absent</span>
+                            {% endif %}
+                        {% elif p and p.statut_arrivee and p.statut_arrivee != 'absent' %}
+                            <span class="badge badge-encours"><span class="dot"></span>En cours</span>
+                        {% else %}
+                            <span style="color:#ccc;">—</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Statut journée -->
+                    <td id="sj-{{ emp.id }}">
+                        {% if p %}
+                        <span class="badge {% if p.statut_journee == 'present' %}badge-present{% elif p.statut_journee == 'conge_long' %}badge-conge{% elif 'absent' in p.statut_journee %}badge-absent{% elif 'demi' in p.statut_journee %}badge-retard{% else %}badge-vide{% endif %}">
+                            {{ p.get_statut_journee_display }}
+                        </span>
+                        {% elif d.absence_longue %}
+                            <span class="badge badge-conge">Congé/Arrêt</span>
+                        {% else %}
+                            <span class="badge badge-vide">Non défini</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Validé -->
+                    <td id="val-{{ emp.id }}">
+                        {% if p and p.est_valide %}
+                            <span class="valide-badge">✓ Validé</span>
+                        {% else %}
+                            <span style="color:#ccc;font-size:12px;">—</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Actions -->
+                    <td>
+                        <div class="action-btns">
+                            {% if p %}
+                            <button class="btn-sm primary"
+                                    onclick="ouvrirModalQualifier({{ p.id }}, '{{ emp.get_full_name|escapejs }}', '{{ p.statut_journee }}')">
+                                Qualifier
+                            </button>
+                            <button class="btn-sm"
+                                    onclick="ouvrirModalModifier({{ p.id }}, '{{ emp.get_full_name|escapejs }}')">
+                                ✎ Modifier
+                            </button>
+                            {% else %}
+                            <button class="btn-sm danger"
+                                    onclick="marquerAbsent({{ emp.id }}, '{{ emp.get_full_name|escapejs }}')">
+                                Marquer absent
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+
+                </tr>
+                {% endwith %}
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="text-align:center;padding:60px;color:var(--text-light);">Aucun employé actif dans cette section</div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Modal Qualifier -->
+<div class="modal-overlay" id="modalQualifier">
+    <div class="modal">
+        <h3 id="mq-titre">Qualifier la journée</h3>
+        <input type="hidden" id="mq-presence-id">
+        <div class="radio-group" id="mq-radios">
+            <label class="radio-item" onclick="selectRadio(this,'present')">
+                <input type="radio" name="statut_journee" value="present"> Présent
+            </label>
+            <label class="radio-item" onclick="selectRadio(this,'absent_justifie')">
+                <input type="radio" name="statut_journee" value="absent_justifie"> Absent justifié
+            </label>
+            <label class="radio-item" onclick="selectRadio(this,'absent_non_justifie')">
+                <input type="radio" name="statut_journee" value="absent_non_justifie"> Absent non justifié (retenue)
+            </label>
+            <label class="radio-item" onclick="selectRadio(this,'demi_journee_matin')">
+                <input type="radio" name="statut_journee" value="demi_journee_matin"> Demi-journée matin (½ retenue)
+            </label>
+            <label class="radio-item" onclick="selectRadio(this,'demi_journee_apmidi')">
+                <input type="radio" name="statut_journee" value="demi_journee_apmidi"> Demi-journée après-midi (½ retenue)
+            </label>
+            <label class="radio-item" onclick="selectRadio(this,'conge_long')">
+                <input type="radio" name="statut_journee" value="conge_long"> Congé / Arrêt long terme
+            </label>
+        </div>
+        <div class="field" style="margin-top:14px;">
+            <label>Notes (optionnel)</label>
+            <textarea id="mq-notes" placeholder="Motif, justificatif…"></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="fermerModal('modalQualifier')">Annuler</button>
+            <button class="btn-save" onclick="validerJournee()">Valider</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Modifier pointage -->
+<div class="modal-overlay" id="modalModifier">
+    <div class="modal">
+        <h3 id="mm-titre">Modifier le pointage</h3>
+        <input type="hidden" id="mm-presence-id">
+        <div class="field">
+            <label>Champ à modifier</label>
+            <select id="mm-champ">
+                <option value="heure_arrivee">Heure d'arrivée</option>
+                <option value="heure_depart">Heure de départ</option>
+                <option value="heure_depart_midi">Sortie midi</option>
+                <option value="heure_retour_midi">Retour midi</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>Nouvelle heure (HH:MM)</label>
+            <input type="time" id="mm-valeur">
+        </div>
+        <div class="field">
+            <label>Motif de la modification</label>
+            <textarea id="mm-motif" placeholder="Ex: correction saisie, oubli de pointer…"></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="fermerModal('modalModifier')">Annuler</button>
+            <button class="btn-save" onclick="envoyerModif()">Enregistrer</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+const URL_VALIDER = "{% url 'gestion:api_valider_journee' %}";
+const URL_MODIFIER = "{% url 'gestion:api_modifier_pointage' %}";
+
+function selectRadio(label, val) {
+    document.querySelectorAll('.radio-item').forEach(l => l.classList.remove('selected'));
+    label.classList.add('selected');
+    label.querySelector('input').checked = true;
+}
+
+function ouvrirModalQualifier(presenceId, nom, statutActuel) {
+    document.getElementById('mq-presence-id').value = presenceId;
+    document.getElementById('mq-titre').textContent = `Qualifier — ${nom}`;
+    document.getElementById('mq-notes').value = '';
+    document.querySelectorAll('.radio-item').forEach(l => {
+        l.classList.remove('selected');
+        const r = l.querySelector('input');
+        if (r.value === statutActuel) { l.classList.add('selected'); r.checked = true; }
+    });
+    document.getElementById('modalQualifier').classList.add('open');
+}
+
+function ouvrirModalModifier(presenceId, nom) {
+    document.getElementById('mm-presence-id').value = presenceId;
+    document.getElementById('mm-titre').textContent = `Modifier pointage — ${nom}`;
+    document.getElementById('mm-valeur').value = '';
+    document.getElementById('mm-motif').value = '';
+    document.getElementById('modalModifier').classList.add('open');
+}
+
+function fermerModal(id) {
+    document.getElementById(id).classList.remove('open');
+}
+
+async function validerJournee() {
+    const presenceId = document.getElementById('mq-presence-id').value;
+    const statutJournee = document.querySelector('[name=statut_journee]:checked')?.value;
+    const notes = document.getElementById('mq-notes').value.trim();
+    if (!statutJournee) { alert('Veuillez sélectionner un statut'); return; }
+    try {
+        const resp = await fetch(URL_VALIDER, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({ presence_id: presenceId, statut_journee: statutJournee, notes }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            fermerModal('modalQualifier');
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 800);
+        } else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+async function marquerAbsent(employeId, nomEmploye) {
+    if (!confirm(`Marquer ${nomEmploye} comme absent(e) aujourd'hui ?\nCela créera une journée "Absent non justifié" — vous pourrez la requalifier ensuite.`)) return;
+    try {
+        const resp = await fetch("{% url 'gestion:api_pointer' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({ employe_id: employeId, type: 'arrivee', statut: 'absent' }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(`${nomEmploye} marqué(e) absent(e)`);
+            setTimeout(() => location.reload(), 800);
+        } else { showError(data.error || data.message || 'Erreur'); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+async function envoyerModif() {
+    const presenceId = document.getElementById('mm-presence-id').value;
+    const champ = document.getElementById('mm-champ').value;
+    const valeur = document.getElementById('mm-valeur').value;
+    const motif = document.getElementById('mm-motif').value.trim();
+    if (!valeur) { alert('Veuillez saisir une heure'); return; }
+    if (!motif) { alert('Le motif est obligatoire'); return; }
+    try {
+        const resp = await fetch(URL_MODIFIER, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({ presence_id: presenceId, champ, valeur, motif }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            fermerModal('modalModifier');
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 800);
+        } else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+
+// Fermer modal en cliquant l'overlay
+document.querySelectorAll('.modal-overlay').forEach(el => {
+    el.addEventListener('click', function(e) {
+        if (e.target === this) this.classList.remove('open');
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+
+{% block title %}Configuration des horaires{% endblock %}
+
+{% block extra_css %}
+<style>
+    .horaires-container { max-width: 1000px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
+
+    .info-box { background: #f0f4ff; border: 1px solid #c5d0f5; border-radius: 12px; padding: 14px 18px; margin-bottom: 24px; font-size: 13px; color: #3b5bdb; }
+
+    /* Institut tabs */
+    .institut-tabs { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 20px; }
+    .institut-tab { padding: 8px 18px; border-radius: 20px; font-weight: 500; font-size: 13px; cursor: pointer; border: none; background: var(--bg-section); color: var(--text-light); text-decoration: none; white-space: nowrap; }
+    .institut-tab.active { background: var(--primary); color: white; }
+    .institut-tab:hover:not(.active) { background: #e0e0e0; }
+
+    /* Employé card */
+    .emp-card { background: white; border-radius: 14px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.07); border: 1px solid var(--border); }
+    .emp-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+    .emp-name { font-size: 15px; font-weight: 700; color: var(--text-dark); }
+    .emp-cat { font-size: 12px; color: var(--text-light); margin-left: 8px; }
+    .horaire-actif-badge { background: #e6f4ea; color: #155724; border-radius: 20px; padding: 4px 14px; font-size: 13px; font-weight: 600; }
+
+    /* Table horaires */
+    .horaires-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    .horaires-table th { background: #f8f9fa; padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: #6c757d; border-bottom: 1px solid var(--border); }
+    .horaires-table td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+    .horaires-table tr:last-child td { border-bottom: none; }
+
+    /* Bouton ajouter */
+    .btn-add { padding: 7px 16px; border-radius: 20px; border: 2px dashed var(--primary); background: transparent; color: var(--primary); font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn-add:hover { background: #f0f4ff; }
+
+    /* Formulaire inline */
+    .form-inline { display: none; background: #f8f9fa; border-radius: 10px; padding: 16px; margin-top: 12px; }
+    .form-inline.open { display: block; }
+    .form-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 10px; }
+    .form-field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 120px; }
+    .form-field label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-light); letter-spacing: .4px; }
+    .form-field input { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+    .form-actions { display: flex; gap: 8px; margin-top: 6px; }
+    .btn-save { padding: 8px 18px; border: none; border-radius: 8px; background: var(--primary); color: white; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn-cancel-form { padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; background: white; font-size: 13px; cursor: pointer; }
+
+    /* Supprimer */
+    .btn-del { padding: 3px 8px; border: 1px solid #dc3545; border-radius: 6px; font-size: 11px; color: #dc3545; background: white; cursor: pointer; }
+    .btn-del:hover { background: #fdecea; }
+
+    .empty-emp { color: var(--text-light); font-style: italic; font-size: 13px; }
+
+    .badge-actif { background: #e6f4ea; color: #155724; padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="horaires-container">
+
+    <div class="page-header">
+        <h1>Configuration des horaires</h1>
+        <a href="{% url 'gestion:presences_pointage' %}" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--text-dark);font-size:13px;">← Pointage</a>
+    </div>
+
+    <div class="info-box">
+        <strong>Comment ça fonctionne :</strong> Définissez les horaires de travail théoriques par employé. Le seuil de retard est calculé automatiquement à partir de l'heure de début + 15 minutes de tolérance. Si aucun horaire n'est configuré, les valeurs par défaut sont 08:00 – 17:00.
+    </div>
+
+    {% if messages %}
+    {% for msg in messages %}
+    <div style="padding:12px 16px;margin-bottom:14px;border-radius:10px;background:{% if msg.tags == 'error' %}#fdecea;color:#c62828{% else %}#e6f4ea;color:#155724{% endif %};">
+        {{ msg }}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- Institut tabs -->
+    <div class="institut-tabs">
+        <a href="?institut=tous" class="institut-tab {% if institut_code == 'tous' %}active{% endif %}">Tous</a>
+        {% for inst in instituts %}
+        <a href="?institut={{ inst.code }}" class="institut-tab {% if institut_code == inst.code %}active{% endif %}">{{ inst.nom }}</a>
+        {% endfor %}
+        <a href="?institut=autres" class="institut-tab {% if institut_code == 'autres' %}active{% endif %}">Autres</a>
+    </div>
+
+    {% for d in donnees %}
+    {% with emp=d.employe %}
+    <div class="emp-card">
+
+        <div class="emp-card-header">
+            <div>
+                <span class="emp-name">{{ emp.get_full_name }}</span>
+                {% if emp.categorie %}<span class="emp-cat">{{ emp.categorie.nom }}</span>{% endif %}
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span class="horaire-actif-badge">⏰ {{ d.horaire_actif_debut }} – {{ d.horaire_actif_fin }}</span>
+                <button class="btn-add" onclick="toggleForm('form-{{ emp.id }}')">+ Ajouter</button>
+            </div>
+        </div>
+
+        {% if d.horaires %}
+        <table class="horaires-table">
+            <thead>
+                <tr>
+                    <th>Début journée</th>
+                    <th>Fin journée</th>
+                    <th>Date début</th>
+                    <th>Date fin</th>
+                    <th>Statut</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for h in d.horaires %}
+                <tr>
+                    <td><strong>{{ h.heure_debut|time:"H:i" }}</strong></td>
+                    <td><strong>{{ h.heure_fin|time:"H:i" }}</strong></td>
+                    <td>{{ h.date_debut|date:"d/m/Y" }}</td>
+                    <td>{% if h.date_fin %}{{ h.date_fin|date:"d/m/Y" }}{% else %}<em>En cours</em>{% endif %}</td>
+                    <td>
+                        {% if not h.date_fin or h.date_fin >= today %}
+                        <span class="badge-actif">Actif</span>
+                        {% else %}
+                        <span style="color:var(--text-light);font-size:12px;">Terminé</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn-del" onclick="supprimerHoraire({{ h.id }})">Supprimer</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-emp">Aucun horaire configuré — utilise les valeurs par défaut (08:00 – 17:00)</p>
+        {% endif %}
+
+        <!-- Formulaire d'ajout inline -->
+        <div class="form-inline" id="form-{{ emp.id }}">
+            <form method="post" action="{% url 'gestion:horaires_config' %}?institut={{ institut_code }}">
+                {% csrf_token %}
+                <input type="hidden" name="employe_id" value="{{ emp.id }}">
+                <div class="form-row">
+                    <div class="form-field">
+                        <label>Heure début</label>
+                        <input type="time" name="heure_debut" value="08:00" required>
+                    </div>
+                    <div class="form-field">
+                        <label>Heure fin</label>
+                        <input type="time" name="heure_fin" value="17:00" required>
+                    </div>
+                    <div class="form-field">
+                        <label>Applicable dès le</label>
+                        <input type="date" name="date_debut" value="{{ today }}" required>
+                    </div>
+                    <div class="form-field">
+                        <label>Jusqu'au (vide = en cours)</label>
+                        <input type="date" name="date_fin">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-save">Enregistrer</button>
+                    <button type="button" class="btn-cancel-form" onclick="toggleForm('form-{{ emp.id }}')">Annuler</button>
+                </div>
+            </form>
+        </div>
+
+    </div>
+    {% endwith %}
+    {% endfor %}
+
+    {% if not donnees %}
+    <div style="text-align:center;padding:60px;color:var(--text-light);">Aucun employé actif dans cette section.</div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+
+function toggleForm(id) {
+    const el = document.getElementById(id);
+    el.classList.toggle('open');
+}
+
+async function supprimerHoraire(horaireId) {
+    if (!confirm('Supprimer cet horaire ?')) return;
+    try {
+        const resp = await fetch(`/gestion/presences/api/horaire/${horaireId}/supprimer/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' },
+            body: '{}',
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 600);
+        } else { showError(data.error); }
+    } catch(e) { showError('Erreur réseau'); }
+}
+</script>
+{% endblock %}

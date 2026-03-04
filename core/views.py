@@ -615,6 +615,7 @@ def api_employe_creer(request):
         return JsonResponse({
             'success': True,
             'message': f'Employé {employe.get_full_name()} créé avec succès',
+            'employe_id': employe.id,
         })
 
     except Exception as e:

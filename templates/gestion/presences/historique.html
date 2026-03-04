@@ -4,72 +4,59 @@
 
 {% block extra_css %}
 <style>
-    .histo-container { max-width: 1100px; margin: 0 auto; }
-    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .histo-container { max-width: 1200px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
     .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
 
-    .filters-bar {
-        display: flex;
-        gap: 12px;
-        margin-bottom: 24px;
-        flex-wrap: wrap;
-        align-items: center;
-    }
-    .filters-bar select, .filters-bar input {
-        padding: 8px 14px;
-        border: 2px solid var(--border);
-        border-radius: 10px;
-        background: var(--bg-light);
-        font-size: 14px;
-        color: var(--text-dark);
-    }
-    .filters-bar button {
-        padding: 8px 20px;
-        border-radius: 10px;
-        border: none;
-        background: var(--primary);
-        color: white;
-        font-weight: 600;
-        cursor: pointer;
-    }
+    /* Période tabs */
+    .periode-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .periode-tab { padding: 7px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); }
+    .periode-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .periode-tab:hover:not(.active) { background: #e0e0e0; }
 
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 16px;
-        margin-bottom: 28px;
-    }
-    .stat-card {
-        background: white;
-        border-radius: 14px;
-        padding: 18px 20px;
-        box-shadow: 0 2px 10px rgba(212,175,122,0.10);
-        border: 1px solid var(--border);
-    }
-    .stat-card .stat-name { font-size: 13px; color: var(--text-light); margin-bottom: 6px; }
-    .stat-card .stat-val { font-size: 26px; font-weight: 700; color: var(--text-dark); }
-    .stat-card .stat-sub { font-size: 12px; color: var(--text-light); margin-top: 4px; }
-    .stat-card.green .stat-val { color: #28a745; }
-    .stat-card.orange .stat-val { color: #f39c12; }
-    .stat-card.red .stat-val { color: #e74c3c; }
+    /* Filtres */
+    .filters-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+    .filters-bar select, .filters-bar input { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+    .filters-bar button { padding: 8px 16px; border-radius: 8px; border: none; background: var(--primary); color: white; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .filter-label { font-size: 12px; font-weight: 600; color: var(--text-light); text-transform: uppercase; }
 
-    .card { background: white; border-radius: 16px; padding: 0; overflow: hidden; box-shadow: 0 4px 15px rgba(212,175,122,0.10); border: 1px solid var(--border); }
+    /* KPI */
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .kpi-card { background: white; border-radius: 12px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.06); border: 1px solid var(--border); text-align: center; }
+    .kpi-card .val { font-size: 22px; font-weight: 700; }
+    .kpi-card .lbl { font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: .4px; }
+
+    /* Table */
+    .card { background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,.07); border: 1px solid var(--border); overflow: hidden; }
     table { width: 100%; border-collapse: collapse; }
-    th { background: var(--bg-section); padding: 12px 16px; text-align: left; font-weight: 600; font-size: 13px; color: var(--text-dark); border-bottom: 2px solid var(--border); }
-    td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
+    th { background: #f8f9fa; padding: 11px 14px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #6c757d; border-bottom: 1px solid var(--border); }
+    td { padding: 11px 14px; border-bottom: 1px solid #f0f0f0; font-size: 13px; vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
-    tr:hover td { background: var(--bg-light); }
+    tr:hover td { background: #fafafa; }
 
-    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-    .badge-success  { background: #d4edda; color: #155724; }
-    .badge-warning  { background: #fff3cd; color: #856404; }
-    .badge-danger   { background: #f8d7da; color: #721c24; }
-    .badge-secondary{ background: var(--bg-section); color: var(--text-light); }
+    /* Row colorée selon statut */
+    tr.row-retard td { border-left: 3px solid #ffc107; }
+    tr.row-absent td { border-left: 3px solid #dc3545; }
+    tr.row-absent-nj td { border-left: 3px solid #c62828; background: #fff5f5; }
+    tr.row-ok td { border-left: 3px solid #28a745; }
+    tr.row-valide td { opacity: .85; }
 
-    .links-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-    .link-btn { padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); }
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .badge .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .badge-present { background: #e6f4ea; color: #1e7e34; } .badge-present .dot { background: #28a745; }
+    .badge-retard  { background: #fff8e1; color: #856404; } .badge-retard .dot  { background: #ffc107; }
+    .badge-absent  { background: #fdecea; color: #c62828; } .badge-absent .dot  { background: #dc3545; }
+    .badge-nj      { background: #fdecea; color: #7b1818; border: 1px solid #dc3545; } .badge-nj .dot { background: #c62828; }
+    .badge-justifie{ background: #e8ecff; color: #3b5bdb; }
+    .badge-demi    { background: #fff3cd; color: #856404; }
+    .badge-conge   { background: #e8ecff; color: #3b5bdb; }
+    .badge-valide  { background: #e6f4ea; color: #155724; font-size: 11px; padding: 2px 8px; border-radius: 8px; }
+
+    .retard-min { color: #fd7e14; font-weight: 600; font-size: 11px; }
+    .empty-state { text-align: center; padding: 60px; color: var(--text-light); }
+    .link-btn { padding: 7px 16px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); transition: background 0.2s; display: inline-block; }
     .link-btn:hover { background: var(--border); }
-    .link-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 </style>
 {% endblock %}
 
@@ -78,58 +65,78 @@
 
     <div class="page-header">
         <h1>Historique des présences</h1>
+        <div style="display:flex;gap:10px;align-items:center;">
+            {% if is_patron %}
+            <a href="{% url 'gestion:export_presences' %}?date_debut={{ d_debut|date:'Y-m-d' }}&date_fin={{ d_fin|date:'Y-m-d' }}&institut={{ institut_code }}" class="link-btn">⬇ Export CSV</a>
+            <a href="{% url 'gestion:presences_dashboard' %}" class="link-btn">Tableau de bord</a>
+            {% endif %}
+            <a href="{% url 'gestion:presences_pointage' %}" class="link-btn">← Pointage</a>
+        </div>
     </div>
 
-    <div class="links-bar">
-        <a href="{% url 'gestion:presences_pointage' %}" class="link-btn">Pointage du jour</a>
-        <a href="{% url 'gestion:presences_historique' %}" class="link-btn active">Historique</a>
-        <a href="{% url 'gestion:absences_liste' %}" class="link-btn">Absences</a>
-        <a href="{% url 'gestion:retards_suivi' %}" class="link-btn">Suivi retards</a>
+    <!-- Onglets période -->
+    <div class="periode-tabs">
+        <a href="?periode=semaine&institut={{ institut_code }}" class="periode-tab {% if periode == 'semaine' %}active{% endif %}">Cette semaine</a>
+        <a href="?periode=mois&mois={{ d_debut|date:'Y-m' }}&institut={{ institut_code }}" class="periode-tab {% if periode == 'mois' %}active{% endif %}">Ce mois</a>
+        <a href="?periode=custom&institut={{ institut_code }}" class="periode-tab {% if periode == 'custom' %}active{% endif %}">Personnalisé</a>
     </div>
 
-    <!-- Filtres (auto-submit, pas de bouton) -->
-    <form method="get" class="filters-bar" id="filtres-form">
-        <input type="month" name="mois" value="{{ mois|date:'Y-m' }}"
-               onchange="this.form.submit()" title="Mois">
+    <!-- Filtres -->
+    <form method="get" class="filters-bar">
+        <input type="hidden" name="periode" value="{{ periode }}">
+
+        {% if periode == 'mois' %}
+        <span class="filter-label">Mois :</span>
+        <input type="month" name="mois" value="{{ d_debut|date:'Y-m' }}">
+        {% elif periode == 'custom' %}
+        <span class="filter-label">Du :</span>
+        <input type="date" name="date_debut" value="{{ d_debut|date:'Y-m-d' }}">
+        <span class="filter-label">Au :</span>
+        <input type="date" name="date_fin" value="{{ d_fin|date:'Y-m-d' }}">
+        {% endif %}
+
         {% if is_patron %}
-        <select name="institut" onchange="this.form.submit()">
-            <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
+        <span class="filter-label">Institut :</span>
+        <select name="institut">
+            <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous</option>
             {% for inst in instituts %}
             <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
             {% endfor %}
             <option value="autres" {% if institut_code == 'autres' %}selected{% endif %}>Autres</option>
         </select>
         {% endif %}
-        <select name="statut" onchange="this.form.submit()">
-            <option value="tous"     {% if statut_filtre == 'tous' %}selected{% endif %}>Tous les statuts</option>
-            <option value="retard"   {% if statut_filtre == 'retard' %}selected{% endif %}>Retards seulement</option>
-            <option value="absent"   {% if statut_filtre == 'absent' %}selected{% endif %}>Absences seulement</option>
-            <option value="anticipe" {% if statut_filtre == 'anticipe' %}selected{% endif %}>Départs anticipés</option>
+
+        <span class="filter-label">Employé :</span>
+        <select name="employe_id">
+            <option value="">Tous</option>
+            {% for emp in employes_filtre %}
+            <option value="{{ emp.id }}" {% if employe_id_filtre == emp.id|stringformat:'s' %}selected{% endif %}>{{ emp.get_full_name }}</option>
+            {% endfor %}
         </select>
+
+        <span class="filter-label">Statut :</span>
+        <select name="statut">
+            <option value="tous" {% if statut_filtre == 'tous' %}selected{% endif %}>Tous</option>
+            <option value="retard" {% if statut_filtre == 'retard' %}selected{% endif %}>Retards</option>
+            <option value="absent" {% if statut_filtre == 'absent' %}selected{% endif %}>Absences</option>
+            <option value="absent_nj" {% if statut_filtre == 'absent_nj' %}selected{% endif %}>Absences non justifiées</option>
+            <option value="valide" {% if statut_filtre == 'valide' %}selected{% endif %}>Validées</option>
+        </select>
+
+        <button type="submit">Filtrer</button>
     </form>
 
-    <!-- Stats résumé -->
-    <div class="stats-grid">
-        {% for s in stats_employes %}
-        <div class="stat-card">
-            <div class="stat-name">{{ s.employe.get_full_name }}</div>
-            <div class="stat-val {% if s.nb_absent > 3 %}red{% elif s.nb_retard > 3 %}orange{% else %}green{% endif %}">
-                {{ s.nb_present }} j.
-            </div>
-            <div class="stat-sub">
-                {% if s.nb_retard > 0 %}<span style="color:#f39c12;">{{ s.nb_retard }} retard(s)</span>{% endif %}
-                {% if s.nb_retard > 0 and s.nb_absent > 0 %} · {% endif %}
-                {% if s.nb_absent > 0 %}<span style="color:#e74c3c;">{{ s.nb_absent }} absent(s)</span>{% endif %}
-                {% if s.nb_retard == 0 and s.nb_absent == 0 %}Aucune anomalie{% endif %}
-            </div>
-        </div>
-        {% empty %}
-        <div style="color:var(--text-light);font-style:italic;">Aucun employé</div>
-        {% endfor %}
+    <!-- KPI résumé -->
+    <div class="kpi-row">
+        <div class="kpi-card"><div class="val">{{ nb_total }}</div><div class="lbl">Total</div></div>
+        <div class="kpi-card"><div class="val" style="color:#dc3545;">{{ nb_absents }}</div><div class="lbl">Absences</div></div>
+        <div class="kpi-card"><div class="val" style="color:#fd7e14;">{{ nb_retards }}</div><div class="lbl">Retards</div></div>
+        <div class="kpi-card"><div class="val" style="color:#28a745;">{{ nb_valides }}</div><div class="lbl">Validées</div></div>
     </div>
 
-    <!-- Tableau détaillé -->
+    <!-- Tableau -->
     <div class="card">
+        {% if presences %}
         <table>
             <thead>
                 <tr>
@@ -139,56 +146,57 @@
                     <th>Arrivée</th>
                     <th>Départ</th>
                     <th>Durée</th>
+                    <th>Statut journée</th>
+                    <th>Retard</th>
+                    <th>Validé</th>
                 </tr>
             </thead>
             <tbody>
                 {% for p in presences %}
-                <tr>
-                    <td>{{ p.date|date:"d/m/Y" }}</td>
+                <tr class="{% if p.statut_journee == 'absent_non_justifie' %}row-absent-nj{% elif p.statut_arrivee == 'absent' %}row-absent{% elif p.statut_arrivee == 'retard' %}row-retard{% elif p.est_valide %}row-valide{% elif p.statut_arrivee == 'present' and p.statut_depart == 'present' %}row-ok{% endif %}">
+                    <td><strong>{{ p.date|date:"d/m/Y" }}</strong></td>
                     <td>
-                        <strong>{{ p.employe.get_full_name }}</strong>
-                        {% if p.employe.categorie %}
-                        <br><small style="color:{{ p.employe.categorie.couleur }};">{{ p.employe.categorie.nom }}</small>
-                        {% endif %}
+                        {{ p.employe.get_full_name }}
+                        {% if p.employe.categorie %}<br><span style="font-size:11px;color:{{ p.employe.categorie.couleur }};">{{ p.employe.categorie.nom }}</span>{% endif %}
                     </td>
-                    {% if is_patron %}
-                    <td>{{ p.employe.institut.nom|default:"Autres" }}</td>
-                    {% endif %}
+                    {% if is_patron %}<td>{{ p.employe.institut.nom|default:"Autres" }}</td>{% endif %}
                     <td>
-                        {% if p.statut_arrivee == 'present' %}
-                            <span class="badge badge-success">Présent</span>
-                        {% elif p.statut_arrivee == 'retard' %}
-                            <span class="badge badge-warning">Retard</span>
-                        {% elif p.statut_arrivee == 'absent' %}
-                            <span class="badge badge-danger">Absent</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if p.statut_depart == 'present' %}
-                            <span class="badge badge-success">{{ p.heure_depart|time:"H:i"|default:"Départ" }}</span>
-                        {% elif p.statut_depart == 'anticipe' %}
-                            <span class="badge badge-warning">Anticipé {{ p.heure_depart|time:"H:i" }}</span>
-                        {% elif p.statut_depart == 'absent' %}
-                            <span class="badge badge-danger">Absent</span>
-                        {% else %}
-                            <span class="badge badge-secondary">—</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if p.duree_travaillee %}
-                            <span style="font-weight:600;color:var(--text-dark);">{{ p.duree_travaillee }}</span>
+                        {% if p.statut_arrivee == 'present' %}<span class="badge badge-present"><span class="dot"></span>{% if p.heure_arrivee %}{{ p.heure_arrivee|time:"H\hi" }}{% else %}Présent{% endif %}</span>
+                        {% elif p.statut_arrivee == 'retard' %}<span class="badge badge-retard"><span class="dot"></span>{% if p.heure_arrivee %}{{ p.heure_arrivee|time:"H\hi" }}{% else %}Retard{% endif %}</span>
+                        {% elif p.statut_arrivee == 'absent' %}<span class="badge badge-absent"><span class="dot"></span>Absent</span>
                         {% else %}—{% endif %}
                     </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="{% if is_patron %}6{% else %}5{% endif %}" style="text-align:center;color:var(--text-light);font-style:italic;padding:40px;">
-                        Aucun pointage enregistré sur cette période
+                    <td>
+                        {% if p.statut_depart == 'present' %}<span class="badge badge-present"><span class="dot"></span>{% if p.heure_depart %}{{ p.heure_depart|time:"H\hi" }}{% else %}Départ{% endif %}</span>
+                        {% elif p.statut_depart == 'anticipe' %}<span class="badge badge-retard"><span class="dot"></span>Anticipé{% if p.heure_depart %} {{ p.heure_depart|time:"H\hi" }}{% endif %}</span>
+                        {% elif p.statut_depart == 'absent' %}<span class="badge badge-absent"><span class="dot"></span>Absent</span>
+                        {% elif p.statut_arrivee and p.statut_arrivee != 'absent' %}<span style="color:#3b5bdb;font-size:12px;">En cours</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>{% if p.duree_travaillee %}<strong>{{ p.duree_travaillee }}</strong>{% else %}—{% endif %}</td>
+                    <td>
+                        {% if p.statut_journee == 'present' %}<span class="badge badge-present">Présent</span>
+                        {% elif p.statut_journee == 'absent_justifie' %}<span class="badge badge-justifie">Abs. justifiée</span>
+                        {% elif p.statut_journee == 'absent_non_justifie' %}<span class="badge badge-nj"><span class="dot"></span>Abs. non just.</span>
+                        {% elif p.statut_journee == 'demi_journee_matin' %}<span class="badge badge-demi">½ matin</span>
+                        {% elif p.statut_journee == 'demi_journee_apmidi' %}<span class="badge badge-demi">½ après-midi</span>
+                        {% elif p.statut_journee == 'conge_long' %}<span class="badge badge-conge">Congé/Arrêt</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if p.minutes_retard > 0 %}<span class="retard-min">+{{ p.minutes_retard }} min</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if p.est_valide %}<span class="badge-valide">✓</span>{% else %}—{% endif %}
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        {% else %}
+        <div class="empty-state">Aucune présence sur cette période.</div>
+        {% endif %}
     </div>
 
 </div>

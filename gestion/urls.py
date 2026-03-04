@@ -39,13 +39,23 @@ urlpatterns = [
 
     # ========== PRÉSENCES ==========
     path('presences/', views.presences_pointage, name='presences_pointage'),
+    path('presences/dashboard/', views.presences_dashboard, name='presences_dashboard'),
     path('presences/historique/', views.presences_historique, name='presences_historique'),
+    path('presences/horaires/', views.horaires_config, name='horaires_config'),
+    path('presences/export/', views.export_presences, name='export_presences'),
+    # Anciennes vues maintenues pour compatibilité (redirigent vers historique unifié)
     path('presences/absences/', views.absences_liste, name='absences_liste'),
     path('presences/retards/', views.retards_suivi, name='retards_suivi'),
+    # APIs
     path('presences/api/pointer/', views.api_pointer, name='api_pointer'),
+    path('presences/api/valider/', views.api_valider_journee, name='api_valider_journee'),
+    path('presences/api/modifier-pointage/', views.api_modifier_pointage, name='api_modifier_pointage'),
     path('presences/api/absence/creer/', views.api_absence_creer, name='api_absence_creer'),
     path('presences/api/absence/<int:absence_id>/supprimer/', views.api_absence_supprimer, name='api_absence_supprimer'),
     path('presences/api/avertissement/creer/', views.api_avertissement_creer, name='api_avertissement_creer'),
+    path('presences/api/horaire/<int:horaire_id>/supprimer/', views.api_horaire_supprimer, name='api_horaire_supprimer'),
+    path('presences/api/horaire/creer/', views.api_horaire_creer, name='api_horaire_creer'),
+    path('presences/api/horaire/employe/<int:employe_id>/', views.api_horaires_employe, name='api_horaires_employe'),
 
     # ========== SALAIRES ==========
     path('salaires/', views.salaires_calcul, name='salaires_calcul'),

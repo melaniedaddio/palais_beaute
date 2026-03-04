@@ -10,12 +10,20 @@ from django.db import transaction
 from core.models import (
     RendezVous, RendezVousOption, Paiement, CarteCadeau,
     ForfaitClient, SeanceForfait, ModificationLog, ClotureCaisse,
-    PaiementCredit, Credit
+    PaiementCredit, Credit,
+    # Nouveaux
+    VenteProduit, LigneVenteProduit,
+    Presence, ModificationPointage,
+    CalculSalaire, Prime, Avance,
+    MouvementStock,
+    Inventaire, LigneInventaire,
+    Depense, ValidationDepenseRecurrente,
+    ReconciliationCaisse,
 )
 
 
 class Command(BaseCommand):
-    help = 'Nettoie toutes les données de test (RDV, paiements, cartes cadeaux, forfaits)'
+    help = 'Nettoie toutes les données de test (RDV, paiements, ventes, présences, salaires, stock, inventaires, dépenses)'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -35,8 +43,17 @@ class Command(BaseCommand):
         self.stdout.write(f'  - Crédits : {Credit.objects.count()}')
         self.stdout.write(f'  - Clôtures de caisse : {ClotureCaisse.objects.count()}')
         self.stdout.write(f'  - Logs de modifications : {ModificationLog.objects.count()}')
+        self.stdout.write(f'  - Ventes produits : {VenteProduit.objects.count()} ({LigneVenteProduit.objects.count()} lignes)')
+        self.stdout.write(f'  - Présences : {Presence.objects.count()} ({ModificationPointage.objects.count()} modifications)')
+        self.stdout.write(f'  - Salaires calculés : {CalculSalaire.objects.count()}')
+        self.stdout.write(f'  - Primes : {Prime.objects.count()}')
+        self.stdout.write(f'  - Avances : {Avance.objects.count()}')
+        self.stdout.write(f'  - Mouvements de stock : {MouvementStock.objects.count()}')
+        self.stdout.write(f'  - Inventaires : {Inventaire.objects.count()} ({LigneInventaire.objects.count()} lignes)')
+        self.stdout.write(f'  - Dépenses : {Depense.objects.count()} ({ValidationDepenseRecurrente.objects.count()} validations récurrentes)')
+        self.stdout.write(f'  - Réconciliations de caisse : {ReconciliationCaisse.objects.count()}')
         self.stdout.write('')
-        self.stdout.write(self.style.WARNING('Les données de configuration (instituts, employés, prestations, options, clients) seront CONSERVÉES.'))
+        self.stdout.write(self.style.WARNING('Les données de configuration (instituts, employés, prestations, produits, clients) seront CONSERVÉES.'))
         self.stdout.write('')
 
         if not options['confirm']:
@@ -100,6 +117,65 @@ class Command(BaseCommand):
                 count_logs = ModificationLog.objects.count()
                 ModificationLog.objects.all().delete()
                 self.stdout.write(f'✓ {count_logs} logs de modifications supprimés')
+
+                # 11. Ventes produits (lignes avant entêtes)
+                count_lignes_vp = LigneVenteProduit.objects.count()
+                LigneVenteProduit.objects.all().delete()
+                self.stdout.write(f'✓ {count_lignes_vp} lignes de ventes produits supprimées')
+
+                count_vp = VenteProduit.objects.count()
+                VenteProduit.objects.all().delete()
+                self.stdout.write(f'✓ {count_vp} ventes produits supprimées')
+
+                # 12. Présences et audit trail
+                count_modif_pt = ModificationPointage.objects.count()
+                ModificationPointage.objects.all().delete()
+                self.stdout.write(f'✓ {count_modif_pt} modifications de pointage supprimées')
+
+                count_presences = Presence.objects.count()
+                Presence.objects.all().delete()
+                self.stdout.write(f'✓ {count_presences} présences supprimées')
+
+                # 13. Salaires, primes, avances
+                count_calculs = CalculSalaire.objects.count()
+                CalculSalaire.objects.all().delete()
+                self.stdout.write(f'✓ {count_calculs} calculs de salaire supprimés')
+
+                count_primes = Prime.objects.count()
+                Prime.objects.all().delete()
+                self.stdout.write(f'✓ {count_primes} primes supprimées')
+
+                count_avances = Avance.objects.count()
+                Avance.objects.all().delete()
+                self.stdout.write(f'✓ {count_avances} avances supprimées')
+
+                # 14. Mouvements de stock
+                count_mvt = MouvementStock.objects.count()
+                MouvementStock.objects.all().delete()
+                self.stdout.write(f'✓ {count_mvt} mouvements de stock supprimés')
+
+                # 15. Inventaires (lignes avant entêtes)
+                count_lignes_inv = LigneInventaire.objects.count()
+                LigneInventaire.objects.all().delete()
+                self.stdout.write(f'✓ {count_lignes_inv} lignes d\'inventaire supprimées')
+
+                count_inv = Inventaire.objects.count()
+                Inventaire.objects.all().delete()
+                self.stdout.write(f'✓ {count_inv} inventaires supprimés')
+
+                # 16. Dépenses (validations récurrentes avant dépenses)
+                count_valid_dep = ValidationDepenseRecurrente.objects.count()
+                ValidationDepenseRecurrente.objects.all().delete()
+                self.stdout.write(f'✓ {count_valid_dep} validations de dépenses récurrentes supprimées')
+
+                count_dep = Depense.objects.count()
+                Depense.objects.all().delete()
+                self.stdout.write(f'✓ {count_dep} dépenses supprimées')
+
+                # 17. Réconciliations de caisse
+                count_reco = ReconciliationCaisse.objects.count()
+                ReconciliationCaisse.objects.all().delete()
+                self.stdout.write(f'✓ {count_reco} réconciliations de caisse supprimées')
 
                 self.stdout.write('')
                 self.stdout.write(self.style.SUCCESS('✅ Nettoyage terminé avec succès !'))
