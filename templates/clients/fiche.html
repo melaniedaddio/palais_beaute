@@ -4,8 +4,8 @@
 
 {% block extra_css %}
 <style>
-    .client-container {
-        max-width: 1200px;
+    .fiche-container {
+        max-width: 1100px;
         margin: 0 auto;
     }
 
@@ -17,569 +17,712 @@
         text-decoration: none;
         margin-bottom: 20px;
         font-weight: 500;
+        font-size: 14px;
+    }
+    .back-btn:hover { opacity: 0.75; }
+
+    /* === Grid layout === */
+    .fiche-grid {
+        display: grid;
+        grid-template-columns: 270px 1fr;
+        gap: 24px;
+        align-items: start;
+    }
+    @media (max-width: 768px) {
+        .fiche-grid { grid-template-columns: 1fr; }
     }
 
-    .back-btn:hover {
-        text-decoration: underline;
-    }
-
-    .client-header {
-        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-        color: white;
-        padding: 30px;
-        border-radius: 15px;
-        margin-bottom: 30px;
-        box-shadow: 0 10px 30px rgba(232, 180, 184, 0.3);
-    }
-
-    .client-info-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 20px;
-    }
-
-    .client-main-info h1 {
-        margin: 0 0 10px 0;
-        font-size: 2em;
-    }
-
-    .client-contact {
-        font-size: 1.1em;
-        opacity: 0.9;
-        margin-bottom: 5px;
-    }
-
-    .client-stats-row {
-        display: flex;
-        gap: 30px;
-        margin-top: 20px;
-    }
-
-    .client-stat {
+    /* === Profile Card (left) === */
+    .profile-card {
+        background: white;
+        border-radius: 16px;
+        padding: 28px 22px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        position: sticky;
+        top: 20px;
         text-align: center;
-        background: rgba(255,255,255,0.2);
-        padding: 15px 25px;
+    }
+
+    .profile-avatar {
+        width: 78px;
+        height: 78px;
+        border-radius: 50%;
+        background: var(--primary);
+        color: white;
+        font-size: 26px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 14px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+
+    .profile-name {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 8px;
+        line-height: 1.3;
+    }
+
+    .profile-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 22px;
+    }
+    .profile-badge.actif { background: #e8f5e9; color: #2e7d32; }
+    .profile-badge.inactif { background: #f0f0f0; color: #888; }
+    .profile-badge.dette { background: #fff3e0; color: #e65100; }
+
+    .profile-info-list {
+        text-align: left;
+        margin-bottom: 22px;
+    }
+
+    .profile-info-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 9px 0;
+        border-bottom: 1px solid #f5f5f5;
+        font-size: 13px;
+        color: #444;
+    }
+    .profile-info-item:last-child { border-bottom: none; }
+
+    .profile-info-icon {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        color: var(--primary);
+        margin-top: 2px;
+    }
+
+    .profile-info-text { flex: 1; line-height: 1.4; }
+
+    .profile-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .btn-profile {
+        width: 100%;
+        padding: 11px 14px;
         border-radius: 10px;
+        font-size: 13px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .btn-profile-primary { background: var(--primary); color: white; }
+    .btn-profile-primary:hover { background: var(--primary-dark); }
+    .btn-profile-outline { background: white; color: var(--primary); border: 1.5px solid var(--primary); }
+    .btn-profile-outline:hover { background: #fdf6ed; }
+
+    /* === Right column === */
+    .fiche-right { display: flex; flex-direction: column; gap: 20px; }
+
+    /* === Stats row === */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
     }
 
-    .client-stat-value {
-        font-size: 1.8em;
-        font-weight: bold;
+    .stat-card {
+        background: white;
+        border-radius: 14px;
+        padding: 18px 16px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        text-align: center;
     }
 
-    .client-stat-label {
-        font-size: 0.9em;
-        opacity: 0.9;
+    .stat-card-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--primary);
+        margin-bottom: 4px;
     }
 
+    .stat-card-label {
+        font-size: 11px;
+        color: #aaa;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .stat-card.danger .stat-card-value { color: #dc3545; }
+
+    /* === Section cards === */
     .section-card {
         background: white;
-        border-radius: 15px;
-        padding: 25px;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        border-radius: 14px;
+        padding: 22px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
     }
 
     .section-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 20px;
-        padding-bottom: 15px;
-        border-bottom: 2px solid #f0f0f0;
+        margin-bottom: 16px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid #f0f0f0;
     }
 
     .section-title {
-        font-size: 1.3em;
-        font-weight: 600;
-        color: var(--text-dark);
+        font-size: 15px;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin: 0;
     }
 
     .badge-count {
         background: var(--primary);
         color: white;
-        padding: 5px 15px;
+        padding: 4px 12px;
         border-radius: 20px;
-        font-size: 0.9em;
+        font-size: 12px;
+        font-weight: 600;
     }
+    .badge-count.danger { background: #dc3545; }
+    .badge-count.purple { background: #9b59b6; }
 
-    .badge-count.warning {
-        background: var(--warning);
-        color: #333;
-    }
-
-    .badge-count.danger {
-        background: var(--danger);
-    }
-
-    .rdv-list {
-        max-height: 400px;
-        overflow-y: auto;
-    }
+    /* === RDV list === */
+    .rdv-list { max-height: 420px; overflow-y: auto; }
 
     .rdv-item {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 15px;
-        background: #f8f9fa;
+        padding: 11px 13px;
         border-radius: 10px;
-        margin-bottom: 10px;
+        margin-bottom: 7px;
+        background: #fafafa;
+        transition: background 0.15s;
     }
-
-    .rdv-item:hover {
-        background: #f0f0f0;
-    }
+    .rdv-item:hover { background: #f2f2f2; }
 
     .rdv-date {
+        font-size: 13px;
         font-weight: 600;
-        color: var(--text-dark);
-        margin-bottom: 5px;
+        color: #1a1a1a;
+        margin-bottom: 3px;
     }
 
-    .rdv-detail {
-        font-size: 0.9em;
-        color: #666;
-    }
+    .rdv-detail { font-size: 12px; color: #999; }
 
     .rdv-institut {
         display: inline-block;
-        background: var(--primary);
-        color: white;
-        padding: 3px 10px;
-        border-radius: 10px;
-        font-size: 0.8em;
-        margin-left: 10px;
+        background: rgba(201,168,106,0.15);
+        color: var(--primary);
+        padding: 2px 8px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 600;
+        margin-left: 7px;
     }
 
     .rdv-amount {
-        font-weight: bold;
-        color: var(--success);
-        font-size: 1.1em;
+        font-weight: 700;
+        color: #2e7d32;
+        font-size: 13px;
+        white-space: nowrap;
     }
 
+    /* === Credits === */
     .credit-item {
-        background: #f8f9fa;
+        background: #fafafa;
         border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 15px;
-        border-left: 4px solid var(--warning);
+        padding: 14px;
+        margin-bottom: 10px;
+        border-left: 3px solid #ffa500;
     }
-
-    .credit-item.solde {
-        border-left-color: var(--success);
-        opacity: 0.7;
-    }
+    .credit-item.solde { border-left-color: #28a745; opacity: 0.7; }
 
     .credit-header {
         display: flex;
         justify-content: space-between;
-        align-items: start;
-        margin-bottom: 15px;
+        align-items: flex-start;
+        margin-bottom: 10px;
     }
 
-    .credit-title {
-        font-weight: 600;
-        color: var(--text-dark);
-    }
-
-    .credit-date {
-        font-size: 0.9em;
-        color: #888;
-    }
+    .credit-title { font-size: 14px; font-weight: 600; color: #1a1a1a; }
+    .credit-date { font-size: 12px; color: #aaa; margin-top: 3px; }
 
     .badge-solde {
-        background: var(--success);
+        background: #28a745;
         color: white;
-        padding: 4px 12px;
-        border-radius: 15px;
-        font-size: 0.85em;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
     }
 
-    .credit-amounts {
-        display: flex;
-        gap: 30px;
-    }
+    .credit-amounts { display: flex; gap: 22px; }
+    .credit-amount { text-align: center; }
+    .credit-amount-label { font-size: 11px; color: #aaa; margin-bottom: 2px; }
+    .credit-amount-value { font-size: 14px; font-weight: 700; }
+    .credit-amount-value.total { color: #666; }
+    .credit-amount-value.paye { color: #28a745; }
+    .credit-amount-value.reste { color: #dc3545; }
 
-    .credit-amount {
-        text-align: center;
-    }
-
-    .credit-amount-label {
-        font-size: 0.85em;
-        color: #888;
-    }
-
-    .credit-amount-value {
-        font-size: 1.2em;
-        font-weight: bold;
-    }
-
-    .credit-amount-value.total {
-        color: #666;
-    }
-
-    .credit-amount-value.paye {
-        color: var(--success);
-    }
-
-    .credit-amount-value.reste {
-        color: var(--danger);
-    }
-
+    /* === Empty state === */
     .empty-state {
         text-align: center;
-        padding: 40px;
-        color: var(--text-light);
+        padding: 30px;
+        color: #ccc;
+        font-size: 14px;
     }
 
-    .btn-modifier {
-        background: var(--secondary);
-        color: white;
-        border: none;
-        padding: 10px 25px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 500;
-        transition: all 0.3s;
-    }
-
-    .btn-modifier:hover {
-        background: var(--secondary-dark);
-    }
-
-    /* Modal */
+    /* === Modal === */
     .modal {
         display: none;
         position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.5);
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0,0,0,0.45);
         z-index: 1000;
         align-items: center;
         justify-content: center;
     }
-
-    .modal.active {
-        display: flex;
-    }
+    .modal.active { display: flex; }
 
     .modal-content {
         background: white;
-        border-radius: 15px;
-        padding: 30px;
-        max-width: 500px;
+        border-radius: 16px;
+        padding: 28px;
+        max-width: 480px;
         width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
     }
 
     .modal-header {
-        margin-bottom: 25px;
-        padding-bottom: 15px;
-        border-bottom: 2px solid #f0f0f0;
-    }
-
-    .modal-header h2 {
-        margin: 0;
-    }
-
-    .form-group {
         margin-bottom: 20px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid #f0f0f0;
     }
+    .modal-header h2 { margin: 0; font-size: 18px; }
 
+    .form-group { margin-bottom: 16px; }
     .form-group label {
         display: block;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
         font-weight: 600;
+        font-size: 13px;
+        color: #555;
     }
 
     .form-control {
         width: 100%;
-        padding: 12px;
-        border: 2px solid var(--border);
+        padding: 10px 13px;
+        border: 1.5px solid #e0e0e0;
         border-radius: 8px;
-        font-size: 1em;
+        font-size: 14px;
         box-sizing: border-box;
+        transition: border-color 0.2s;
     }
-
-    .form-control:focus {
-        outline: none;
-        border-color: var(--primary);
-    }
+    .form-control:focus { outline: none; border-color: var(--primary); }
 
     .modal-actions {
         display: flex;
         gap: 10px;
         justify-content: flex-end;
-        margin-top: 25px;
+        margin-top: 20px;
     }
 
     .btn-submit {
-        padding: 12px 30px;
-        background: var(--success);
+        padding: 10px 24px;
+        background: var(--primary);
         color: white;
         border: none;
         border-radius: 8px;
         cursor: pointer;
         font-weight: 600;
+        font-size: 14px;
     }
-
     .btn-cancel {
-        padding: 12px 30px;
-        background: #e0e0e0;
+        padding: 10px 24px;
+        background: #f0f0f0;
         color: #666;
         border: none;
         border-radius: 8px;
         cursor: pointer;
+        font-size: 14px;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="client-container">
-    <a href="{% url 'core:clients_list' %}" class="back-btn">
-        ← Retour à la liste
-    </a>
+<div class="fiche-container">
 
-    <div class="client-header">
-        <div class="client-info-row">
-            <div class="client-main-info">
-                <h1>{{ client.get_full_name }}</h1>
-                <div class="client-contact">{{ client.telephone }}</div>
-                {% if client.email %}
-                <div class="client-contact">{{ client.email }}</div>
-                {% endif %}
-                {% if client.date_naissance %}
-                <div class="client-contact">🎂 {{ client.date_naissance|date:"d/m/Y" }}</div>
-                {% endif %}
-                <div class="client-contact" style="opacity: 0.7; font-size: 0.9em;">
-                    Client depuis le {{ client.date_creation|date:"d/m/Y" }}
-                </div>
-                {% if client.notes %}
-                <div class="client-contact" style="margin-top: 8px; font-style: italic; opacity: 0.85;">{{ client.notes }}</div>
-                {% endif %}
-            </div>
-            {% if request.user.utilisateur.is_patron %}
-            <button class="btn-modifier" onclick="ouvrirModalModifier()">
-                Modifier
-            </button>
-            {% endif %}
-        </div>
-
-        <div class="client-stats-row">
-            <div class="client-stat">
-                <div class="client-stat-value">{{ nombre_visites }}</div>
-                <div class="client-stat-label">Visites</div>
-            </div>
-            <div class="client-stat">
-                <div class="client-stat-value">{{ total_depense|floatformat:0 }}</div>
-                <div class="client-stat-label">CFA dépensés</div>
-            </div>
-            {% if credit_total > 0 %}
-            <div class="client-stat" style="background: rgba(220, 53, 69, 0.3);">
-                <div class="client-stat-value">{{ credit_total|floatformat:0 }}</div>
-                <div class="client-stat-label">CFA de crédit</div>
-            </div>
-            {% endif %}
-        </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <a href="{% url 'core:clients_list' %}" class="back-btn" style="margin-bottom: 0;">← Retour à la liste</a>
+        {% if request.user.utilisateur.is_patron %}
+        <button class="btn-profile btn-profile-primary" onclick="ouvrirModalModifier()"
+                style="width: auto; padding: 9px 20px; font-size: 13px;">
+            Modifier le profil
+        </button>
+        {% endif %}
     </div>
 
-    <!-- Forfaits -->
-    {% if forfaits %}
-    <div class="section-card">
-        <div class="section-header">
-            <h2 class="section-title" style="color: #9b59b6;">Forfaits</h2>
-            <span class="badge-count" style="background: #9b59b6;">{{ forfaits.count }} forfait(s)</span>
-        </div>
+    <div class="fiche-grid">
 
-        {% for forfait in forfaits %}
-        <div class="forfait-item" style="background: {% if forfait.statut == 'actif' %}linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%){% else %}#f5f5f5{% endif %}; border: 2px solid {% if forfait.statut == 'actif' %}#9b59b6{% else %}#ddd{% endif %}; border-radius: 12px; padding: 15px; margin-bottom: 15px;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
-                <div>
-                    <div style="font-weight: 600; color: #9b59b6; font-size: 1.1em;">{{ forfait.prestation.nom }}</div>
-                    <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
-                        {{ forfait.institut.nom }} - Acheté le {{ forfait.date_achat|date:"d/m/Y" }}
+        <!-- LEFT: Profile Card -->
+        <div class="profile-card">
+            <div class="profile-avatar">
+                {{ client.prenom|slice:":1" }}{{ client.nom|slice:":1" }}
+            </div>
+
+            <div class="profile-name">{{ client.get_full_name }}</div>
+
+            {% if not client.actif %}
+            <span class="profile-badge inactif">Inactif</span>
+            {% elif client.credits_non_soldes %}
+            <span class="profile-badge dette">Crédit en cours</span>
+            {% else %}
+            <span class="profile-badge actif">Actif</span>
+            {% endif %}
+
+            <div class="profile-info-list">
+                <div class="profile-info-item">
+                    <svg class="profile-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.39a2 2 0 0 1 1.99-2.18h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6.29 6.29l1.02-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                    </svg>
+                    <span class="profile-info-text">{{ client.telephone }}</span>
+                </div>
+
+                {% if client.email %}
+                <div class="profile-info-item">
+                    <svg class="profile-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                    </svg>
+                    <span class="profile-info-text">{{ client.email }}</span>
+                </div>
+                {% endif %}
+
+                {% if client.date_naissance %}
+                <div class="profile-info-item">
+                    <svg class="profile-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                    <span class="profile-info-text">{{ client.date_naissance|date:"d/m/Y" }}</span>
+                </div>
+                {% endif %}
+
+                {% if client.notes %}
+                <div class="profile-info-item">
+                    <svg class="profile-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    <span class="profile-info-text" style="font-style: italic; color: #888;">{{ client.notes }}</span>
+                </div>
+                {% endif %}
+
+                <div class="profile-info-item">
+                    <svg class="profile-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    <div class="profile-info-text">
+                        <div style="color: #aaa; font-size: 12px;">Client depuis le</div>
+                        <div style="font-weight: 600; color: #1a1a1a;">{{ client.date_creation|date:"d/m/Y" }}</div>
                     </div>
                 </div>
-                <div style="text-align: right;">
-                    {% if forfait.statut == 'actif' %}
-                    <span style="background: #28a745; color: white; padding: 4px 10px; border-radius: 15px; font-size: 0.8em; font-weight: 600;">ACTIF</span>
-                    {% elif forfait.statut == 'termine' %}
-                    <span style="background: #6c757d; color: white; padding: 4px 10px; border-radius: 15px; font-size: 0.8em; font-weight: 600;">TERMINÉ</span>
-                    {% else %}
-                    <span style="background: #dc3545; color: white; padding: 4px 10px; border-radius: 15px; font-size: 0.8em; font-weight: 600;">ANNULÉ</span>
+            </div>
+
+            {% if request.user.utilisateur.is_patron %}
+            <div class="profile-actions">
+                <button class="btn-profile btn-profile-outline" onclick="changerStatut()">
+                    {% if client.actif %}Désactiver{% else %}Activer{% endif %}
+                </button>
+                <button class="btn-profile" onclick="ouvrirModalSupprimer()"
+                        style="background: white; color: #dc3545; border: 1.5px solid #dc3545;">
+                    Supprimer le client
+                </button>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- RIGHT: Stats + Sections -->
+        <div class="fiche-right">
+
+            <!-- Stats -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-card-value">{{ nombre_visites }}</div>
+                    <div class="stat-card-label">Visites</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-value">{{ total_depense|floatformat:0 }}</div>
+                    <div class="stat-card-label">CFA dépensés</div>
+                </div>
+                {% if credit_total > 0 %}
+                <div class="stat-card danger">
+                    <div class="stat-card-value">{{ credit_total|floatformat:0 }}</div>
+                    <div class="stat-card-label">CFA de crédit</div>
+                </div>
+                {% else %}
+                <div class="stat-card">
+                    <div class="stat-card-value" style="color: #ddd;">0</div>
+                    <div class="stat-card-label">CFA de crédit</div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Forfaits -->
+            {% if forfaits %}
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title">Forfaits</h2>
+                    <span class="badge-count purple">{{ forfaits.count }}</span>
+                </div>
+
+                {% for forfait in forfaits %}
+                <div style="background: {% if forfait.statut == 'actif' %}#f8f0ff{% else %}#f8f8f8{% endif %}; border: 1.5px solid {% if forfait.statut == 'actif' %}#9b59b6{% else %}#eee{% endif %}; border-radius: 12px; padding: 16px; margin-bottom: 14px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                        <div>
+                            <div style="font-weight: 700; color: #9b59b6; font-size: 15px;">{{ forfait.prestation.nom }}</div>
+                            <div style="font-size: 12px; color: #aaa; margin-top: 4px;">
+                                {{ forfait.institut.nom }} · Acheté le {{ forfait.date_achat|date:"d/m/Y" }}
+                            </div>
+                        </div>
+                        {% if forfait.statut == 'actif' %}
+                        <span style="background: #28a745; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">ACTIF</span>
+                        {% elif forfait.statut == 'termine' %}
+                        <span style="background: #6c757d; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">TERMINÉ</span>
+                        {% else %}
+                        <span style="background: #dc3545; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;">ANNULÉ</span>
+                        {% endif %}
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; margin-bottom: 12px;">
+                        <div style="background: white; padding: 10px; border-radius: 8px;">
+                            <div style="font-size: 20px; font-weight: 700; color: #9b59b6;">{{ forfait.nombre_seances_utilisees }}/{{ forfait.nombre_seances_total }}</div>
+                            <div style="font-size: 11px; color: #aaa;">Séances utilisées</div>
+                        </div>
+                        <div style="background: white; padding: 10px; border-radius: 8px;">
+                            <div style="font-size: 20px; font-weight: 700; color: #28a745;">{{ forfait.get_seances_restantes }}</div>
+                            <div style="font-size: 11px; color: #aaa;">Restantes</div>
+                        </div>
+                        <div style="background: white; padding: 10px; border-radius: 8px;">
+                            <div style="font-size: 20px; font-weight: 700; color: #333;">{{ forfait.prix_total|floatformat:0 }}</div>
+                            <div style="font-size: 11px; color: #aaa;">CFA total</div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                        {% for seance in forfait.seances.all %}
+                        <div style="padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500;
+                                    {% if seance.statut == 'effectuee' %}background: #d4edda; color: #155724;
+                                    {% elif seance.statut == 'programmee' %}background: #cce5ff; color: #004085;
+                                    {% else %}background: #f0f0f0; color: #888; border: 1px solid #ddd;{% endif %}">
+                            Séance {{ seance.numero }}{% if seance.statut == 'effectuee' %} ✓{% elif seance.statut == 'programmee' %} 📅{% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    {% if request.user.utilisateur.is_patron %}
+                    <div style="margin-top: 12px; text-align: right;">
+                        <button onclick="ouvrirModalSupprimerForfait({{ forfait.id }}, '{{ forfait.prestation.nom }}', '{{ forfait.client.get_full_name }}', {{ forfait.seances.count }}, {{ forfait.nombre_seances_utilisees }})"
+                                style="padding: 5px 12px; font-size: 12px; background: white; border: 1.5px solid #dc3545; color: #dc3545; border-radius: 6px; cursor: pointer;">
+                            Supprimer
+                        </button>
+                    </div>
                     {% endif %}
                 </div>
+                {% endfor %}
             </div>
+            {% endif %}
 
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 15px; text-align: center;">
-                <div style="background: white; padding: 10px; border-radius: 8px;">
-                    <div style="font-size: 1.5em; font-weight: 700; color: #9b59b6;">{{ forfait.nombre_seances_utilisees }}/{{ forfait.nombre_seances_total }}</div>
-                    <div style="font-size: 0.8em; color: #666;">Séances utilisées</div>
+            <!-- Crédits -->
+            {% if credits %}
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title">Crédits</h2>
+                    <span class="badge-count {% if credit_total > 0 %}danger{% endif %}">
+                        {{ credit_total|floatformat:0 }} CFA restant
+                    </span>
                 </div>
-                <div style="background: white; padding: 10px; border-radius: 8px;">
-                    <div style="font-size: 1.5em; font-weight: 700; color: #28a745;">{{ forfait.get_seances_restantes }}</div>
-                    <div style="font-size: 0.8em; color: #666;">Restantes</div>
-                </div>
-                <div style="background: white; padding: 10px; border-radius: 8px;">
-                    <div style="font-size: 1.5em; font-weight: 700; color: #333;">{{ forfait.prix_total|floatformat:0 }}</div>
-                    <div style="font-size: 0.8em; color: #666;">CFA total</div>
-                </div>
-            </div>
 
-            <!-- Liste des séances -->
-            <div style="margin-top: 15px;">
-                <div style="font-size: 0.85em; color: #666; margin-bottom: 8px;">Détail des séances :</div>
-                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                    {% for seance in forfait.seances.all %}
-                    <div style="padding: 6px 12px; border-radius: 20px; font-size: 0.8em; font-weight: 500;
-                                {% if seance.statut == 'effectuee' %}background: #d4edda; color: #155724;
-                                {% elif seance.statut == 'programmee' %}background: #cce5ff; color: #004085;
-                                {% else %}background: #f8f9fa; color: #495057; border: 1px solid #ddd;{% endif %}">
-                        Séance {{ seance.numero }}
-                        {% if seance.statut == 'effectuee' %}✓
-                        {% elif seance.statut == 'programmee' %}📅
+                {% for credit in credits %}
+                <div class="credit-item {% if credit.solde %}solde{% endif %}">
+                    <div class="credit-header">
+                        <div>
+                            <div class="credit-title">{{ credit.description }}</div>
+                            <div class="credit-date">{{ credit.date_creation|date:"d/m/Y" }} · {{ credit.institut.nom }}</div>
+                        </div>
+                        {% if credit.solde %}
+                        <span class="badge-solde">Soldé</span>
                         {% endif %}
+                    </div>
+                    <div class="credit-amounts">
+                        <div class="credit-amount">
+                            <div class="credit-amount-label">Total</div>
+                            <div class="credit-amount-value total">{{ credit.montant_total|floatformat:0 }} CFA</div>
+                        </div>
+                        <div class="credit-amount">
+                            <div class="credit-amount-label">Payé</div>
+                            <div class="credit-amount-value paye">{{ credit.montant_paye|floatformat:0 }} CFA</div>
+                        </div>
+                        <div class="credit-amount">
+                            <div class="credit-amount-label">Reste</div>
+                            <div class="credit-amount-value reste">{{ credit.reste_a_payer|floatformat:0 }} CFA</div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Cartes Cadeaux -->
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title">Cartes Cadeaux</h2>
+                    <button onclick="ouvrirModalVenteCarte()" style="padding: 7px 16px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                        + Vendre une carte
+                    </button>
+                </div>
+
+                {% if cartes_achetees %}
+                <div style="font-size: 12px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">Achetées</div>
+                {% for carte in cartes_achetees %}
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 14px; background:#fafafa; border-radius:10px; margin-bottom:8px;">
+                    <div>
+                        <div style="font-size:13px; font-weight:600; color:#1a1a1a;">{{ carte.code }}</div>
+                        <div style="font-size:12px; color:#aaa; margin-top:3px;">
+                            Pour {{ carte.beneficiaire.get_full_name }} · {{ carte.date_achat|date:"d/m/Y" }}
+                        </div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:14px; font-weight:700; color:{% if carte.statut == 'active' %}#2e7d32{% elif carte.statut == 'soldee' %}#aaa{% else %}#dc3545{% endif %};">
+                            {{ carte.solde|floatformat:0 }} / {{ carte.montant_initial|floatformat:0 }} CFA
+                        </div>
+                        <div style="font-size:11px; margin-top:2px;">
+                            {% if carte.statut == 'active' %}<span style="color:#2e7d32; font-weight:600;">Active</span>
+                            {% elif carte.statut == 'soldee' %}<span style="color:#aaa;">Soldée</span>
+                            {% elif carte.statut == 'expiree' %}<span style="color:#dc3545;">Expirée</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% endif %}
+
+                {% if cartes_recues %}
+                <div style="font-size: 12px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; margin: 14px 0 10px;">Reçues</div>
+                {% for carte in cartes_recues %}
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 14px; background:#fafafa; border-radius:10px; margin-bottom:8px;">
+                    <div>
+                        <div style="font-size:13px; font-weight:600; color:#1a1a1a;">{{ carte.code }}</div>
+                        <div style="font-size:12px; color:#aaa; margin-top:3px;">
+                            De {{ carte.acheteur.get_full_name }} · {{ carte.date_achat|date:"d/m/Y" }}
+                        </div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:14px; font-weight:700; color:{% if carte.statut == 'active' %}#2e7d32{% elif carte.statut == 'soldee' %}#aaa{% else %}#dc3545{% endif %};">
+                            {{ carte.solde|floatformat:0 }} / {{ carte.montant_initial|floatformat:0 }} CFA
+                        </div>
+                        <div style="font-size:11px; margin-top:2px;">
+                            {% if carte.statut == 'active' %}<span style="color:#2e7d32; font-weight:600;">Active</span>
+                            {% elif carte.statut == 'soldee' %}<span style="color:#aaa;">Soldée</span>
+                            {% elif carte.statut == 'expiree' %}<span style="color:#dc3545;">Expirée</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% endif %}
+
+                {% if not cartes_achetees and not cartes_recues %}
+                <div class="empty-state">Aucune carte cadeau</div>
+                {% endif %}
+            </div>
+
+            <!-- Historique RDV -->
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title">Historique des rendez-vous</h2>
+                    <span class="badge-count">{{ nombre_visites }}</span>
+                </div>
+
+                {% if rendez_vous %}
+                <div class="rdv-list">
+                    {% for rdv in rendez_vous %}
+                    <div class="rdv-item">
+                        <div>
+                            <div class="rdv-date">
+                                {{ rdv.date|date:"d/m/Y" }} à {{ rdv.heure_debut|time:"H:i" }}
+                                <span class="rdv-institut">{{ rdv.institut.nom }}</span>
+                            </div>
+                            <div class="rdv-detail">
+                                {{ rdv.prestation.nom }} · {{ rdv.employe.prenom|default:rdv.employe.nom }}
+                            </div>
+                        </div>
+                        <div class="rdv-amount">
+                            {% with paiement=rdv.paiements.first %}
+                                {% if paiement %}{{ paiement.montant|floatformat:0 }}{% else %}0{% endif %} CFA
+                            {% endwith %}
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
-            </div>
-
-            {% if request.user.utilisateur.is_patron %}
-            <div style="margin-top: 15px; text-align: right;">
-                <button onclick="ouvrirModalSupprimerForfait({{ forfait.id }}, '{{ forfait.prestation.nom }}', '{{ forfait.client.get_full_name }}', {{ forfait.seances.count }}, {{ forfait.nombre_seances_utilisees }})" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Supprimer le forfait</button>
-            </div>
-            {% endif %}
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    <!-- Crédits en cours -->
-    {% if credits %}
-    <div class="section-card">
-        <div class="section-header">
-            <h2 class="section-title">Crédits</h2>
-            <span class="badge-count {% if credit_total > 0 %}danger{% endif %}">
-                {{ credit_total|floatformat:0 }} CFA restant
-            </span>
-        </div>
-
-        {% for credit in credits %}
-        <div class="credit-item {% if credit.solde %}solde{% endif %}">
-            <div class="credit-header">
-                <div>
-                    <div class="credit-title">{{ credit.description }}</div>
-                    <div class="credit-date">{{ credit.date_creation|date:"d/m/Y" }} - {{ credit.institut.nom }}</div>
-                </div>
-                {% if credit.solde %}
-                <span class="badge-solde">Soldé</span>
+                {% else %}
+                <div class="empty-state">Aucun rendez-vous enregistré</div>
                 {% endif %}
             </div>
-            <div class="credit-amounts">
-                <div class="credit-amount">
-                    <div class="credit-amount-label">Total</div>
-                    <div class="credit-amount-value total">{{ credit.montant_total|floatformat:0 }} CFA</div>
-                </div>
-                <div class="credit-amount">
-                    <div class="credit-amount-label">Payé</div>
-                    <div class="credit-amount-value paye">{{ credit.montant_paye|floatformat:0 }} CFA</div>
-                </div>
-                <div class="credit-amount">
-                    <div class="credit-amount-label">Reste</div>
-                    <div class="credit-amount-value reste">{{ credit.reste_a_payer|floatformat:0 }} CFA</div>
-                </div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
 
-    <!-- Historique des rendez-vous -->
-    <div class="section-card">
-        <div class="section-header">
-            <h2 class="section-title">Historique des rendez-vous</h2>
-            <span class="badge-count">{{ nombre_visites }} visite(s)</span>
         </div>
-
-        {% if rendez_vous %}
-        <div class="rdv-list">
-            {% for rdv in rendez_vous %}
-            <div class="rdv-item">
-                <div>
-                    <div class="rdv-date">
-                        {{ rdv.date|date:"d/m/Y" }} à {{ rdv.heure_debut|time:"H:i" }}
-                        <span class="rdv-institut">{{ rdv.institut.nom }}</span>
-                    </div>
-                    <div class="rdv-detail">
-                        {{ rdv.prestation.nom }} - {{ rdv.employe.prenom|default:rdv.employe.nom }}
-                    </div>
-                </div>
-                <div class="rdv-amount">
-                    {% with paiement=rdv.paiements.first %}
-                        {% if paiement %}{{ paiement.montant|floatformat:0 }}{% else %}0{% endif %} CFA
-                    {% endwith %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="empty-state">
-            Aucun rendez-vous enregistré
-        </div>
-        {% endif %}
     </div>
 </div>
 
 {% if request.user.utilisateur.is_patron %}
-<!-- Modal Modifier (patron uniquement) -->
+
+<!-- Modal Modifier -->
 <div class="modal" id="modalModifier">
     <div class="modal-content">
         <div class="modal-header">
             <h2>Modifier le client</h2>
         </div>
-
         <form id="formModifier">
             {% csrf_token %}
-
             <div class="form-group">
-                <label for="nom">Nom</label>
-                <input type="text" class="form-control" id="nom" name="nom"
-                       value="{{ client.nom }}" required>
+                <label>Nom</label>
+                <input type="text" class="form-control" id="nom" name="nom" value="{{ client.nom }}" required>
             </div>
-
             <div class="form-group">
-                <label for="prenom">Prénom</label>
-                <input type="text" class="form-control" id="prenom" name="prenom"
-                       value="{{ client.prenom }}" required>
+                <label>Prénom</label>
+                <input type="text" class="form-control" id="prenom" name="prenom" value="{{ client.prenom }}" required>
             </div>
-
             <div class="form-group">
-                <label for="telephone">Téléphone</label>
-                <input type="tel" class="form-control" id="telephone" name="telephone"
-                       value="{{ client.telephone }}" required>
+                <label>Téléphone</label>
+                <input type="tel" class="form-control" id="telephone" name="telephone" value="{{ client.telephone }}" required>
             </div>
-
             <div class="form-group">
-                <label for="email">Email (optionnel)</label>
-                <input type="email" class="form-control" id="email" name="email"
-                       value="{{ client.email|default:'' }}">
+                <label>Email (optionnel)</label>
+                <input type="email" class="form-control" id="email" name="email" value="{{ client.email|default:'' }}">
             </div>
-
             <div class="form-group">
-                <label for="date_naissance">Date de naissance (optionnel)</label>
-                <input type="date" class="form-control" id="date_naissance" name="date_naissance"
-                       value="{{ client.date_naissance|default:'' }}">
+                <label>Date de naissance (optionnel)</label>
+                <input type="date" class="form-control" id="date_naissance" name="date_naissance" value="{{ client.date_naissance|default:'' }}">
             </div>
-
             <div class="form-group">
-                <label for="notes">Observation (optionnel)</label>
+                <label>Observation (optionnel)</label>
                 <textarea class="form-control" id="notes" name="notes" rows="3" style="resize:vertical;">{{ client.notes|default:'' }}</textarea>
             </div>
-
             <div class="modal-actions">
                 <button type="button" class="btn-cancel" onclick="fermerModal()">Annuler</button>
                 <button type="submit" class="btn-submit">Enregistrer</button>
@@ -588,7 +731,44 @@
     </div>
 </div>
 
+<!-- Modal Supprimer Forfait -->
+<div id="modalSupprimerForfait" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Supprimer le forfait</h2>
+        </div>
+        <div>
+            <p style="margin-bottom: 18px; color: #555;">
+                Voulez-vous supprimer le forfait <span id="forfaitInfoSupprimer" style="font-weight:600;"></span> ?
+            </p>
+
+            <div style="background: #fff3cd; color: #856404; padding: 14px; border-radius: 8px; margin-bottom: 14px; display: none;" id="alerteSeancesEffectuees">
+                <strong>Attention</strong>
+                <p style="margin: 8px 0 0;">Ce forfait a <strong id="nbSeancesEffectuees"></strong> séance(s) déjà effectuée(s). Impossible de le supprimer.</p>
+            </div>
+
+            <div id="confirmationSuppressionForfait" style="display: none;">
+                <div style="background: #f8d7da; color: #721c24; padding: 14px; border-radius: 8px; margin-bottom: 14px;">
+                    <strong>Action irréversible.</strong>
+                    <p style="margin: 8px 0 0;">Le forfait et toutes ses séances seront supprimés définitivement.</p>
+                </div>
+                <div class="form-group">
+                    <label>Pour confirmer, tapez "SUPPRIMER" :</label>
+                    <input type="text" id="confirmationTexteForfait" class="form-control" placeholder="SUPPRIMER">
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="fermerModalSupprimerForfait()">Annuler</button>
+                <button type="button" class="btn-submit" style="background: #dc3545;" id="btnConfirmerSuppressionForfait" onclick="confirmerSuppressionForfait()">Supprimer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+const CSRF = '{{ csrf_token }}';
+
 function ouvrirModalModifier() {
     document.getElementById('modalModifier').classList.add('active');
 }
@@ -598,24 +778,18 @@ function fermerModal() {
 }
 
 document.getElementById('modalModifier').addEventListener('click', function(e) {
-    if (e.target === this) {
-        fermerModal();
-    }
+    if (e.target === this) fermerModal();
 });
 
 document.getElementById('formModifier').addEventListener('submit', async function(e) {
     e.preventDefault();
-
     const formData = new FormData(this);
-
     try {
         const response = await fetch('{% url "core:api_client_modifier" client.id %}', {
             method: 'POST',
             body: formData
         });
-
         const data = await response.json();
-
         if (data.success) {
             showSuccess(data.message);
             setTimeout(() => location.reload(), 1000);
@@ -627,16 +801,32 @@ document.getElementById('formModifier').addEventListener('submit', async functio
     }
 });
 
-{% if request.user.utilisateur.is_patron %}
+async function changerStatut() {
+    try {
+        const response = await fetch('{% url "core:api_client_desactiver" client.id %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF }
+        });
+        const data = await response.json();
+        if (data.success) {
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showError(data.message);
+        }
+    } catch (error) {
+        showError('Erreur: ' + error.message);
+    }
+}
+
 // === Suppression forfait ===
 let forfaitIdASupprimer = null;
 
 function ouvrirModalSupprimerForfait(forfaitId, prestationNom, clientNom, nbSeances, nbSeancesUtilisees) {
     forfaitIdASupprimer = forfaitId;
-    document.getElementById('forfaitInfoSupprimer').innerHTML = `<strong>${prestationNom}</strong> pour ${clientNom}`;
+    document.getElementById('forfaitInfoSupprimer').textContent = prestationNom + ' pour ' + clientNom;
     document.getElementById('confirmationTexteForfait').value = '';
 
-    // Si le forfait a des séances effectuées, afficher l'alerte
     if (nbSeancesUtilisees > 0) {
         document.getElementById('nbSeancesEffectuees').textContent = nbSeancesUtilisees;
         document.getElementById('alerteSeancesEffectuees').style.display = 'block';
@@ -647,7 +837,6 @@ function ouvrirModalSupprimerForfait(forfaitId, prestationNom, clientNom, nbSean
         document.getElementById('confirmationSuppressionForfait').style.display = 'block';
         document.getElementById('btnConfirmerSuppressionForfait').style.display = 'inline-block';
     }
-
     document.getElementById('modalSupprimerForfait').classList.add('active');
 }
 
@@ -658,26 +847,16 @@ function fermerModalSupprimerForfait() {
 
 async function confirmerSuppressionForfait() {
     const confirmation = document.getElementById('confirmationTexteForfait').value;
-
     if (confirmation !== 'SUPPRIMER') {
-        showWarning('Veuillez taper exactement "SUPPRIMER" pour confirmer');
+        showError('Veuillez taper exactement "SUPPRIMER" pour confirmer');
         return;
     }
-
-    const deleteButton = document.getElementById('btnConfirmerSuppressionForfait');
-    showLoader(deleteButton);
-
     try {
         const response = await fetch(`/agenda/klinic/api/forfaits/${forfaitIdASupprimer}/supprimer/`, {
             method: 'POST',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}'
-            }
+            headers: { 'X-CSRFToken': CSRF }
         });
-
         const data = await response.json();
-        hideLoader(deleteButton);
-
         if (data.success) {
             showSuccess(data.message);
             fermerModalSupprimerForfait();
@@ -686,57 +865,331 @@ async function confirmerSuppressionForfait() {
             showError(data.message);
         }
     } catch (error) {
-        hideLoader(deleteButton);
         showError('Erreur lors de la suppression');
     }
 }
 
 document.getElementById('modalSupprimerForfait').addEventListener('click', function(e) {
-    if (e.target === this) {
-        fermerModalSupprimerForfait();
-    }
+    if (e.target === this) fermerModalSupprimerForfait();
 });
-{% endif %}
+
+// === Suppression client ===
+function ouvrirModalSupprimer() {
+    document.getElementById('confirmationTexteClient').value = '';
+    document.getElementById('modalSupprimerClient').classList.add('active');
+}
+
+function fermerModalSupprimerClient() {
+    document.getElementById('modalSupprimerClient').classList.remove('active');
+}
+
+async function confirmerSuppressionClient() {
+    const confirmation = document.getElementById('confirmationTexteClient').value;
+    if (confirmation !== 'SUPPRIMER') {
+        showError('Veuillez taper exactement "SUPPRIMER" pour confirmer');
+        return;
+    }
+    try {
+        const response = await fetch('{% url "core:api_client_supprimer" client.id %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF }
+        });
+        const data = await response.json();
+        if (data.success) {
+            showSuccess(data.message);
+            setTimeout(() => window.location.href = '{% url "core:clients_list" %}', 1500);
+        } else {
+            showError(data.message);
+            fermerModalSupprimerClient();
+        }
+    } catch (error) {
+        showError('Erreur lors de la suppression');
+    }
+}
+
+document.getElementById('modalSupprimerClient').addEventListener('click', function(e) {
+    if (e.target === this) fermerModalSupprimerClient();
+});
 </script>
 
-<!-- Modal Supprimer Forfait -->
-<div id="modalSupprimerForfait" class="modal">
-    <div class="modal-content" style="max-width: 500px;">
+<!-- Modal Supprimer Client -->
+<div id="modalSupprimerClient" class="modal">
+    <div class="modal-content">
         <div class="modal-header">
-            <h2>⚠️ Supprimer le forfait</h2>
+            <h2>Supprimer le client</h2>
         </div>
-
-        <div style="text-align: center;">
-            <p style="margin-bottom: 20px;">
-                Êtes-vous sûr de vouloir supprimer le forfait <span id="forfaitInfoSupprimer"></span> ?
-            </p>
-
-            <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: none;" id="alerteSeancesEffectuees">
-                <strong>⚠️ ATTENTION</strong>
-                <p style="margin: 10px 0;">Ce forfait a <strong id="nbSeancesEffectuees"></strong> séance(s) déjà effectuée(s).</p>
-                <p style="margin: 10px 0;">Impossible de le supprimer. Vous pouvez l'annuler à la place.</p>
+        <div>
+            <div style="background: #f8d7da; color: #721c24; padding: 14px; border-radius: 8px; margin-bottom: 18px;">
+                <strong>Action irréversible.</strong>
+                <p style="margin: 8px 0 0;">Vous êtes sur le point de supprimer <strong>{{ client.get_full_name }}</strong>. Si le client a des rendez-vous, crédits ou forfaits actifs, la suppression sera refusée — désactivez-le à la place.</p>
             </div>
-
-            <div id="confirmationSuppressionForfait" style="display: none;">
-                <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                    <strong>⚠️ ATTENTION</strong>
-                    <p style="margin: 10px 0;">Cette action est <strong>irréversible</strong>.</p>
-                    <p style="margin: 10px 0;">Le forfait et toutes ses séances seront supprimés.</p>
-                </div>
-
-                <div class="form-group">
-                    <label for="confirmationTexteForfait">Pour confirmer, tapez "SUPPRIMER" :</label>
-                    <input type="text" id="confirmationTexteForfait" class="form-control" placeholder="SUPPRIMER">
-                </div>
+            <div class="form-group">
+                <label>Pour confirmer, tapez "SUPPRIMER" :</label>
+                <input type="text" id="confirmationTexteClient" class="form-control" placeholder="SUPPRIMER">
             </div>
-
             <div class="modal-actions">
-                <button type="button" class="btn-cancel" onclick="fermerModalSupprimerForfait()">Annuler</button>
-                <button type="button" class="btn-submit" style="background: var(--danger);" id="btnConfirmerSuppressionForfait" onclick="confirmerSuppressionForfait()">🗑️ Supprimer</button>
+                <button type="button" class="btn-cancel" onclick="fermerModalSupprimerClient()">Annuler</button>
+                <button type="button" class="btn-submit" style="background: #dc3545;" onclick="confirmerSuppressionClient()">Supprimer</button>
             </div>
         </div>
     </div>
 </div>
+
 {% endif %}
+
+<!-- Modal Vente Carte Cadeau (accessible à tous les utilisateurs) -->
+<div class="modal" id="modalVenteCarte">
+    <div class="modal-content" style="max-width: 520px;">
+        <!-- Étape 1 : Formulaire -->
+        <div id="vcFormulaire">
+            <div class="modal-header">
+                <h2>Vendre une carte cadeau</h2>
+            </div>
+            <div style="padding: 10px 14px; background: #fdf6ed; border-radius: 8px; margin-bottom: 18px; font-size: 13px; color: #7a5a1e;">
+                Acheteur : <strong>{{ client.get_full_name }}</strong>
+            </div>
+
+            <div class="form-group">
+                <label>Bénéficiaire *</label>
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                    <input type="checkbox" id="vcMemePersonne" style="width:auto;">
+                    <label for="vcMemePersonne" style="margin:0; font-weight:400; font-size:13px; color:#555;">Même personne que l'acheteur</label>
+                </div>
+                <div id="vcBeneficiaireSection">
+                    <div style="position:relative;">
+                        <input type="text" id="vcSearchBeneficiaire" class="form-control" placeholder="Rechercher un client..." autocomplete="off">
+                        <div id="vcResultsBeneficiaire" style="position:relative;"></div>
+                    </div>
+                    <input type="hidden" id="vcBeneficiaireId">
+                    <div id="vcBeneficiaireSelected" style="display:none; margin-top:8px; padding:8px 10px; background:#f5f5f5; border-radius:8px; font-size:13px;"></div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Montant (CFA) *</label>
+                <input type="number" id="vcMontant" class="form-control" min="1000" step="1000" placeholder="Ex: 50000">
+            </div>
+
+            <div class="form-group">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" id="vcDoublePaiement" style="width:auto;">
+                    <label for="vcDoublePaiement" style="margin:0; font-weight:400; font-size:13px; color:#555;">Payer avec 2 moyens de paiement</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Mode de paiement *</label>
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                    <label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:400; cursor:pointer; padding:6px 12px; border:1.5px solid #e0e0e0; border-radius:8px;"><input type="radio" name="vcMode1" value="especes" checked> Espèces</label>
+                    <label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:400; cursor:pointer; padding:6px 12px; border:1.5px solid #e0e0e0; border-radius:8px;"><input type="radio" name="vcMode1" value="carte"> Carte bancaire</label>
+                    <label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:400; cursor:pointer; padding:6px 12px; border:1.5px solid #e0e0e0; border-radius:8px;"><input type="radio" name="vcMode1" value="cheque"> Chèque</label>
+                    <label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:400; cursor:pointer; padding:6px 12px; border:1.5px solid #e0e0e0; border-radius:8px;"><input type="radio" name="vcMode1" value="om"> Orange Money</label>
+                    <label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:400; cursor:pointer; padding:6px 12px; border:1.5px solid #e0e0e0; border-radius:8px;"><input type="radio" name="vcMode1" value="wave"> Wave</label>
+                </div>
+            </div>
+
+            <div id="vcMontant1Group" class="form-group" style="display:none;">
+                <label>Montant payé avec le 1er moyen *</label>
+                <input type="number" id="vcMontant1" class="form-control" min="0" step="1000" placeholder="Ex: 30000">
+            </div>
+
+            <div id="vcSection2" class="form-group" style="display:none;">
+                <label>2ème moyen de paiement *</label>
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                    <label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:400; cursor:pointer; padding:6px 12px; border:1.5px solid #e0e0e0; border-radius:8px;"><input type="radio" name="vcMode2" value="especes"> Espèces</label>
+                    <label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:400; cursor:pointer; padding:6px 12px; border:1.5px solid #e0e0e0; border-radius:8px;"><input type="radio" name="vcMode2" value="carte" checked> Carte bancaire</label>
+                    <label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:400; cursor:pointer; padding:6px 12px; border:1.5px solid #e0e0e0; border-radius:8px;"><input type="radio" name="vcMode2" value="cheque"> Chèque</label>
+                    <label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:400; cursor:pointer; padding:6px 12px; border:1.5px solid #e0e0e0; border-radius:8px;"><input type="radio" name="vcMode2" value="om"> Orange Money</label>
+                    <label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:400; cursor:pointer; padding:6px 12px; border:1.5px solid #e0e0e0; border-radius:8px;"><input type="radio" name="vcMode2" value="wave"> Wave</label>
+                </div>
+                <div style="margin-top:10px; padding:10px; background:#e8f5e9; border-radius:6px; font-size:13px;">
+                    Montant 2ème moyen : <strong id="vcMontant2Text" style="float:right; color:#2e7d32;">0 CFA</strong>
+                </div>
+            </div>
+
+            {% if request.user.utilisateur.is_patron %}
+            <div class="form-group">
+                <label>Institut *</label>
+                <select id="vcInstitut" class="form-control">
+                    <option value="">-- Choisir un institut --</option>
+                    {% for inst in instituts %}
+                    <option value="{{ inst.id }}">{{ inst.nom }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="fermerModalVenteCarte()">Annuler</button>
+                <button type="button" class="btn-submit" id="vcBtnValider" onclick="validerVenteCarte()">Valider la vente</button>
+            </div>
+        </div>
+
+        <!-- Étape 2 : Confirmation -->
+        <div id="vcConfirmation" style="display:none; text-align:center;">
+            <div style="font-size:18px; font-weight:700; color:#2e7d32; margin-bottom:16px;">Carte cadeau créée !</div>
+            <div style="background:#f0f9f4; border-radius:12px; padding:20px; margin-bottom:20px;">
+                <div style="font-size:26px; font-weight:800; color:var(--primary); letter-spacing:2px; margin-bottom:12px;" id="vcConfirmCode"></div>
+                <p style="margin:6px 0; font-size:14px;">Montant : <strong id="vcConfirmMontant"></strong></p>
+                <p style="margin:6px 0; font-size:14px;">Bénéficiaire : <strong id="vcConfirmBenef"></strong></p>
+            </div>
+            <div class="modal-actions" style="justify-content:center;">
+                <a id="vcBtnImprimer" href="#" target="_blank" class="btn-submit" style="text-decoration:none;">Imprimer le bon</a>
+                <button type="button" class="btn-cancel" onclick="fermerModalVenteCarte(); location.reload();">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const VC_CSRF = '{{ csrf_token }}';
+
+function ouvrirModalVenteCarte() {
+    document.getElementById('vcBeneficiaireId').value = '';
+    document.getElementById('vcSearchBeneficiaire').value = '';
+    document.getElementById('vcBeneficiaireSelected').style.display = 'none';
+    document.getElementById('vcMemePersonne').checked = false;
+    document.getElementById('vcBeneficiaireSection').style.display = 'block';
+    document.getElementById('vcMontant').value = '';
+    document.getElementById('vcDoublePaiement').checked = false;
+    document.getElementById('vcMontant1Group').style.display = 'none';
+    document.getElementById('vcSection2').style.display = 'none';
+    document.querySelector('input[name="vcMode1"][value="especes"]').checked = true;
+    document.getElementById('vcFormulaire').style.display = 'block';
+    document.getElementById('vcConfirmation').style.display = 'none';
+    document.getElementById('modalVenteCarte').classList.add('active');
+}
+
+function fermerModalVenteCarte() {
+    document.getElementById('modalVenteCarte').classList.remove('active');
+}
+
+document.getElementById('modalVenteCarte').addEventListener('click', function(e) {
+    if (e.target === this) fermerModalVenteCarte();
+});
+
+document.getElementById('vcMemePersonne').addEventListener('change', function() {
+    document.getElementById('vcBeneficiaireSection').style.display = this.checked ? 'none' : 'block';
+});
+
+document.getElementById('vcDoublePaiement').addEventListener('change', function() {
+    document.getElementById('vcMontant1Group').style.display = this.checked ? 'block' : 'none';
+    document.getElementById('vcSection2').style.display = this.checked ? 'block' : 'none';
+});
+
+document.getElementById('vcMontant1').addEventListener('input', function() {
+    const total = parseInt(document.getElementById('vcMontant').value) || 0;
+    const m1 = parseInt(this.value) || 0;
+    document.getElementById('vcMontant2Text').textContent = new Intl.NumberFormat('fr-FR').format(Math.max(0, total - m1)) + ' CFA';
+});
+
+// Autocomplete bénéficiaire
+(function() {
+    const input = document.getElementById('vcSearchBeneficiaire');
+    const results = document.getElementById('vcResultsBeneficiaire');
+    let timer;
+    input.addEventListener('input', function() {
+        clearTimeout(timer);
+        const q = this.value.trim();
+        if (q.length < 2) { results.innerHTML = ''; return; }
+        timer = setTimeout(async () => {
+            const resp = await fetch(`{% url 'core:client_search' %}?q=${encodeURIComponent(q)}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const data = await resp.json();
+            results.innerHTML = '';
+            if (!data.clients || !data.clients.length) return;
+            const box = document.createElement('div');
+            box.style.cssText = 'position:absolute;left:0;right:0;background:white;border:1px solid #e0e0e0;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:9999;max-height:200px;overflow-y:auto;';
+            data.clients.forEach(c => {
+                const item = document.createElement('div');
+                item.style.cssText = 'padding:10px 14px;cursor:pointer;font-size:13px;';
+                item.textContent = c.full_name + ' — ' + c.telephone;
+                item.addEventListener('mouseenter', () => item.style.background = '#f5f5f5');
+                item.addEventListener('mouseleave', () => item.style.background = '');
+                item.addEventListener('click', () => {
+                    document.getElementById('vcBeneficiaireId').value = c.id;
+                    document.getElementById('vcBeneficiaireSelected').textContent = c.full_name + ' — ' + c.telephone;
+                    document.getElementById('vcBeneficiaireSelected').style.display = 'block';
+                    input.value = '';
+                    results.innerHTML = '';
+                });
+                box.appendChild(item);
+            });
+            results.appendChild(box);
+        }, 300);
+    });
+})();
+
+async function validerVenteCarte() {
+    const memePersonne = document.getElementById('vcMemePersonne').checked;
+    const beneficiaireId = document.getElementById('vcBeneficiaireId').value;
+    const montant = document.getElementById('vcMontant').value;
+
+    if (!memePersonne && !beneficiaireId) {
+        showError('Veuillez sélectionner un bénéficiaire');
+        return;
+    }
+    if (!montant || parseInt(montant) <= 0) {
+        showError('Veuillez entrer un montant valide');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('acheteur_id', '{{ client.id }}');
+    formData.append('meme_personne', memePersonne);
+    if (!memePersonne) formData.append('beneficiaire_id', beneficiaireId);
+    formData.append('montant', montant);
+
+    const doubleCheck = document.getElementById('vcDoublePaiement');
+    if (doubleCheck.checked) {
+        const m1 = parseInt(document.getElementById('vcMontant1').value) || 0;
+        if (m1 <= 0) { showError('Montant du 1er moyen invalide'); return; }
+        if (m1 >= parseInt(montant)) { showError('Le 1er montant doit être inférieur au total'); return; }
+        formData.append('utilise_double_paiement', 'true');
+        formData.append('montant_paiement_1', m1);
+        formData.append('montant_paiement_2', parseInt(montant) - m1);
+        formData.append('moyen_paiement_1', document.querySelector('input[name="vcMode1"]:checked').value);
+        formData.append('moyen_paiement_2', document.querySelector('input[name="vcMode2"]:checked').value);
+    } else {
+        formData.append('mode_paiement', document.querySelector('input[name="vcMode1"]:checked').value);
+    }
+
+    {% if request.user.utilisateur.is_patron %}
+    const institutVal = document.getElementById('vcInstitut').value;
+    if (!institutVal) { showError('Veuillez sélectionner un institut'); return; }
+    formData.append('institut_id', institutVal);
+    {% endif %}
+
+    const btn = document.getElementById('vcBtnValider');
+    btn.disabled = true;
+    btn.textContent = 'Création en cours...';
+
+    try {
+        const resp = await fetch('{% url "core:api_vendre_carte_cadeau" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': VC_CSRF },
+            body: formData
+        });
+        const data = await resp.json();
+        if (data.success) {
+            document.getElementById('vcFormulaire').style.display = 'none';
+            document.getElementById('vcConfirmation').style.display = 'block';
+            document.getElementById('vcConfirmCode').textContent = data.carte.code;
+            document.getElementById('vcConfirmMontant').textContent = new Intl.NumberFormat('fr-FR').format(data.carte.montant) + ' CFA';
+            document.getElementById('vcConfirmBenef').textContent = data.carte.beneficiaire;
+            document.getElementById('vcBtnImprimer').href = `/cartes-cadeaux/${data.carte.id}/imprimer/`;
+        } else {
+            showError(data.message || 'Erreur lors de la création');
+            btn.disabled = false;
+            btn.textContent = 'Valider la vente';
+        }
+    } catch(e) {
+        showError('Erreur: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = 'Valider la vente';
+    }
+}
+</script>
 
 {% endblock %}

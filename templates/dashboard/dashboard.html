@@ -460,12 +460,6 @@
         }
     }
 
-    /* ── Onglets de page ── */
-    .page-tabs { display: flex; gap: 0; margin-bottom: 28px; border-bottom: 2px solid var(--border); }
-    .page-tab { padding: 10px 26px; font-size: 15px; font-weight: 600; color: var(--text-light); text-decoration: none; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all .2s; }
-    .page-tab:hover { color: var(--primary); }
-    .page-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
-
     /* ── Bilan CSS ── */
     .bilan-kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 28px; }
     @media (max-width: 700px) { .bilan-kpi-grid { grid-template-columns: 1fr; } }
@@ -505,6 +499,11 @@
 {% endblock %}
 
 {% block content %}
+<div class="page-tabs">
+    <a href="{% url 'dashboard:index' %}" class="page-tab active">Recettes</a>
+    <a href="{% url 'dashboard:depenses' %}" class="page-tab">Dépenses</a>
+    <a href="{% url 'dashboard:bilan' %}" class="page-tab">Bilan</a>
+</div>
 <div class="dashboard-header">
     <div>
         <h1 class="page-title">Dashboard Recettes</h1>

@@ -103,40 +103,56 @@
         }
 
         .nav-section {
-            margin-bottom: 30px;
+            margin-bottom: 4px;
         }
 
         .nav-section-title {
-            padding: 0 20px;
-            font-size: 11px;
-            font-weight: 600;
+            padding: 14px 16px 4px;
+            font-size: 10px;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-light);
-            margin-bottom: 10px;
+            letter-spacing: 0.8px;
+            color: #c0b4a6;
+            margin-bottom: 0;
+        }
+
+        .nav-icon {
+            width: 17px;
+            height: 17px;
+            flex-shrink: 0;
+            opacity: 0.7;
         }
 
         .nav-item {
-            display: block;
-            padding: 12px 20px;
-            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            padding: 10px 13px;
+            margin: 1px 10px;
+            color: #777;
             text-decoration: none;
-            transition: all 0.3s ease;
-            border-left: 3px solid transparent;
+            transition: background 0.15s, color 0.15s;
+            border-radius: 8px;
+            font-size: 14px;
+            border-left: none;
         }
 
         .nav-item:hover {
-            background: var(--bg-section);
-            border-left-color: var(--primary);
-            color: var(--primary-dark);
+            background: #f0ece5;
+            color: #444;
+            border-left-color: transparent;
         }
 
+        .nav-item:hover .nav-icon { opacity: 1; }
+
         .nav-item.active {
-            background: var(--bg-section);
-            border-left-color: var(--primary-dark);
+            background: rgba(201, 168, 106, 0.14);
             color: var(--primary-dark);
-            font-weight: 500;
+            font-weight: 600;
+            border-left-color: transparent;
         }
+
+        .nav-item.active .nav-icon { opacity: 1; }
 
         .sidebar-footer {
             padding: 20px;
@@ -200,12 +216,44 @@
         }
 
         /* Contenu principal */
+        @keyframes pageFadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
         .main-content {
             flex: 1;
             margin-left: 280px;
             padding: 30px;
             max-width: 100%;
             transition: margin-left 0.3s ease;
+            animation: pageFadeIn 0.2s ease;
+        }
+
+        /* Onglets de navigation intra-page (Activité / Dashboard / Crédits) */
+        .page-tabs {
+            display: flex;
+            border-bottom: 2px solid #e0d5c5;
+            margin-bottom: 24px;
+        }
+
+        .page-tab {
+            padding: 10px 28px;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 400;
+            color: #888;
+            margin-bottom: -2px;
+            border-bottom: 3px solid transparent;
+            transition: color 0.15s, border-color 0.15s;
+        }
+
+        .page-tab:hover { color: #555; }
+
+        .page-tab.active {
+            color: #c9a86a;
+            border-bottom-color: #c9a86a;
+            font-weight: 600;
         }
 
         .main-content.expanded {
@@ -527,8 +575,9 @@
 
             /* Navigation mobile - items plus grands */
             .nav-item {
-                padding: 16px 20px;
+                padding: 13px 14px;
                 font-size: 15px;
+                margin: 1px 10px;
             }
 
             /* Tables responsive */
@@ -1092,79 +1141,53 @@
                     {% if request.user.utilisateur.is_patron %}
                         <!-- Navigation Patron -->
                         <div class="nav-section">
-                            <div class="nav-section-title">Dashboard</div>
-                            <a href="{% url 'dashboard:index' %}" class="nav-item {% if request.resolver_match.url_name == 'index' and request.resolver_match.app_name == 'dashboard' %}active{% endif %}">
-                                Recettes
+                            <a href="{% url 'dashboard:index' %}" class="nav-item {% if request.resolver_match.app_name == 'dashboard' %}active{% endif %}">
+                                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                                Tableau de Bord
                             </a>
-                            <a href="{% url 'dashboard:depenses' %}" class="nav-item {% if request.resolver_match.url_name == 'depenses' %}active{% endif %}">
-                                Dépenses
+                            <a href="{% url 'agenda:index' institut_code='palais' %}" class="nav-item {% if request.resolver_match.app_name == 'agenda' or request.resolver_match.app_name == 'express' or request.resolver_match.url_name and 'ventes' in request.resolver_match.url_name %}active{% endif %}">
+                                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                Activité
                             </a>
-                            <a href="{% url 'dashboard:bilan' %}" class="nav-item {% if request.resolver_match.url_name == 'bilan' %}active{% endif %}">
-                                Bilan
+                            <a href="{% url 'core:clients_list' %}" class="nav-item {% if request.resolver_match.url_name == 'clients_list' or request.resolver_match.url_name == 'client_detail' or request.resolver_match.url_name == 'cartes_cadeaux_list' %}active{% endif %}">
+                                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                Clients
                             </a>
-                        </div>
-
-                        <div class="nav-section">
-                            <div class="nav-section-title">Activité</div>
-                            <a href="{% url 'agenda:index' institut_code='palais' %}" class="nav-item">
-                                Agenda Le Palais
-                            </a>
-                            <a href="{% url 'agenda:index' institut_code='klinic' %}" class="nav-item">
-                                Agenda La Klinic
-                            </a>
-                            <a href="{% url 'express:index' %}" class="nav-item">
-                                Express (Caisse)
-                            </a>
-                            <a href="{% url 'gestion:ventes_caisse' %}" class="nav-item {% if request.resolver_match.url_name and 'ventes' in request.resolver_match.url_name %}active{% endif %}">
-                                Ventes produits
+                            <a href="{% url 'credits:index' institut_code='palais' %}" class="nav-item {% if request.resolver_match.app_name == 'credits' %}active{% endif %}">
+                                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                                Crédit
                             </a>
                         </div>
 
                         <div class="nav-section">
                             <div class="nav-section-title">Gestion</div>
-                            <a href="{% url 'core:clients_list' %}" class="nav-item {% if request.resolver_match.url_name == 'clients_list' %}active{% endif %}">
-                                Clients
-                            </a>
-                            <a href="{% url 'core:cartes_cadeaux_list' %}" class="nav-item {% if request.resolver_match.url_name == 'cartes_cadeaux_list' %}active{% endif %}">
-                                Cartes Cadeaux
-                            </a>
                             <a href="{% url 'gestion:presences_pointage' %}" class="nav-item {% if request.resolver_match.url_name and 'presences' in request.resolver_match.url_name or request.resolver_match.url_name and 'horaire' in request.resolver_match.url_name %}active{% endif %}">
+                                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                                 Présences
                             </a>
-                        </div>
-
-                        <div class="nav-section">
-                            <div class="nav-section-title">Gestion interne</div>
-                            <a href="{% url 'gestion:catalogue' %}" class="nav-item {% if request.resolver_match.app_name == 'gestion' %}active{% endif %}">
+                            <a href="{% url 'gestion:catalogue' %}" class="nav-item {% if request.resolver_match.url_name and 'catalogue' in request.resolver_match.url_name %}active{% endif %}">
+                                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
                                 Catalogue
                             </a>
                             <a href="{% url 'core:employes_list' %}" class="nav-item {% if request.resolver_match.url_name == 'employes_list' %}active{% endif %}">
+                                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                                 Employés
                             </a>
                             <a href="{% url 'gestion:salaires_calcul' %}" class="nav-item {% if request.resolver_match.url_name and 'salaires' in request.resolver_match.url_name or request.resolver_match.url_name and 'prime' in request.resolver_match.url_name or request.resolver_match.url_name and 'avance' in request.resolver_match.url_name %}active{% endif %}">
+                                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                                 Salaires
                             </a>
                             <a href="{% url 'gestion:stocks_produits' %}" class="nav-item {% if request.resolver_match.url_name and 'stocks' in request.resolver_match.url_name or request.resolver_match.url_name and 'produit' in request.resolver_match.url_name or request.resolver_match.url_name and 'mouvement' in request.resolver_match.url_name %}active{% endif %}">
+                                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
                                 Stocks
                             </a>
                             <a href="{% url 'gestion:inventaire_liste' %}" class="nav-item {% if request.resolver_match.url_name and 'inventaire' in request.resolver_match.url_name %}active{% endif %}">
+                                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
                                 Inventaires
                             </a>
                             <a href="{% url 'gestion:depenses_liste' %}" class="nav-item {% if request.resolver_match.url_name and 'depense' in request.resolver_match.url_name %}active{% endif %}">
+                                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
                                 Dépenses
-                            </a>
-                        </div>
-
-                        <div class="nav-section">
-                            <div class="nav-section-title">Crédits</div>
-                            <a href="{% url 'credits:index' institut_code='palais' %}" class="nav-item">
-                                Crédits Le Palais
-                            </a>
-                            <a href="{% url 'credits:index' institut_code='klinic' %}" class="nav-item">
-                                Crédits La Klinic
-                            </a>
-                            <a href="{% url 'credits:index' institut_code='express' %}" class="nav-item">
-                                Crédits Express
                             </a>
                         </div>
 
@@ -1185,11 +1208,8 @@
 
                         <div class="nav-section">
                             <div class="nav-section-title">Gestion</div>
-                            <a href="{% url 'core:clients_list' %}" class="nav-item {% if request.resolver_match.url_name == 'clients_list' %}active{% endif %}">
+                            <a href="{% url 'core:clients_list' %}" class="nav-item {% if request.resolver_match.url_name == 'clients_list' or request.resolver_match.url_name == 'client_detail' or request.resolver_match.url_name == 'cartes_cadeaux_list' %}active{% endif %}">
                                 Clients
-                            </a>
-                            <a href="{% url 'core:cartes_cadeaux_list' %}" class="nav-item {% if request.resolver_match.url_name == 'cartes_cadeaux_list' %}active{% endif %}">
-                                Cartes Cadeaux
                             </a>
                             <a href="{% url 'credits:index' institut_code=request.user.utilisateur.institut.code %}" class="nav-item">
                                 Crédits

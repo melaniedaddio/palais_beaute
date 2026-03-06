@@ -182,8 +182,8 @@ class TypeAbsence(models.Model):
 class HoraireEmploye(models.Model):
     """Horaire théorique configurable par employé (période avec heure début/fin)."""
     employe = models.ForeignKey(Employe, on_delete=models.CASCADE, related_name='horaires')
-    heure_debut = models.TimeField(default='08:00')
-    heure_fin = models.TimeField(default='17:00')
+    heure_debut = models.TimeField(default='09:00')
+    heure_fin = models.TimeField(default='19:00')
     date_debut = models.DateField()
     date_fin = models.DateField(null=True, blank=True)  # null = en cours
 
@@ -199,7 +199,7 @@ class HoraireEmploye(models.Model):
     @staticmethod
     def get_horaire_pour_date(employe, date):
         """Retourne l'horaire actif pour un employé à une date donnée.
-        Si aucun horaire trouvé, retourne des valeurs par défaut 08:00-17:00."""
+        Si aucun horaire trouvé, retourne des valeurs par défaut 09:00-19:00."""
         from datetime import time as dtime
         horaire = HoraireEmploye.objects.filter(
             employe=employe,
@@ -209,7 +209,7 @@ class HoraireEmploye(models.Model):
         ).order_by('-date_debut').first()
         if horaire:
             return horaire.heure_debut, horaire.heure_fin
-        return dtime(8, 0), dtime(17, 0)
+        return dtime(9, 0), dtime(19, 0)
 
 
 class Presence(models.Model):

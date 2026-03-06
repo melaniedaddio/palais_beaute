@@ -774,11 +774,11 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="h-new-debut">Heure d'arrivée</label>
-                            <input type="time" class="form-control" id="h-new-debut" value="08:00">
+                            <input type="time" class="form-control" id="h-new-debut" value="09:00">
                         </div>
                         <div class="form-group">
                             <label for="h-new-fin">Heure de départ</label>
-                            <input type="time" class="form-control" id="h-new-fin" value="17:00">
+                            <input type="time" class="form-control" id="h-new-fin" value="19:00">
                         </div>
                     </div>
                     <div class="form-group">
@@ -1050,7 +1050,7 @@ async function chargerHoraires(employeId) {
         document.getElementById('horaire-actif-badge').textContent = `⏰ Actif : ${data.horaire_actif}`;
 
         if (data.horaires.length === 0) {
-            container.innerHTML = '<p style="color:#999;font-style:italic;text-align:center;padding:10px;">Aucun horaire configuré (défaut : 08:00 – 17:00)</p>';
+            container.innerHTML = '<p style="color:#999;font-style:italic;text-align:center;padding:10px;">Aucun horaire configuré (défaut : 09:00 – 19:00)</p>';
             return;
         }
 
@@ -1140,11 +1140,11 @@ async function supprimerHoraire(horaireId) {
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
                 <div>
                     <label style="font-size:12px;font-weight:600;color:#666;display:block;margin-bottom:4px;">Heure début</label>
-                    <input type="time" id="h-heure-debut" value="08:00" required style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                    <input type="time" id="h-heure-debut" value="09:00" required style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
                 </div>
                 <div>
                     <label style="font-size:12px;font-weight:600;color:#666;display:block;margin-bottom:4px;">Heure fin</label>
-                    <input type="time" id="h-heure-fin" value="17:00" required style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                    <input type="time" id="h-heure-fin" value="19:00" required style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
                 </div>
                 <div>
                     <label style="font-size:12px;font-weight:600;color:#666;display:block;margin-bottom:4px;">Applicable dès le</label>

@@ -7,43 +7,49 @@
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
         <div>
             <h1 class="page-title">Agenda {{ institut.nom }}</h1>
-            <p class="page-subtitle">Gestion des rendez-vous</p>
+            <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
+                <button onclick="changeDate(-1)" class="btn-nav-day" title="Jour précédent">‹</button>
+                <input type="date" id="date-selector" value="{{ date_selectionnee|date:'Y-m-d' }}"
+                       onchange="changeDate(0)" class="form-control" style="width:160px;height:36px;box-sizing:border-box;border:1.5px solid #e0d5c5;border-radius:8px;">
+                <button onclick="changeDate(1)" class="btn-nav-day" title="Jour suivant">›</button>
+            </div>
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
-            <!-- Navigation date -->
-            <button onclick="changeDate(-1)" class="btn-agenda-header" style="background:linear-gradient(135deg,#c9a86a,#b89858);color:white;">
-                ← Jour précédent
-            </button>
-            <input type="date" id="date-selector" value="{{ date_selectionnee|date:'Y-m-d' }}"
-                   onchange="changeDate(0)" class="form-control" style="width:160px;height:36px;box-sizing:border-box;">
-            <button onclick="changeDate(1)" class="btn-agenda-header" style="background:linear-gradient(135deg,#c9a86a,#b89858);color:white;">
-                Jour suivant →
-            </button>
-            <button onclick="changeDate('today')" class="btn-agenda-header" style="background:linear-gradient(135deg,#e8b4b8,#d4a5a5);color:white;">
-                Aujourd'hui
-            </button>
-            <button onclick="ouvrirModalReservation()" class="btn-agenda-header" style="background:#c9a86a;color:white;">
-                📅 Prendre un RDV
+            <button onclick="ouvrirModalReservation()" class="btn-agenda-header" style="background:var(--primary);color:white;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Prendre un RDV
             </button>
             {% if institut.code == 'klinic' %}
             <button onclick="ouvrirModalForfait()" class="btn-agenda-header" style="background:#9b59b6;color:white;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><circle cx="7" cy="7" r="1" fill="currentColor"/></svg>
                 Vendre un forfait
             </button>
             {% endif %}
             <a href="{% url 'agenda:cloture_caisse' institut.code %}?date={{ date_selectionnee|date:'Y-m-d' }}"
-               class="btn-agenda-header" style="background:#28a745;color:white;text-decoration:none;">
+               class="btn-agenda-header" style="background:var(--secondary);color:white;text-decoration:none;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="12" y2="15"/></svg>
                 Clôture caisse
             </a>
             {% if request.user.utilisateur.is_patron %}
             <a href="{% url 'agenda:page_rappels' institut.code %}"
                class="btn-agenda-header" style="background:#25D366;color:white;text-decoration:none;">
-                📱 Rappels demain
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.39a2 2 0 0 1 1.99-2.18h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6.29 6.29l1.02-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                Rappels demain
             </a>
             {% endif %}
         </div>
     </div>
 </div>
 
+{% if request.user.utilisateur.is_patron %}
+<!-- Sélecteur d'agenda -->
+<div class="page-tabs">
+    <a href="{% url 'agenda:index' institut_code='palais' %}?date={{ date_selectionnee|date:'Y-m-d' }}" class="page-tab {% if institut.code == 'palais' %}active{% endif %}">Le Palais</a>
+    <a href="{% url 'agenda:index' institut_code='klinic' %}?date={{ date_selectionnee|date:'Y-m-d' }}" class="page-tab {% if institut.code == 'klinic' %}active{% endif %}">La Klinic</a>
+    <a href="{% url 'express:index' %}?date={{ date_selectionnee|date:'Y-m-d' }}" class="page-tab">Express</a>
+    <a href="{% url 'gestion:ventes_caisse' %}" class="page-tab">Ventes produits</a>
+</div>
+{% endif %}
 
 <!-- Stats du jour -->
 <div class="stats-grid" style="margin-bottom: 20px;">
@@ -853,6 +859,29 @@
 }
 .btn-agenda-header:hover { opacity: 0.85; }
 
+/* Boutons navigation jour (petites flèches) */
+.btn-nav-day {
+    width: 34px;
+    height: 34px;
+    border: 1.5px solid #e0d5c5;
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+}
+.btn-nav-day:hover {
+    background: #f0ece5;
+    color: var(--primary-dark);
+    border-color: var(--primary);
+}
+
 /* Boutons d'action dans le popup RDV (générés en JS) */
 .btn-popup-action {
     padding: 10px 16px;
@@ -945,59 +974,39 @@
     left: 2px;
     right: 2px;
     padding: 6px 8px;
-    border-radius: 4px;
+    border-radius: 6px;
     font-size: 12px;
     cursor: pointer;
-    border-left: 3px solid;
-    background: rgba(255, 255, 255, 0.9);
-    transition: transform 0.2s;
+    border-left: 4px solid;
+    transition: transform 0.15s, box-shadow 0.15s;
     z-index: 5;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
     overflow: hidden;
 }
 
 .rdv-card:hover {
-    transform: translateX(2px);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transform: translateX(2px) translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.12);
 }
 
-.rdv-card.statut-planifie {
-    opacity: 0.85;
-}
-
-.rdv-card.statut-valide {
-    opacity: 1;
-    font-weight: 500;
-    border-left-width: 4px !important;
-}
-
-.rdv-card.statut-annule {
-    opacity: 0.5;
-    text-decoration: line-through;
-}
-
-.rdv-card.statut-absent {
-    opacity: 0.7;
-    border-left-color: #dc3545 !important;
-}
-
-.rdv-card.statut-annule_client {
-    opacity: 0.7;
-    text-decoration: line-through;
-    border-left-color: #dc3545 !important;
-}
+.rdv-card.statut-planifie { opacity: 0.9; }
+.rdv-card.statut-valide { opacity: 1; font-weight: 500; }
+.rdv-card.statut-annule { opacity: 0.45; text-decoration: line-through; }
+.rdv-card.statut-absent { opacity: 0.65; }
+.rdv-card.statut-annule_client { opacity: 0.65; text-decoration: line-through; }
 
 .rdv-client {
-    font-weight: 600;
+    font-weight: 700;
     margin-bottom: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: #1a1a1a;
 }
 
 .rdv-prestation {
     font-size: 11px;
-    color: #666;
+    color: #444;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1007,7 +1016,7 @@
     font-size: 11px;
     font-weight: 600;
     margin-top: 2px;
-    color: #c9a86a;
+    color: #333;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1751,27 +1760,23 @@ function afficherRdvSurGrille() {
 
                 // Couleur selon le statut et forfait
                 let couleurBordure = rdv.couleur; // Couleur de la famille par défaut
-                let couleurFond = 'rgba(255, 255, 255, 0.9)'; // Fond blanc par défaut
 
                 // Séance de forfait = violet
                 if (rdv.est_seance_forfait) {
-                    couleurBordure = '#9b59b6'; // Violet pour forfait
-                    couleurFond = 'rgba(155, 89, 182, 0.1)'; // Fond violet léger
+                    couleurBordure = '#9b59b6';
                 }
 
                 if (rdv.statut === 'valide') {
-                    couleurBordure = '#28a745'; // Vert pour validé
-                    couleurFond = 'rgba(40, 167, 69, 0.1)'; // Fond vert léger
+                    couleurBordure = '#28a745';
                 } else if (rdv.statut === 'annule') {
-                    couleurBordure = '#6c757d'; // Gris pour annulé
-                    couleurFond = 'rgba(108, 117, 125, 0.1)'; // Fond gris léger
+                    couleurBordure = '#6c757d';
                 } else if (rdv.statut === 'absent' || rdv.statut === 'annule_client') {
-                    couleurBordure = '#dc3545'; // Rouge pour absent/annulé client
-                    couleurFond = 'rgba(220, 53, 69, 0.1)'; // Fond rouge léger
+                    couleurBordure = '#dc3545';
                 }
 
+                // Fond coloré dérivé de la couleur de bordure (hex + opacité 22%)
                 card.style.borderLeftColor = couleurBordure;
-                card.style.backgroundColor = couleurFond;
+                card.style.backgroundColor = couleurBordure + '28';
                 card.style.height = (rdv.duree_creneaux * 40 - 4) + 'px';
                 card.onclick = function(e) {
                     e.stopPropagation();

@@ -9,16 +9,21 @@
             <h1 class="page-title">Express - Caisse du jour</h1>
             <p class="page-subtitle">{{ date_selectionnee|date:"l d F Y" }}</p>
         </div>
-        <div style="display: flex; gap: 10px; align-items: center;">
-            <a href="{% url 'express:cloture_caisse' %}" class="btn-action" style="padding: 10px 20px; background: var(--primary); color: white; text-decoration: none; border-radius: 8px; font-weight: 500;">
-                📊 Clôture de caisse
-            </a>
-            <input type="date" id="date-selector" value="{{ date_selectionnee|date:'Y-m-d' }}"
-                   onchange="window.location.href='?date='+this.value" class="form-control" style="width: 160px;">
+        <div class="nav-links" style="margin:0;">
+            <a href="{% url 'express:index' %}" class="nav-link active">Caisse</a>
+            <a href="{% url 'express:historique' %}" class="nav-link">Historique</a>
         </div>
     </div>
 </div>
 
+{% if request.user.utilisateur.is_patron %}
+<div class="page-tabs">
+    <a href="{% url 'agenda:index' institut_code='palais' %}" class="page-tab">Le Palais</a>
+    <a href="{% url 'agenda:index' institut_code='klinic' %}" class="page-tab">La Klinic</a>
+    <a href="{% url 'express:index' %}" class="page-tab active">Express</a>
+    <a href="{% url 'gestion:ventes_caisse' %}" class="page-tab">Ventes produits</a>
+</div>
+{% endif %}
 
 <!-- Stats du jour -->
 <div class="stats-grid" style="margin-bottom: 20px;">
@@ -53,208 +58,173 @@
 </div>
 
 <!-- Formulaire nouvelle vente -->
-<div class="card" style="margin-bottom: 20px;">
-    <div class="card-header" style="background: linear-gradient(135deg, #e8b4b8 0%, #d4a5a5 100%); color: white; padding: 15px 20px; border-radius: 12px 12px 0 0;">
-        <h2 style="margin: 0; font-size: 18px;">📝 NOUVELLE VENTE EXPRESS</h2>
+<form id="form-vente">
+{% csrf_token %}
+<div style="display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;margin-bottom:24px;">
+
+    <!-- ── Colonne gauche : Client + Prestations ── -->
+    <div class="card" style="padding:22px;">
+        <h3 style="font-size:13px;font-weight:700;color:var(--text-dark);margin:0 0 18px;text-transform:uppercase;letter-spacing:.5px;">Nouvelle vente Express</h3>
+
+        <!-- Client -->
+        <div class="form-group">
+            <label>CLIENT *</label>
+            <div style="display: flex; gap: 8px;">
+                <div style="position: relative; flex: 1;">
+                    <input type="hidden" id="vente-client" name="client_id" required>
+                    <input type="text" id="vente-client-search" class="form-control"
+                           placeholder="Rechercher un client..." autocomplete="off">
+                    <div id="client-autocomplete" class="autocomplete-results"></div>
+                </div>
+                <button type="button" onclick="ouvrirModalNouveauClient()" style="padding:9px 14px;border:2px solid var(--primary);border-radius:10px;background:white;color:var(--primary);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
+                    + Client
+                </button>
+            </div>
+        </div>
+
+        <!-- Section Cartes Cadeaux -->
+        <div id="section-cartes-cadeaux" class="form-group" style="display: none;">
+            <label>Cartes cadeaux disponibles</label>
+            <div id="liste-cartes-cadeaux" style="background: #f0f8f0; border-radius: 8px; padding: 12px; margin-bottom: 10px;"></div>
+            <div id="recapitulatif-cartes" style="display: none; background: #fff8e1; border-radius: 8px; padding: 12px; margin-bottom: 10px; font-size: 13px;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span>Carte(s) cadeau :</span>
+                    <strong id="total-cartes-cadeaux" style="color: #28a745;">0 CFA</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 5px;">
+                    <span>Reste à payer :</span>
+                    <strong id="reste-apres-cartes" style="color: #c9a86a;">0 CFA</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Employé -->
+        <div class="form-group">
+            <label>EMPLOYÉ *</label>
+            <select id="vente-employe" name="employe_id" class="form-control" required>
+                <option value="">-- Sélectionner un employé --</option>
+                {% for employe in employes %}
+                <option value="{{ employe.id }}">{{ employe.prenom|default:employe.nom }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Famille de prestations -->
+        <div class="form-group">
+            <label>FAMILLE DE PRESTATIONS</label>
+            <select id="vente-famille" class="form-control" onchange="filtrerPrestations()">
+                <option value="">-- Toutes les familles --</option>
+                {% for famille in familles %}
+                <option value="{{ famille.id }}">{{ famille.nom }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Sélecteur de prestations -->
+        <div class="form-group">
+            <label>AJOUTER UNE PRESTATION</label>
+            <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px;">
+                <select id="select-prestation" class="form-control">
+                    <option value="">-- Sélectionner une prestation --</option>
+                </select>
+                <button type="button" onclick="ajouterPrestation()" style="padding:9px 14px;border:2px solid var(--primary);border-radius:10px;background:white;color:var(--primary);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">Ajouter</button>
+            </div>
+        </div>
+
+        <!-- Panier -->
+        <div class="form-group">
+            <label>PRESTATIONS SÉLECTIONNÉES</label>
+            <div id="prestations-selectionnees" style="border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; min-height: 100px; background: #f9f9f9;">
+                <p style="color: #999; text-align: center; margin: 0;">Aucune prestation sélectionnée</p>
+            </div>
+        </div>
     </div>
-    <div style="padding: 20px;">
-        <form id="form-vente">
-            {% csrf_token %}
 
-            <!-- Client -->
-            <div class="form-group">
-                <label>Client *</label>
-                <div style="display: flex; gap: 8px;">
-                    <div style="position: relative; flex: 1;">
-                        <input type="hidden" id="vente-client" name="client_id" required>
-                        <input type="text" id="vente-client-search" class="form-control"
-                               placeholder="Rechercher un client..." autocomplete="off">
-                        <div id="client-autocomplete" class="autocomplete-results"></div>
-                    </div>
-                    <button type="button" class="btn btn-secondary" onclick="ouvrirModalNouveauClient()" title="Créer un nouveau client" style="padding: 8px 12px; white-space: nowrap;">
-                        + Client
-                    </button>
-                </div>
-            </div>
-
-            <!-- Section Cartes Cadeaux (même présentation que l'agenda) -->
-            <div id="section-cartes-cadeaux" class="form-group" style="display: none;">
-                <label>Cartes cadeaux disponibles</label>
-                <div id="liste-cartes-cadeaux" style="background: #f0f8f0; border-radius: 8px; padding: 12px; margin-bottom: 10px;">
-                </div>
-                <div id="recapitulatif-cartes" style="display: none; background: #fff8e1; border-radius: 8px; padding: 12px; margin-bottom: 10px; font-size: 13px;">
-                    <div style="display: flex; justify-content: space-between;">
-                        <span>Carte(s) cadeau :</span>
-                        <strong id="total-cartes-cadeaux" style="color: #28a745;">0 CFA</strong>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-top: 5px;">
-                        <span>Reste à payer :</span>
-                        <strong id="reste-apres-cartes" style="color: #c9a86a;">0 CFA</strong>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Employé -->
-            <div class="form-group">
-                <label>Employé *</label>
-                <select id="vente-employe" name="employe_id" class="form-control" required>
-                    <option value="">-- Sélectionner un employé --</option>
-                    {% for employe in employes %}
-                    <option value="{{ employe.id }}">{{ employe.prenom|default:employe.nom }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Famille de prestations -->
-            <div class="form-group">
-                <label>Famille de prestations</label>
-                <select id="vente-famille" class="form-control" onchange="filtrerPrestations()">
-                    <option value="">-- Toutes les familles --</option>
-                    {% for famille in familles %}
-                    <option value="{{ famille.id }}">{{ famille.nom }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Sélecteur de prestations -->
-            <div class="form-group">
-                <label>Ajouter une prestation</label>
-                <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px;">
-                    <select id="select-prestation" class="form-control">
-                        <option value="">-- Sélectionner une prestation --</option>
-                    </select>
-                    <button type="button" class="btn btn-secondary" onclick="ajouterPrestation()" style="padding: 8px 16px;">Ajouter</button>
-                </div>
-            </div>
-
-            <!-- Prestations sélectionnées (panier) -->
-            <div class="form-group">
-                <label>Prestations sélectionnées</label>
-                <div id="prestations-selectionnees" style="border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; min-height: 100px; background: #f9f9f9;">
-                    <p style="color: #999; text-align: center; margin: 0;">Aucune prestation sélectionnée</p>
-                </div>
-            </div>
+    <!-- ── Colonne droite : Total + Paiement ── -->
+    <div>
+        <div class="card" style="padding:22px;">
+            <h3 style="font-size:13px;font-weight:700;color:var(--text-dark);margin:0 0 18px;text-transform:uppercase;letter-spacing:.5px;">Paiement</h3>
 
             <!-- Total -->
-            <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <div style="background: var(--bg-light); padding: 15px; border-radius: 12px; margin-bottom: 16px; border: 1px solid var(--border);">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: 18px; font-weight: 600;">TOTAL :</span>
-                    <span id="vente-total" style="font-size: 24px; font-weight: 700; color: #c9a86a;">0 CFA</span>
+                    <span style="font-size: 14px; font-weight: 600; color:var(--text-dark);">TOTAL</span>
+                    <span id="vente-total" style="font-size: 24px; font-weight: 700; color: var(--secondary);">0 CFA</span>
                 </div>
-                <div id="total-reste-a-payer" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #c9a86a;">
+                <div id="total-reste-a-payer" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);">
                     <div style="display: flex; justify-content: space-between; align-items: center; color: #28a745;">
-                        <span style="font-size: 14px;">Carte(s) cadeau :</span>
-                        <span id="total-cartes-display" style="font-size: 16px; font-weight: 600;">-0 CFA</span>
+                        <span style="font-size: 13px;">Carte(s) cadeau :</span>
+                        <span id="total-cartes-display" style="font-size: 14px; font-weight: 600;">-0 CFA</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
-                        <span style="font-size: 16px; font-weight: 600;">RESTE À PAYER :</span>
-                        <span id="reste-a-payer-display" style="font-size: 20px; font-weight: 700; color: #dc3545;">0 CFA</span>
+                        <span style="font-size: 14px; font-weight: 600;">RESTE À PAYER</span>
+                        <span id="reste-a-payer-display" style="font-size: 18px; font-weight: 700; color: #dc3545;">0 CFA</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Paiement -->
+            <!-- Type de paiement -->
             <div id="section-type-paiement" class="form-group">
-                <label>Type de paiement</label>
-                <div class="paiement-options">
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
-                        <input type="radio" name="type_paiement" value="complet" checked onchange="updatePaiement()">
-                        <span>Complet</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
-                        <input type="radio" name="type_paiement" value="partiel" onchange="updatePaiement()">
-                        <span>Partiel</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
-                        <input type="radio" name="type_paiement" value="differe" onchange="updatePaiement()">
-                        <span>Différé</span>
-                    </label>
-                </div>
+                <label>TYPE DE PAIEMENT</label>
+                <select id="select-type-paiement" name="type_paiement" class="form-control" onchange="updatePaiement()">
+                    <option value="complet">Complet</option>
+                    <option value="partiel">Partiel</option>
+                    <option value="differe">Différé</option>
+                </select>
             </div>
 
             <div id="montant-partiel-group" class="form-group" style="display: none;">
-                <label>Montant payé</label>
+                <label>MONTANT PAYÉ</label>
                 <input type="number" id="montant-paye" name="montant_paye" class="form-control" step="1" min="0" oninput="plafonnerMontantExpress()">
             </div>
 
-            <!-- Section double paiement -->
+            <!-- Double paiement -->
             <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-weight:normal; text-transform:none; letter-spacing:0;">
                     <input type="checkbox" id="utilise-double-paiement-express" onchange="toggleDoublePaiementExpress()" style="width: auto;">
-                    <span>Payer avec 2 moyens de paiement</span>
+                    <span style="font-size:13px;">Payer avec 2 moyens de paiement</span>
                 </label>
             </div>
 
             <div id="section-moyen-paiement" class="form-group">
-                <label id="label-moyen-paiement-1-express">Moyen de paiement</label>
-                <div class="paiement-options">
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
-                        <input type="radio" name="moyen_paiement_1" value="especes" checked>
-                        <span>Espèces</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
-                        <input type="radio" name="moyen_paiement_1" value="carte">
-                        <span>Carte bancaire</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
-                        <input type="radio" name="moyen_paiement_1" value="cheque">
-                        <span>Chèque</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
-                        <input type="radio" name="moyen_paiement_1" value="om">
-                        <span>Orange Money</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
-                        <input type="radio" name="moyen_paiement_1" value="wave">
-                        <span>Wave</span>
-                    </label>
-                </div>
+                <label id="label-moyen-paiement-1-express">MOYEN DE PAIEMENT</label>
+                <select id="select-moyen-1" name="moyen_paiement_1" class="form-control">
+                    <option value="especes">Espèces</option>
+                    <option value="carte">Carte bancaire</option>
+                    <option value="cheque">Chèque</option>
+                    <option value="om">Orange Money</option>
+                    <option value="wave">Wave</option>
+                </select>
             </div>
 
-            <!-- Montant moyen 1 (si double paiement) -->
             <div id="montant-moyen-1-group-express" class="form-group" style="display: none;">
-                <label>Montant payé avec le 1er moyen</label>
-                <input type="number" id="montant-paiement-1-express" name="montant_paiement_1_express" class="form-control" step="1" min="0"
-                       onchange="calculerMontant2Express()">
+                <label>MONTANT 1ER MOYEN</label>
+                <input type="number" id="montant-paiement-1-express" name="montant_paiement_1_express" class="form-control" step="1" min="0" onchange="calculerMontant2Express()">
             </div>
 
-            <!-- Moyen de paiement 2 (si double paiement) -->
             <div id="section-moyen-paiement-2-express" class="form-group" style="display: none;">
-                <label>2ème moyen de paiement</label>
-                <div class="paiement-options">
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
-                        <input type="radio" name="moyen_paiement_2" value="especes">
-                        <span>Espèces</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
-                        <input type="radio" name="moyen_paiement_2" value="carte" checked>
-                        <span>Carte bancaire</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
-                        <input type="radio" name="moyen_paiement_2" value="cheque">
-                        <span>Chèque</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
-                        <input type="radio" name="moyen_paiement_2" value="om">
-                        <span>Orange Money</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f9f9f9; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap;">
-                        <input type="radio" name="moyen_paiement_2" value="wave">
-                        <span>Wave</span>
-                    </label>
-                </div>
+                <label>2ÈME MOYEN DE PAIEMENT</label>
+                <select id="select-moyen-2" name="moyen_paiement_2" class="form-control">
+                    <option value="especes">Espèces</option>
+                    <option value="carte" selected>Carte bancaire</option>
+                    <option value="cheque">Chèque</option>
+                    <option value="om">Orange Money</option>
+                    <option value="wave">Wave</option>
+                </select>
                 <div id="montant-moyen-2-display-express" style="margin-top: 10px; padding: 10px; background: #e8f5e9; border-radius: 6px; font-size: 14px;">
-                    <strong>Montant à payer avec le 2ème moyen :</strong>
+                    <strong>Montant 2ème moyen :</strong>
                     <span id="montant-paiement-2-text-express" style="float: right; font-weight: 700; color: #2e7d32;">0 CFA</span>
                 </div>
             </div>
 
-            <button type="submit" id="btn-valider-vente" class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 16px; font-weight: 600;">
+            <button type="submit" id="btn-valider-vente" class="btn btn-primary" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 700; border-radius:12px; margin-top:8px;">
                 VALIDER LA VENTE
             </button>
-        </form>
+        </div>
     </div>
+
 </div>
+</form>
 
 <!-- Liste des ventes du jour -->
 <div class="card">
@@ -491,7 +461,7 @@ function plafonnerMontantExpress() {
 }
 
 function updatePaiement() {
-    const type = document.querySelector('input[name="type_paiement"]:checked').value;
+    const type = document.getElementById('select-type-paiement').value;
     const montantGroup = document.getElementById('montant-partiel-group');
     const sectionMoyen = document.getElementById('section-moyen-paiement');
     const doublePaiementCheckbox = document.getElementById('utilise-double-paiement-express');
@@ -566,7 +536,7 @@ function calculerMontant2Express() {
     });
 
     // En mode partiel, utiliser le montant partiel comme base au lieu du total
-    const typePaiement = document.querySelector('input[name="type_paiement"]:checked').value;
+    const typePaiement = document.getElementById('select-type-paiement').value;
     let baseTotal = total;
     if (typePaiement === 'partiel') {
         baseTotal = parseFloat(document.getElementById('montant-paye').value) || 0;
@@ -740,7 +710,7 @@ function recalculerCartesCadeaux(forceRecalcul = false, fromCheckbox = false) {
     }
 
     // Mettre à jour le montant partiel si en mode partiel
-    const typePaiement = document.querySelector('input[name="type_paiement"]:checked');
+    const typePaiement = document.getElementById('select-type-paiement');
     if (typePaiement && typePaiement.value === 'partiel') {
         const montantInput = document.getElementById('montant-paye');
         montantInput.max = resteApresCartes;
@@ -832,7 +802,7 @@ document.getElementById('form-vente').addEventListener('submit', function(e) {
         // Les moyens de paiement sont déjà dans le form (moyen_paiement_1 et moyen_paiement_2)
     } else {
         // Renommer moyen_paiement_1 en moyen_paiement pour compatibilité
-        const moyen = document.querySelector('input[name="moyen_paiement_1"]:checked');
+        const moyen = document.getElementById('select-moyen-1');
         if (moyen) {
             formData.set('moyen_paiement', moyen.value);
         }
@@ -974,9 +944,58 @@ function creerNouveauClient() {
         errorDiv.style.display = 'block';
     });
 }
+
+function expressChangeDate(delta) {
+    const sel = document.getElementById('date-selector');
+    if (delta === 0) {
+        window.location.href = '?date=' + sel.value;
+        return;
+    }
+    const d = new Date(sel.value + 'T12:00:00');
+    d.setDate(d.getDate() + delta);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    window.location.href = '?date=' + yyyy + '-' + mm + '-' + dd;
+}
 </script>
 
 <style>
+.btn-agenda-header {
+    padding: 0 14px;
+    height: 36px;
+    font-size: 13px;
+    font-family: inherit;
+    line-height: 1;
+    box-sizing: border-box;
+    border-radius: 8px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+.btn-nav-day {
+    width: 34px; height: 34px;
+    border: 1.5px solid #e0d5c5; background: white;
+    border-radius: 8px; cursor: pointer; font-size: 20px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #888; transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.btn-nav-day:hover { background: #f0ece5; color: var(--primary-dark); border-color: var(--primary); }
+.nav-links { display: flex; gap: 10px; margin-bottom: 20px; }
+.nav-link { padding: 8px 18px; border-radius: 10px; border: 2px solid var(--border); background: var(--bg-light); font-size: 13px; font-weight: 600; color: var(--text-dark); text-decoration: none; }
+.nav-link.active { background: var(--primary); color: white; border-color: var(--primary); }
+.card { background: white; border-radius: 16px; box-shadow: 0 4px 15px rgba(212,175,122,.10); border: 1px solid var(--border); }
+.card h3 { font-size: 13px; font-weight: 700; color: var(--text-dark); margin: 0 0 14px; text-transform: uppercase; letter-spacing: .5px; }
+.form-group label { display: block; font-size: 12px; font-weight: 700; color: var(--text-dark); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .4px; }
+@media (max-width: 900px) { .express-layout { grid-template-columns: 1fr !important; } }
 /* Stats cards */
 .stats-grid {
     display: grid;
@@ -990,6 +1009,7 @@ function creerNouveauClient() {
     border-radius: 15px;
     padding: 25px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    border: none;
     border-left: 4px solid var(--primary);
 }
 

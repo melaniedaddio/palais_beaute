@@ -2664,7 +2664,12 @@ def ventes_caisse(request):
     clients = Client.objects.filter(actif=True).order_by('nom')
 
     today = date.today()
-    ventes_jour = VenteProduit.objects.filter(institut=institut, date__date=today).aggregate(s=Sum('montant_total'))['s'] or 0
+    ventes_qs = VenteProduit.objects.filter(institut=institut, date__date=today).select_related('client', 'effectue_par').prefetch_related('lignes__produit').order_by('-date')
+    agg = ventes_qs.aggregate(s=Sum('montant_total'))
+    ventes_jour = agg['s'] or 0
+    nb_ventes = ventes_qs.count()
+    total_especes = ventes_qs.filter(mode_paiement='especes').aggregate(s=Sum('montant_total'))['s'] or 0
+    total_carte = ventes_qs.filter(mode_paiement='carte').aggregate(s=Sum('montant_total'))['s'] or 0
 
     return render(request, 'gestion/ventes/caisse.html', {
         'instituts': instituts,
@@ -2673,6 +2678,10 @@ def ventes_caisse(request):
         'produits': produits,
         'clients': clients,
         'ventes_jour': ventes_jour,
+        'nb_ventes': nb_ventes,
+        'total_especes': total_especes,
+        'total_carte': total_carte,
+        'ventes_du_jour': ventes_qs,
         'can_edit': utilisateur.role == 'patron',
     })
 

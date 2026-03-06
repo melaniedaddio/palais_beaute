@@ -515,6 +515,70 @@ def cloture_caisse(request):
 
 @login_required
 @role_required(['patron', 'manager'])
+def historique(request):
+    """Historique des ventes Express"""
+    from django.core.paginator import Paginator
+    from calendar import monthrange
+
+    institut = get_object_or_404(Institut, code='express')
+
+    utilisateur = request.user.utilisateur
+    if utilisateur.is_manager() and utilisateur.institut != institut:
+        from django.contrib import messages
+        messages.error(request, "Vous n'avez pas accès à Express")
+        return redirect('core:login')
+
+    # Mois sélectionné
+    mois_str = request.GET.get('mois', date.today().strftime('%Y-%m'))
+    try:
+        mois_date = datetime.strptime(mois_str + '-01', '%Y-%m-%d').date()
+    except ValueError:
+        mois_date = date.today().replace(day=1)
+
+    _, last_day = monthrange(mois_date.year, mois_date.month)
+    date_fin = mois_date.replace(day=last_day)
+
+    ventes = RendezVous.objects.filter(
+        institut=institut,
+        date__gte=mois_date,
+        date__lte=date_fin,
+        statut='valide'
+    ).select_related('client', 'employe').prefetch_related(
+        'prestations_express__prestation', 'paiements'
+    ).order_by('-date', '-date_creation')
+
+    total = ventes.aggregate(t=Sum('prix_total'))['t'] or 0
+
+    ventes_list = []
+    for v in ventes:
+        prestations_list = [
+            {'nom': vep.prestation.nom, 'quantite': vep.quantite}
+            for vep in v.prestations_express.all()
+        ]
+        paiement = v.paiements.first()
+        ventes_list.append({
+            'id': v.id,
+            'date': v.date,
+            'heure': v.date_creation.strftime('%H:%M'),
+            'client': v.client.get_full_name(),
+            'employe': v.employe.prenom or v.employe.nom,
+            'prestations': prestations_list,
+            'total': v.prix_total,
+            'mode': paiement.mode if paiement else '—',
+        })
+
+    paginator = Paginator(ventes_list, 50)
+    page = paginator.get_page(request.GET.get('page'))
+
+    return render(request, 'express/historique.html', {
+        'mois': mois_date,
+        'ventes': page,
+        'total': total,
+    })
+
+
+@login_required
+@role_required(['patron', 'manager'])
 @require_POST
 def api_cloturer_caisse(request):
     """API : Clôturer la caisse Express"""

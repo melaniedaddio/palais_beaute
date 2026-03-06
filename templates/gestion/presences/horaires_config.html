@@ -63,7 +63,7 @@
     </div>
 
     <div class="info-box">
-        <strong>Comment ça fonctionne :</strong> Définissez les horaires de travail théoriques par employé. Le seuil de retard est calculé automatiquement à partir de l'heure de début + 15 minutes de tolérance. Si aucun horaire n'est configuré, les valeurs par défaut sont 08:00 – 17:00.
+        <strong>Comment ça fonctionne :</strong> Définissez les horaires de travail théoriques par employé. Le seuil de retard est calculé automatiquement à partir de l'heure de début + 15 minutes de tolérance. Si aucun horaire n'est configuré, les valeurs par défaut sont 09:00 – 19:00.
     </div>
 
     {% if messages %}
@@ -132,7 +132,7 @@
             </tbody>
         </table>
         {% else %}
-        <p class="empty-emp">Aucun horaire configuré — utilise les valeurs par défaut (08:00 – 17:00)</p>
+        <p class="empty-emp">Aucun horaire configuré — utilise les valeurs par défaut (09:00 – 19:00)</p>
         {% endif %}
 
         <!-- Formulaire d'ajout inline -->
@@ -143,11 +143,11 @@
                 <div class="form-row">
                     <div class="form-field">
                         <label>Heure début</label>
-                        <input type="time" name="heure_debut" value="08:00" required>
+                        <input type="time" name="heure_debut" value="09:00" required>
                     </div>
                     <div class="form-field">
                         <label>Heure fin</label>
-                        <input type="time" name="heure_fin" value="17:00" required>
+                        <input type="time" name="heure_fin" value="19:00" required>
                     </div>
                     <div class="form-field">
                         <label>Applicable dès le</label>

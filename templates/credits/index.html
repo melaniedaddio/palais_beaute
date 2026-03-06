@@ -12,12 +12,12 @@
     }
 
     .credits-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
         color: white;
         padding: 30px;
         border-radius: 15px;
         margin-bottom: 30px;
-        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        box-shadow: 0 10px 30px rgba(201, 168, 106, 0.3);
     }
 
     .stats-grid {
@@ -304,6 +304,11 @@
 {% endblock %}
 
 {% block content %}
+<div class="page-tabs">
+    <a href="{% url 'credits:index' institut_code='palais' %}" class="page-tab {% if institut.code == 'palais' %}active{% endif %}">Le Palais</a>
+    <a href="{% url 'credits:index' institut_code='klinic' %}" class="page-tab {% if institut.code == 'klinic' %}active{% endif %}">La Klinic</a>
+    <a href="{% url 'credits:index' institut_code='express' %}" class="page-tab {% if institut.code == 'express' %}active{% endif %}">Express</a>
+</div>
 <div class="credits-container">
     <div class="credits-header">
         <h1>💳 Gestion des Crédits - {{ institut.nom }}</h1>

@@ -172,7 +172,8 @@ def clients_list(request):
         clients = clients.filter(
             Q(nom__icontains=search) |
             Q(prenom__icontains=search) |
-            Q(telephone__icontains=search)
+            Q(telephone__icontains=search) |
+            Q(email__icontains=search)
         )
 
     if filtre == 'dettes':
@@ -187,8 +188,29 @@ def clients_list(request):
         # Clients bénéficiaires d'une carte cadeau active
         clients_avec_cartes = CarteCadeau.objects.filter(statut='active').values_list('beneficiaire_id', flat=True).distinct()
         clients = clients.filter(id__in=clients_avec_cartes)
+    elif filtre == 'inactifs':
+        clients = clients.filter(actif=False)
 
     clients = clients.order_by('-actif', 'nom', 'prenom')
+
+    # AJAX : retourner JSON pour la recherche dynamique
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        clients_data = []
+        for c in clients[:150]:
+            clients_data.append({
+                'id': c.id,
+                'nom': c.nom,
+                'prenom': c.prenom,
+                'full_name': c.get_full_name(),
+                'telephone': c.telephone,
+                'email': c.email or '',
+                'date_creation': c.date_creation.strftime('%d/%m/%Y'),
+                'actif': c.actif,
+                'has_debt': c.credits_non_soldes,
+                'date_naissance': c.date_naissance.strftime('%Y-%m-%d') if c.date_naissance else '',
+                'notes': c.notes or '',
+            })
+        return JsonResponse({'clients': clients_data, 'count': clients.count()})
 
     paginator = Paginator(clients, 30)
     page_number = request.GET.get('page')
@@ -227,11 +249,26 @@ def client_detail(request, pk):
         '-date_achat'
     )
 
+    # Cartes cadeaux achetées par ce client
+    cartes_achetees = client.cartes_achetees.exclude(
+        statut__in=['annulee', 'supprimee']
+    ).select_related('beneficiaire', 'institut_achat').order_by('-date_achat')
+
+    # Cartes cadeaux reçues par ce client (dont il est bénéficiaire)
+    cartes_recues = client.cartes_recues.exclude(
+        statut__in=['annulee', 'supprimee']
+    ).exclude(acheteur=client).select_related('acheteur', 'institut_achat').order_by('-date_achat')
+
+    instituts = Institut.objects.all().order_by('nom')
+
     return render(request, 'clients/fiche.html', {
         'client': client,
         'rendez_vous': rendez_vous,
         'credits': credits,
         'forfaits': forfaits,
+        'cartes_achetees': cartes_achetees,
+        'cartes_recues': cartes_recues,
+        'instituts': instituts,
         'total_depense': client.get_total_depense(),
         'nombre_visites': client.get_nombre_visites(),
         'credit_total': client.get_credit_total(),
