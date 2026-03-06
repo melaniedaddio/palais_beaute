@@ -84,14 +84,16 @@ def client_detail(request, institut_code, client_id):
         'paiements'
     ).order_by('-date_creation')
 
-    # Calculer le total restant
+    # Calculer les totaux
     total_reste = sum(c.reste_a_payer for c in credits if not c.solde)
+    total_paye = sum(c.montant_paye for c in credits)
 
     context = {
         'institut': institut,
         'client': client,
         'credits': credits,
         'total_reste': total_reste,
+        'total_paye': total_paye,
     }
 
     return render(request, 'credits/client_detail.html', context)

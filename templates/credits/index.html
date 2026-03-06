@@ -5,379 +5,138 @@
 
 {% block extra_css %}
 <style>
-    .credits-container {
-        padding: 20px;
-        max-width: 1400px;
-        margin: 0 auto;
-    }
+    .credits-container { max-width: 1200px; margin: 0 auto; }
 
-    .credits-header {
-        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-        color: white;
-        padding: 30px;
-        border-radius: 15px;
-        margin-bottom: 30px;
-        box-shadow: 0 10px 30px rgba(201, 168, 106, 0.3);
-    }
+    /* Stat cards style fiche client */
+    .profile-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .profile-stat { background: white; border-radius: 16px; padding: 22px 16px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,.06); border: 1px solid var(--border); }
+    .profile-stat-value { font-size: 2em; font-weight: 700; color: var(--primary); line-height: 1; margin-bottom: 8px; }
+    .profile-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--text-light); }
 
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 20px;
-        margin-top: 20px;
-    }
+    /* Filtres */
+    .filter-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+    .filter-btn { padding: 8px 20px; border: 2px solid var(--border); background: white; color: var(--text-dark); border-radius: 10px; cursor: pointer; font-weight: 600; font-family: inherit; font-size: 13px; transition: all .15s; }
+    .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .filter-btn:hover:not(.active) { border-color: var(--primary); color: var(--primary); }
 
-    .stat-card {
-        background: rgba(255, 255, 255, 0.2);
-        padding: 20px;
-        border-radius: 10px;
-        text-align: center;
-    }
+    /* Carte client */
+    .client-card { background: white; border-radius: 16px; padding: 22px; margin-bottom: 16px; box-shadow: 0 4px 15px rgba(212,175,122,.10); border: 1px solid var(--border); cursor: pointer; transition: transform .15s, box-shadow .15s; }
+    .client-card:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(212,175,122,.18); }
+    .client-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+    .client-name { font-size: 1.15em; font-weight: 700; color: var(--text-dark); }
+    .client-phone { font-size: 12px; color: var(--text-light); margin-top: 3px; }
+    .client-total { font-size: 1.5em; font-weight: 700; color: #e74c3c; }
 
-    .stat-value {
-        font-size: 2em;
-        font-weight: bold;
-        margin-bottom: 5px;
-    }
+    /* Crédits */
+    .credits-list { display: grid; gap: 10px; }
+    .credit-item { background: var(--bg-light); padding: 14px; border-radius: 10px; border-left: 4px solid var(--primary); }
+    .credit-item.solde { opacity: .6; border-left-color: #28a745; }
+    .credit-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .credit-row:last-child { margin-bottom: 0; }
+    .credit-description { font-weight: 600; color: var(--text-dark); font-size: 13px; }
+    .credit-date { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+    .credit-amounts { display: flex; gap: 14px; align-items: center; font-size: 13px; }
+    .amount-total { color: var(--text-light); }
+    .amount-paye { color: #28a745; font-weight: 600; }
+    .amount-reste { color: #e74c3c; font-weight: 700; font-size: 14px; }
+    .badge-solde { background: #28a745; color: white; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
 
-    .stat-label {
-        font-size: 0.9em;
-        opacity: 0.9;
-    }
+    /* Vide */
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text-light); }
+    .empty-icon { font-size: 3em; margin-bottom: 16px; }
 
-    .filters {
-        background: white;
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
+    /* Bouton régler */
+    .btn-regler { background: var(--primary); color: white; border: none; padding: 7px 18px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; }
+    .btn-regler:hover { opacity: .9; }
 
-    .filter-buttons {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-    }
-
-    .filter-btn {
-        padding: 10px 20px;
-        border: 2px solid #667eea;
-        background: white;
-        color: #667eea;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.3s;
-        font-weight: 600;
-        font-family: inherit;
-        font-size: 14px;
-    }
-
-    .filter-btn.active {
-        background: #667eea;
-        color: white;
-    }
-
-    .client-card {
-        background: white;
-        border-radius: 12px;
-        padding: 25px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        transition: transform 0.3s, box-shadow 0.3s;
-        cursor: pointer;
-    }
-
-    .client-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-    }
-
-    .client-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 15px;
-        padding-bottom: 15px;
-        border-bottom: 2px solid #f0f0f0;
-    }
-
-    .client-name {
-        font-size: 1.4em;
-        font-weight: bold;
-        color: #333;
-    }
-
-    .client-total {
-        font-size: 1.8em;
-        font-weight: bold;
-        color: #e74c3c;
-    }
-
-    .credits-list {
-        display: grid;
-        gap: 10px;
-    }
-
-    .credit-item {
-        background: #f8f9fa;
-        padding: 15px;
-        border-radius: 8px;
-        border-left: 4px solid #667eea;
-    }
-
-    .credit-item.solde {
-        opacity: 0.6;
-        border-left-color: #27ae60;
-    }
-
-    .credit-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 5px;
-    }
-
-    .credit-description {
-        font-weight: 600;
-        color: #555;
-    }
-
-    .credit-date {
-        font-size: 0.85em;
-        color: #888;
-    }
-
-    .credit-amounts {
-        display: flex;
-        gap: 15px;
-        align-items: center;
-        font-size: 0.95em;
-    }
-
-    .amount-total {
-        color: #666;
-    }
-
-    .amount-paye {
-        color: #27ae60;
-    }
-
-    .amount-reste {
-        color: #e74c3c;
-        font-weight: bold;
-        font-size: 1.1em;
-    }
-
-    .badge-solde {
-        background: #27ae60;
-        color: white;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.8em;
-        font-weight: bold;
-    }
-
-    .empty-state {
-        text-align: center;
-        padding: 60px 20px;
-        color: #999;
-    }
-
-    .empty-icon {
-        font-size: 4em;
-        margin-bottom: 20px;
-    }
-
-    .btn-regler {
-        background: #27ae60;
-        color: white;
-        border: none;
-        padding: 8px 20px;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: background 0.3s;
-        font-weight: 600;
-    }
-
-    .btn-regler:hover {
-        background: #229954;
-    }
-
-    /* Modal de règlement */
-    .modal-reglement {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.5);
-        z-index: 1000;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .modal-reglement.active {
-        display: flex;
-    }
-
-    .modal-content {
-        background: white;
-        border-radius: 15px;
-        padding: 30px;
-        max-width: 500px;
-        width: 90%;
-        max-height: 90vh;
-        overflow-y: auto;
-    }
-
-    .modal-header {
-        margin-bottom: 25px;
-        padding-bottom: 15px;
-        border-bottom: 2px solid #f0f0f0;
-    }
-
-    .modal-header h2 {
-        margin: 0;
-        color: #333;
-    }
-
-    .form-group {
-        margin-bottom: 20px;
-    }
-
-    .form-group label {
-        display: block;
-        margin-bottom: 8px;
-        font-weight: 600;
-        color: #555;
-    }
-
-    .form-control {
-        width: 100%;
-        padding: 12px;
-        border: 2px solid #e0e0e0;
-        border-radius: 8px;
-        font-size: 1em;
-        transition: border-color 0.3s;
-    }
-
-    .form-control:focus {
-        outline: none;
-        border-color: #667eea;
-    }
-
-    .modal-actions {
-        display: flex;
-        gap: 10px;
-        justify-content: flex-end;
-        margin-top: 25px;
-    }
-
-    .btn-modal {
-        padding: 12px 30px;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 600;
-        transition: all 0.3s;
-    }
-
-    .btn-primary {
-        background: #667eea;
-        color: white;
-    }
-
-    .btn-primary:hover {
-        background: #5568d3;
-    }
-
-    .btn-secondary {
-        background: #e0e0e0;
-        color: #666;
-    }
-
-    .btn-secondary:hover {
-        background: #d0d0d0;
-    }
+    /* Modal */
+    .modal-reglement { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.5); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-reglement.active { display: flex; }
+    .modal-content { background: white; border-radius: 16px; padding: 28px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; }
+    .modal-header { margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+    .modal-header h2 { margin: 0; font-size: 16px; font-weight: 700; color: var(--text-dark); }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 700; color: var(--text-dark); text-transform: uppercase; letter-spacing: .4px; }
+    .form-control { width: 100%; padding: 10px 14px; border: 2px solid var(--border); border-radius: 10px; font-size: 14px; box-sizing: border-box; }
+    .form-control:focus { outline: none; border-color: var(--primary); }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+    .btn-modal { padding: 10px 24px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 13px; }
+    .btn-modal-primary { background: var(--primary); color: white; }
+    .btn-modal-secondary { background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); }
 </style>
 {% endblock %}
 
 {% block content %}
+<div class="content-header">
+    <h1 class="page-title">Gestion des Crédits</h1>
+    <p class="page-subtitle">{{ institut.nom }}</p>
+</div>
+
 <div class="page-tabs">
     <a href="{% url 'credits:index' institut_code='palais' %}" class="page-tab {% if institut.code == 'palais' %}active{% endif %}">Le Palais</a>
     <a href="{% url 'credits:index' institut_code='klinic' %}" class="page-tab {% if institut.code == 'klinic' %}active{% endif %}">La Klinic</a>
     <a href="{% url 'credits:index' institut_code='express' %}" class="page-tab {% if institut.code == 'express' %}active{% endif %}">Express</a>
 </div>
+
 <div class="credits-container">
-    <div class="credits-header">
-        <h1>💳 Gestion des Crédits - {{ institut.nom }}</h1>
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value">{{ nb_clients }}</div>
-                <div class="stat-label">Clients</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{ total_credits|floatformat:0 }}</div>
-                <div class="stat-label">Total Crédits (CFA)</div>
-            </div>
+
+    <!-- Stats -->
+    <div class="profile-stats">
+        <div class="profile-stat">
+            <div class="profile-stat-value">{{ nb_clients }}</div>
+            <div class="profile-stat-label">Clients</div>
+        </div>
+        <div class="profile-stat">
+            <div class="profile-stat-value" style="font-size:1.5em;">{{ total_credits|floatformat:0 }}</div>
+            <div class="profile-stat-label">Total Crédits (CFA)</div>
         </div>
     </div>
 
-    <div class="filters">
-        <div class="filter-buttons">
-            <button class="filter-btn {% if filtre == 'non_soldes' %}active{% endif %}"
-                    onclick="window.location.href='?filtre=non_soldes'">
-                En cours
-            </button>
-            <button class="filter-btn {% if filtre == 'tous' %}active{% endif %}"
-                    onclick="window.location.href='?filtre=tous'">
-                Tous les crédits
-            </button>
-        </div>
+    <!-- Filtres -->
+    <div class="filter-buttons">
+        <button class="filter-btn {% if filtre == 'non_soldes' %}active{% endif %}"
+                onclick="window.location.href='?filtre=non_soldes'">En cours</button>
+        <button class="filter-btn {% if filtre == 'tous' %}active{% endif %}"
+                onclick="window.location.href='?filtre=tous'">Tous les crédits</button>
     </div>
 
+    <!-- Liste clients -->
     {% if clients_credits %}
-        <div class="credits-grid">
-            {% for client_data in clients_credits %}
-            <div class="client-card" onclick="window.location.href='{% url 'credits:client_detail' institut.code client_data.client.id %}'">
-                <div class="client-header">
-                    <div class="client-name">
-                        👤 {{ client_data.client.get_full_name }}
-                        <div style="font-size: 0.6em; color: #888; font-weight: normal;">
-                            {{ client_data.client.telephone }}
-                        </div>
-                    </div>
-                    <div class="client-total">{{ client_data.total_reste|floatformat:0 }} CFA</div>
+        {% for client_data in clients_credits %}
+        <div class="client-card" onclick="window.location.href='{% url 'credits:client_detail' institut.code client_data.client.id %}'">
+            <div class="client-header">
+                <div>
+                    <div class="client-name">{{ client_data.client.get_full_name }}</div>
+                    <div class="client-phone">{{ client_data.client.telephone }}</div>
                 </div>
-
-                <div class="credits-list">
-                    {% for credit in client_data.credits %}
-                    <div class="credit-item {% if credit.solde %}solde{% endif %}">
-                        <div class="credit-row">
-                            <div>
-                                <div class="credit-description">{{ credit.description }}</div>
-                                <div class="credit-date">📅 {{ credit.date_creation|date:"d/m/Y H:i" }}</div>
-                            </div>
-                            {% if credit.solde %}
-                                <span class="badge-solde">✓ Soldé</span>
-                            {% endif %}
-                        </div>
-                        <div class="credit-row">
-                            <div class="credit-amounts">
-                                <span class="amount-total">Total: {{ credit.montant_total|floatformat:0 }} CFA</span>
-                                <span class="amount-paye">Payé: {{ credit.montant_paye|floatformat:0 }} CFA</span>
-                            </div>
-                            {% if not credit.solde %}
-                                <span class="amount-reste">Reste: {{ credit.reste_a_payer|floatformat:0 }} CFA</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
+                <div class="client-total">{{ client_data.total_reste|floatformat:0 }} CFA</div>
             </div>
-            {% endfor %}
+            <div class="credits-list">
+                {% for credit in client_data.credits %}
+                <div class="credit-item {% if credit.solde %}solde{% endif %}">
+                    <div class="credit-row">
+                        <div>
+                            <div class="credit-description">{{ credit.description }}</div>
+                            <div class="credit-date">{{ credit.date_creation|date:"d/m/Y H:i" }}</div>
+                        </div>
+                        {% if credit.solde %}
+                            <span class="badge-solde">✓ Soldé</span>
+                        {% endif %}
+                    </div>
+                    <div class="credit-row">
+                        <div class="credit-amounts">
+                            <span class="amount-total">Total: {{ credit.montant_total|floatformat:0 }} CFA</span>
+                            <span class="amount-paye">Payé: {{ credit.montant_paye|floatformat:0 }} CFA</span>
+                        </div>
+                        {% if not credit.solde %}
+                            <span class="amount-reste">Reste: {{ credit.reste_a_payer|floatformat:0 }} CFA</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
+        {% endfor %}
     {% else %}
         <div class="empty-state">
             <div class="empty-icon">📭</div>
@@ -385,5 +144,6 @@
             <p>{% if filtre == 'non_soldes' %}Aucun crédit en cours{% else %}Aucun crédit enregistré{% endif %}</p>
         </div>
     {% endif %}
+
 </div>
 {% endblock %}

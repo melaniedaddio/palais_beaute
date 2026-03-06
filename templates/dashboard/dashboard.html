@@ -499,11 +499,6 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-tabs">
-    <a href="{% url 'dashboard:index' %}" class="page-tab active">Recettes</a>
-    <a href="{% url 'dashboard:depenses' %}" class="page-tab">Dépenses</a>
-    <a href="{% url 'dashboard:bilan' %}" class="page-tab">Bilan</a>
-</div>
 <div class="dashboard-header">
     <div>
         <h1 class="page-title">Dashboard Recettes</h1>
@@ -528,6 +523,11 @@
             </button>
         </div>
     </div>
+</div>
+<div class="page-tabs">
+    <a href="{% url 'dashboard:index' %}" class="page-tab active">Recettes</a>
+    <a href="{% url 'dashboard:depenses' %}" class="page-tab">Dépenses</a>
+    <a href="{% url 'dashboard:bilan' %}" class="page-tab">Bilan</a>
 </div>
 
 <!-- ── DÉBIT/CRÉDIT/BÉNÉFICE ── -->
