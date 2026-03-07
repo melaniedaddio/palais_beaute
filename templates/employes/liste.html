@@ -453,18 +453,19 @@
         </div>
         <div style="margin-top:14px;">
             <select class="form-control" style="max-width:280px;border-radius:25px;padding:10px 16px;border:1.5px solid var(--border);font-size:14px;" onchange="switchTabFromSelect(this.value)">
+                <option value="tous" selected>Tous les instituts</option>
                 {% for institut, employes in employes_par_institut.items %}
-                <option value="{{ institut.code }}" {% if forloop.first %}selected{% endif %}>{{ institut.nom }} ({{ employes|length }})</option>
+                <option value="{{ institut.code }}">{{ institut.nom }} ({{ employes|length }})</option>
                 {% endfor %}
-                <option value="autres">⭐ Autres ({{ employes_autres|length }})</option>
-                <option value="categories">⚙️ Catégories</option>
+                <option value="autres">Autres ({{ employes_autres|length }})</option>
+                <option value="categories">Catégories</option>
             </select>
         </div>
     </div>
 
     <!-- Onglets instituts -->
     {% for institut, employes in employes_par_institut.items %}
-    <div class="institut-section {% if forloop.first %}active{% endif %}" id="tab-{{ institut.code }}" style="padding:24px 30px;background:transparent;border:none;box-shadow:none;border-radius:0;">
+    <div class="institut-section active" id="tab-{{ institut.code }}" style="padding:24px 30px;background:transparent;border:none;box-shadow:none;border-radius:0;">
         {% if employes %}
         <div class="employes-grid">
             {% for employe in employes %}
@@ -756,7 +757,7 @@
             </div>
 
             <div class="modal-footer">
-                <button type="button" id="btn-horaires-edit" onclick="ouvrirHorairesDepuisModal()" style="display:none;margin-right:auto;padding:9px 16px;background:#f0f4ff;color:#3b5bdb;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;">⏰ Horaires</button>
+                <button type="button" id="btn-horaires-edit" onclick="ouvrirHorairesDepuisModal()" style="display:none;margin-right:auto;padding:9px 16px;background:#f0f4ff;color:#3b5bdb;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> Horaires</button>
                 <button type="button" class="btn-cancel" onclick="closeModal()">Annuler</button>
                 <button type="submit" class="btn-submit" id="btnSubmit">Ajouter</button>
             </div>
@@ -771,8 +772,18 @@ function switchTab(code, btn) {
 }
 
 function switchTabFromSelect(code) {
-    document.querySelectorAll('.institut-section').forEach(s => s.classList.remove('active'));
-    document.getElementById('tab-' + code).classList.add('active');
+    if (code === 'tous') {
+        document.querySelectorAll('.institut-section').forEach(s => {
+            if (!s.id.includes('tab-categories') && !s.id.includes('tab-autres')) {
+                s.classList.add('active');
+            } else {
+                s.classList.remove('active');
+            }
+        });
+    } else {
+        document.querySelectorAll('.institut-section').forEach(s => s.classList.remove('active'));
+        document.getElementById('tab-' + code).classList.add('active');
+    }
 }
 
 let isEditMode = false;
@@ -1028,7 +1039,7 @@ async function chargerHoraires(employeId) {
         const data = await resp.json();
 
         // Badge horaire actif
-        document.getElementById('horaire-actif-badge').textContent = `⏰ Actif : ${data.horaire_actif}`;
+        document.getElementById('horaire-actif-badge').innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>Actif : ${data.horaire_actif}`;
 
         if (data.horaires.length === 0) {
             container.innerHTML = '<p style="color:#999;font-style:italic;text-align:center;padding:10px;">Aucun horaire configuré (défaut : 09:00 – 19:00)</p>';
@@ -1107,8 +1118,8 @@ async function supprimerHoraire(horaireId) {
             <button onclick="fermerHoraires()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;">✕</button>
         </div>
 
-        <div style="background:#f0f4ff;border-radius:8px;padding:8px 14px;margin-bottom:16px;font-size:13px;font-weight:600;color:#3b5bdb;" id="horaire-actif-badge">
-            ⏰ Actif : …
+        <div style="background:#f0f4ff;border-radius:8px;padding:8px 14px;margin-bottom:16px;font-size:13px;font-weight:600;color:#3b5bdb;display:flex;align-items:center;gap:6px;" id="horaire-actif-badge">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>Actif : …
         </div>
 
         <div id="horaires-liste" style="min-height:60px;max-height:260px;overflow-y:auto;margin-bottom:4px;"></div>
