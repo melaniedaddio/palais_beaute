@@ -189,8 +189,15 @@
         display: flex; align-items: center; justify-content: center;
         font-weight: 700; font-size: 14px; color: white;
         flex-shrink: 0; letter-spacing: 0.5px;
-        background: var(--primary);
+        background: #e8a598;
     }
+    .clients-grid .client-card:nth-child(8n+2) .client-avatar { background: #a8c8e8; }
+    .clients-grid .client-card:nth-child(8n+3) .client-avatar { background: #b8d4a8; }
+    .clients-grid .client-card:nth-child(8n+4) .client-avatar { background: #d4a8d4; }
+    .clients-grid .client-card:nth-child(8n+5) .client-avatar { background: #e8c898; }
+    .clients-grid .client-card:nth-child(8n+6) .client-avatar { background: #98c8d4; }
+    .clients-grid .client-card:nth-child(8n+7) .client-avatar { background: #c8a8d4; }
+    .clients-grid .client-card:nth-child(8n+0) .client-avatar { background: #d4b8a8; }
 
     .client-info-name { font-weight: 600; color: #1a1a1a; font-size: 14px; }
 
@@ -507,19 +514,6 @@
 <script>
 const CSRF = '{{ csrf_token }}';
 const IS_PATRON = {{ request.user.utilisateur.is_patron|lower }};
-const AVATAR_COLORS = ['#e8a598','#a8c8e8','#b8d4a8','#d4a8d4','#e8c898','#98c8d4','#c8a8d4','#d4b8a8'];
-
-function avatarColor(id) { return AVATAR_COLORS[id % AVATAR_COLORS.length]; }
-
-// Colorier les avatars (initial render)
-document.querySelectorAll('.client-avatar').forEach(el => {
-    const card = el.closest('.client-card');
-    if (card) {
-        const id = parseInt(card.dataset.id || '0');
-        el.style.background = avatarColor(id);
-    }
-});
-
 // Navigation row → fiche (sauf clic sur kebab)
 function goToClient(event, url) {
     window.location.href = url;
@@ -623,11 +617,6 @@ function renderClients(clients) {
             </div>
         </div>`;
     }).join('');
-    // Colorier les avatars après injection
-    grid.querySelectorAll('.client-avatar').forEach(el => {
-        const card = el.closest('.client-card');
-        if (card) el.style.background = avatarColor(parseInt(card.dataset.id || '0'));
-    });
 }
 
 function escJs(s) { return (s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"'); }
