@@ -26,32 +26,7 @@
         font-weight: 500;
     }
 
-    .nav-links { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-    .nav-link { padding: 8px 18px; border-radius: 10px; border: 2px solid var(--border); background: var(--bg-light); font-size: 13px; font-weight: 600; color: var(--text-dark); text-decoration: none; transition: all .15s; }
-    .nav-link:hover:not(.active) { background: var(--bg-section); border-color: var(--primary); color: var(--primary); }
-    .nav-link.active { background: var(--primary); color: white; border-color: var(--primary); }
-
-    .institut-tabs {
-        display: flex;
-        gap: 10px;
-        overflow-x: auto;
-        margin-bottom: 20px;
-    }
-    .institut-tab {
-        padding: 9px 22px;
-        border-radius: 25px;
-        font-weight: 500;
-        font-size: 13px;
-        cursor: pointer;
-        border: none;
-        background: var(--bg-section);
-        color: var(--text-light);
-        transition: all 0.2s;
-        white-space: nowrap;
-        text-decoration: none;
-    }
-    .institut-tab.active { background: var(--primary); color: white; }
-    .institut-tab:hover:not(.active) { background: #e0e0e0; }
+    .institut-select { padding: 8px 14px; border-radius: 8px; border: 2px solid var(--primary); font-weight: 500; font-size: 14px; background: white; cursor: pointer; margin-bottom: 20px; }
 
     /* Carte principale */
     .presence-card {
@@ -213,32 +188,22 @@
 <div class="pointage-container">
 
     <div class="page-header">
-        <h1>Pointage du jour</h1>
-        <span class="date-badge">{{ today|date:"l d F Y" }}</span>
+        <h1>Pointage du {{ today|date:"l d F Y" }}</h1>
     </div>
 
-    <div class="nav-links">
-        <a href="{% url 'gestion:presences_pointage' %}" class="nav-link active">Pointage</a>
-        {% if is_patron %}
-        <a href="{% url 'gestion:presences_dashboard' %}" class="nav-link">Tableau de bord</a>
-        {% endif %}
-        <a href="{% url 'gestion:presences_historique' %}" class="nav-link">Historique</a>
+    <div class="page-tabs">
+        <a href="{% url 'gestion:presences_pointage' %}" class="page-tab active">Pointage</a>
+        <a href="{% url 'gestion:presences_dashboard' %}" class="page-tab">Tableau de bord</a>
     </div>
 
-    <div class="institut-tabs">
+    <select class="institut-select" onchange="window.location.href='?institut='+this.value">
         {% for inst in instituts %}
-        <a href="?institut={{ inst.code }}"
-           class="institut-tab {% if institut_code == inst.code %}active{% endif %}">
-            {{ inst.nom }}
-        </a>
+        <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
         {% endfor %}
         {% if is_patron %}
-        <a href="?institut=autres"
-           class="institut-tab {% if institut_code == 'autres' %}active{% endif %}">
-            Autres
-        </a>
+        <option value="autres" {% if institut_code == 'autres' %}selected{% endif %}>Autres</option>
         {% endif %}
-    </div>
+    </select>
 
     <div class="presence-card">
         {% if employes %}

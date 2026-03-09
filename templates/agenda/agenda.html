@@ -147,16 +147,20 @@
                     </select>
                 </div>
 
-                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
                     <div class="form-group">
                         <label>Date</label>
                         <input type="date" id="rdv-date" name="date" required class="form-control"
                                value="{{ date_selectionnee|date:'Y-m-d' }}">
                     </div>
                     <div class="form-group">
-                        <label>Heure</label>
-                        <select id="rdv-heure" name="heure" class="form-control" onchange="verifierConflitModification()"></select>
+                        <label>Heure début</label>
+                        <select id="rdv-heure" name="heure" class="form-control" onchange="verifierConflitModification(); syncHeureFin0()"></select>
                         <div id="modif-conflit" style="display:none;background:#fff5f5;border:1px solid #dc3545;border-radius:6px;padding:8px 12px;font-size:12px;color:#dc3545;margin-top:6px;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Heure fin</label>
+                        <select id="rdv-heure-fin" name="heure_fin" class="form-control"></select>
                     </div>
                 </div>
 
@@ -196,30 +200,12 @@
 
                 <div class="form-group">
                     <label>Prestation</label>
-                    <select id="rdv-prestation" name="prestation_id" required class="form-control" onchange="calculerTotal(true); updateForfaitsButtons(); verifierConflitModification()">
+                    <select id="rdv-prestation" name="prestation_id" required class="form-control" onchange="calculerTotal(true); if(typeof updateForfaitsButtons==='function')updateForfaitsButtons(); verifierConflitModification(); mettreAJourHeureFin_Modif()">
                         <option value="">-- Sélectionner une prestation --</option>
                     </select>
                     <div id="prestation-info" style="margin-top: 8px; font-size: 13px; color: #666;"></div>
                 </div>
 
-                <div class="form-group">
-                    <label>⏱ Durée de la prestation</label>
-                    <div style="display:flex;gap:8px;align-items:center;">
-                        <select id="rdv-duree-heures" class="form-control" style="width:75px;" onchange="mettreAJourAffichageDureeModif()">
-                            <option value="0">0</option><option value="1">1</option><option value="2">2</option>
-                            <option value="3">3</option><option value="4">4</option><option value="5">5</option>
-                            <option value="6">6</option><option value="7">7</option><option value="8">8</option>
-                            <option value="9">9</option><option value="10">10</option>
-                        </select>
-                        <span style="font-size:13px;">h</span>
-                        <select id="rdv-duree-minutes" class="form-control" style="width:75px;" onchange="mettreAJourAffichageDureeModif()">
-                            <option value="0">0</option><option value="15">15</option>
-                            <option value="30">30</option><option value="45">45</option>
-                        </select>
-                        <span style="font-size:13px;">min</span>
-                        <span id="rdv-duree-display" style="font-size:12px;color:#888;"></span>
-                    </div>
-                </div>
 
                 <div class="form-group">
                     <label>Options</label>
@@ -240,22 +226,28 @@
                     </div>
                 </div>
 
+                <div class="form-group" id="groupe-prix-section" style="display:none;">
+                    <label style="font-weight:600;font-size:14px;color:#888;">Prix total du groupe</label>
+                    <input type="number" id="rdv-groupe-prix-total" class="form-control" step="1"
+                           style="font-size:18px;font-weight:700;color:#c9a86a;border-color:#c9a86a;">
+                    <div style="font-size:11px;color:#aaa;margin-top:4px;">Remplace le total calculé pour ce groupe</div>
+                </div>
+
                 <div class="form-group">
                     <label>Prix de base</label>
                     <input type="number" id="rdv-prix-base" name="prix_base" class="form-control"
-                           onchange="calculerTotal(false)" step="0.01">
+                           onchange="calculerTotal(false)" step="1">
                 </div>
 
                 <div class="form-group">
                     <label style="font-weight: 600; font-size: 16px;">Prix total</label>
-                    <div id="rdv-prix-total" style="font-size: 24px; font-weight: 700; color: #c9a86a;">
-                        0 CFA
-                    </div>
+                    <input type="number" id="rdv-prix-total" class="form-control" step="1"
+                           style="font-size:22px;font-weight:700;color:#c9a86a;"
+                           onchange="prixTotalManual()">
                 </div>
             </form>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="fermerModalRdv()">Annuler</button>
             <button type="button" class="btn btn-primary" onclick="enregistrerRdv()">Enregistrer</button>
         </div>
     </div>
@@ -1245,20 +1237,9 @@ window.currentRdvId = null;
 window.caisseCloturee = {{ caisse_cloturee|yesno:"true,false" }};
 window.isPatron = {{ request.user.utilisateur.is_patron|yesno:"true,false" }};
 
-console.log('=== AGENDA SCRIPT v2026-01-21-17:05 LOADED ===');
-console.log('currentRdvId initialisé:', window.currentRdvId);
-console.log('rdvData:', window.rdvData);
-// Debug: afficher les couleurs de chaque RDV
-Object.keys(window.rdvData).forEach(employeId => {
-    window.rdvData[employeId].forEach(rdv => {
-        console.log(`RDV ${rdv.id} - Statut: ${rdv.statut} - Couleur: ${rdv.couleur}`);
-    });
-});
 
 // Initialisation
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('=== DOMContentLoaded déclenché ===');
-    console.log('Appel de chargerPrestationsData()...');
     chargerPrestationsData();
     afficherRdvSurGrille();
     calculerStats();
@@ -1337,36 +1318,31 @@ function chargerPrestationsData() {
         });
 }
 
-function chargerPrestations(retryCount = 0) {
+function chargerPrestations(retryCount = 0, afterLoad = null) {
     const familleId = document.getElementById('rdv-famille').value;
     const prestationSelect = document.getElementById('rdv-prestation');
     const infoDiv = document.getElementById('prestation-info');
-
-    console.log('chargerPrestations appelé - familleId:', familleId, 'retry:', retryCount);
-    console.log('window.prestationsData disponible:', window.prestationsData.length, 'prestations');
 
     prestationSelect.innerHTML = '<option value="">-- Chargement... --</option>';
     infoDiv.innerHTML = '';
 
     if (!familleId) {
         prestationSelect.innerHTML = '<option value="">-- Sélectionner une prestation --</option>';
+        if (afterLoad) afterLoad();
         return;
     }
 
-    // Si les prestations ne sont pas encore chargées, attendre un peu et réessayer (max 50 fois = 5 secondes)
     if (window.prestationsData.length === 0) {
         if (retryCount < 50) {
-            console.log('Prestations pas encore chargées, attente...', retryCount);
-            setTimeout(() => chargerPrestations(retryCount + 1), 100);
+            setTimeout(() => chargerPrestations(retryCount + 1, afterLoad), 100);
         } else {
-            console.error('TIMEOUT: Les prestations n\'ont pas pu être chargées après 5 secondes');
             prestationSelect.innerHTML = '<option value="">Erreur de chargement des prestations</option>';
+            if (afterLoad) afterLoad();
         }
         return;
     }
 
     const prestations = window.prestationsData.filter(p => p.famille_id == familleId);
-    console.log('Prestations filtrées pour famille', familleId, ':', prestations.length, 'prestations');
 
     prestationSelect.innerHTML = '<option value="">-- Sélectionner une prestation --</option>';
     prestations.forEach(p => {
@@ -1384,6 +1360,21 @@ function chargerPrestations(retryCount = 0) {
         option.dataset.nom = p.nom;
         prestationSelect.appendChild(option);
     });
+
+    if (afterLoad) afterLoad();
+}
+
+// Recalculer prix_base depuis un prix total saisi manuellement
+function prixTotalManual() {
+    const total = parseFloat(document.getElementById('rdv-prix-total').value) || 0;
+    let prixOptions = 0;
+    document.querySelectorAll('.option-counter').forEach(optionDiv => {
+        const optionId = optionDiv.dataset.optionId;
+        const qte = parseInt(document.getElementById('option-qte-' + optionId).textContent) || 0;
+        const prix = parseFloat(optionDiv.dataset.prix) || 0;
+        prixOptions += qte * prix;
+    });
+    document.getElementById('rdv-prix-base').value = Math.max(0, total - prixOptions);
 }
 
 // Ajuster la quantité d'une option
@@ -1412,7 +1403,7 @@ function calculerTotal(fromPrestation = false) {
     const selectedOption = prestationSelect.options[prestationSelect.selectedIndex];
 
     if (!selectedOption || !selectedOption.value) {
-        document.getElementById('rdv-prix-total').textContent = '0 CFA';
+        document.getElementById('rdv-prix-total').value = 0;
         document.getElementById('prestation-info').innerHTML = '';
         return;
     }
@@ -1439,7 +1430,7 @@ function calculerTotal(fromPrestation = false) {
     });
 
     const prixTotal = prixBase + prixOptions;
-    document.getElementById('rdv-prix-total').textContent = prixTotal.toLocaleString('fr-FR') + ' CFA';
+    document.getElementById('rdv-prix-total').value = prixTotal;
 
     // Afficher info prestation
     const duree = selectedOption.dataset.duree;
@@ -1495,21 +1486,54 @@ function nouvelRdv(employeId, heure) {
 function fermerModalRdv() {
     document.getElementById('modal-rdv').style.display = 'none';
 
-    // Supprimer les boutons supplémentaires s'ils existent
-    const btnSupprimer = document.getElementById('btn-supprimer-rdv');
     const btnValider = document.getElementById('btn-valider-rdv');
-    if (btnSupprimer) btnSupprimer.remove();
     if (btnValider) btnValider.remove();
+
+    // Cacher la section groupe
+    const groupeSection = document.getElementById('groupe-prix-section');
+    if (groupeSection) groupeSection.style.display = 'none';
+
+    // Restaurer prix_base éditable (pour nouvelle réservation)
+    const prixBase = document.getElementById('rdv-prix-base');
+    prixBase.readOnly = false;
+    prixBase.style.background = '';
+    prixBase.style.color = '';
 }
 
-function mettreAJourAffichageDureeModif() {
-    const h = parseInt(document.getElementById('rdv-duree-heures')?.value) || 0;
-    const m = parseInt(document.getElementById('rdv-duree-minutes')?.value) || 0;
-    const total = h * 60 + m;
-    const el = document.getElementById('rdv-duree-display');
-    if (el) el.textContent = total > 0
-        ? '→ ' + (h > 0 ? (m > 0 ? `${h}h${String(m).padStart(2,'0')}` : `${h}h`) : `${m} min`)
-        : '';
+// Resynchronise heure_fin options quand heure_debut change (garde la valeur si encore valide)
+function syncHeureFin0() {
+    const debut = document.getElementById('rdv-heure').value;
+    const finEl = document.getElementById('rdv-heure-fin');
+    const currentFin = finEl.value;
+    finEl.innerHTML = genererOptionsHoraires(currentFin);
+    // Si la fin n'est plus après le début, choisir début + 1h par défaut
+    if (debut && currentFin && currentFin <= debut) {
+        const [h, m] = debut.split(':').map(Number);
+        const newH = h + 1;
+        if (newH <= 23) {
+            const newFin = `${String(newH).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+            finEl.innerHTML = genererOptionsHoraires(newFin);
+        }
+    }
+}
+
+// Met à jour heure_fin quand la prestation change dans le modal modification
+function mettreAJourHeureFin_Modif() {
+    const prestSel = document.getElementById('rdv-prestation');
+    const selectedOption = prestSel.options[prestSel.selectedIndex];
+    if (!selectedOption || !selectedOption.value) return;
+    const duree = parseFloat(selectedOption.dataset.duree) || 0;
+    if (!duree) return;
+    const heureDebut = document.getElementById('rdv-heure').value;
+    if (!heureDebut) return;
+    const [h, m] = heureDebut.split(':').map(Number);
+    const totalMinutes = h * 60 + m + Math.round(duree * 60);
+    const finH = Math.floor(totalMinutes / 60);
+    const finM = totalMinutes % 60;
+    const heureFin = `${String(finH).padStart(2,'0')}:${String(finM).padStart(2,'0')}`;
+    if (finH <= 23) {
+        document.getElementById('rdv-heure-fin').innerHTML = genererOptionsHoraires(heureFin);
+    }
 }
 
 // Enregistrer RDV
@@ -1594,11 +1618,22 @@ function enregistrerRdv() {
     // Ajouter les options au formData
     formData.set('options_data', JSON.stringify(optionsAvecQuantites));
 
-    // Durée personnalisée — s'applique uniquement à ce RDV (pas au groupe)
-    const dureeH = parseInt(document.getElementById('rdv-duree-heures')?.value) || 0;
-    const dureeM = parseInt(document.getElementById('rdv-duree-minutes')?.value) || 0;
-    const dureePerso = dureeH * 60 + dureeM;
-    if (dureePerso > 0) formData.set('duree_personnalisee', dureePerso);
+    // Durée calculée depuis heure fin
+    const heureDebutVal = document.getElementById('rdv-heure').value;
+    const heureFinVal = document.getElementById('rdv-heure-fin').value;
+    if (heureDebutVal && heureFinVal) {
+        const [hd, md] = heureDebutVal.split(':').map(Number);
+        const [hf, mf] = heureFinVal.split(':').map(Number);
+        const dureePerso = (hf * 60 + mf) - (hd * 60 + md);
+        if (dureePerso > 0) formData.set('duree_personnalisee', dureePerso);
+    }
+
+    // Prix total groupe (si visible = groupe avec plusieurs prestations)
+    const groupeSection = document.getElementById('groupe-prix-section');
+    if (groupeSection && groupeSection.style.display !== 'none') {
+        const groupeTotal = document.getElementById('rdv-groupe-prix-total').value;
+        if (groupeTotal !== '') formData.set('groupe_prix_total', groupeTotal);
+    }
 
     console.log('Envoi du formulaire:', Object.fromEntries(formData));
     console.log('Options avec quantités:', optionsAvecQuantites);
@@ -1792,11 +1827,11 @@ function ouvrirModalActions(rdv) {
                     <strong>${rdv.prestation}</strong> - ${rdv.prix_total.toLocaleString('fr-FR')} CFA
                 </p>
                 <div style="display:flex;flex-direction:column;">
-                    ${rdv.groupe_id ? `
+                    ${rdv.groupe_id && getRdvsGroupe(rdv.groupe_id).length > 1 ? `
                     <button class="btn-popup-action" style="background:white;color:#c9a86a;border-color:#c9a86a;" onclick="document.getElementById('modal-actions').style.display='none'; ouvrirModalModifierGroupe(window._actionRdv)">
                         ✎ Modifier le groupe
                     </button>` : `
-                    <button class="btn-popup-action" style="background:white;color:#c9a86a;border-color:#c9a86a;" onclick="document.getElementById('modal-actions').style.display='none'; modifierRdv(window._actionRdv)">
+                    <button class="btn-popup-action" style="background:white;color:#c9a86a;border-color:#c9a86a;" onclick="document.getElementById('modal-actions').style.display='none'; modifierRdvById(${rdv.id})">
                         ✎ Modifier le RDV
                     </button>`}
                     <button class="btn-popup-action" style="background:white;color:#e8b4b8;border-color:#e8b4b8;" onclick="document.getElementById('modal-actions').style.display='none'; ouvrirModalAjouterPrestation(window._actionRdv)">
@@ -1886,22 +1921,91 @@ function ouvrirModalModifierGroupe(rdv) {
     titre.textContent = `Prestations (${rdvsGroupe.length})`;
     body.appendChild(titre);
 
+    // Fonction pour re-peupler le select prestation d'un RDV selon la famille choisie
+    function peuplerPrestationsGroupe(rdvId, familleId, selectedPrestId) {
+        const sel = document.getElementById('mg-prestation-' + rdvId);
+        if (!sel) return;
+        sel.innerHTML = '';
+        window.prestationsData.filter(p => p.famille_id == familleId).forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.nom + ' - ' + p.prix.toLocaleString('fr-FR') + ' CFA (' + p.duree + 'h)';
+            opt.dataset.prix = p.prix;
+            opt.dataset.duree = p.duree;
+            if (p.id == selectedPrestId) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    }
+
     rdvsGroupe.forEach(r => {
         const card = document.createElement('div');
         card.style.cssText = 'background:#fdfaf5;border:1px solid #e0d5b8;border-radius:8px;padding:12px;margin-bottom:10px;';
 
-        // Ligne info + retirer
+        // Ligne en-tête : employé select + bouton retirer
         const infoRow = document.createElement('div');
-        infoRow.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;';
-        const infoTxt = document.createElement('div');
-        infoTxt.innerHTML = '<strong style="font-size:14px;color:#c9a86a;">' + r.prestation + '</strong>'
-            + '<div style="font-size:12px;color:#888;margin-top:2px;">' + r.employe + ' · ' + r.prix_total.toLocaleString('fr-FR') + ' CFA</div>';
+        infoRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;';
+        const empSel = document.createElement('select');
+        empSel.id = 'mg-employe-' + r.id;
+        empSel.style.cssText = 'flex:1;padding:5px 8px;font-size:13px;border:1px solid #ddd;border-radius:4px;background:white;font-weight:600;';
+        window.employes.forEach(e => {
+            const opt = document.createElement('option');
+            opt.value = e.id; opt.textContent = e.nom;
+            if (e.id == r.employe_id) opt.selected = true;
+            empSel.appendChild(opt);
+        });
         const retirBtn = document.createElement('button');
         retirBtn.textContent = '✕ Retirer';
-        retirBtn.style.cssText = 'background:#fff0f0;color:#dc3545;border:1px solid #f5c2c7;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;margin-left:8px;';
+        retirBtn.style.cssText = 'background:#fff0f0;color:#dc3545;border:1px solid #f5c2c7;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;';
         retirBtn.onclick = () => retirerPrestationGroupe(r.id);
-        infoRow.appendChild(infoTxt);
+        infoRow.appendChild(empSel);
         infoRow.appendChild(retirBtn);
+
+        // Sélecteur famille
+        const familleLbl = document.createElement('label');
+        familleLbl.textContent = 'Famille';
+        familleLbl.style.cssText = 'font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:3px;';
+        const familleSel = document.createElement('select');
+        familleSel.id = 'mg-famille-' + r.id;
+        familleSel.style.cssText = 'width:100%;padding:5px 8px;font-size:13px;border:1px solid #ddd;border-radius:4px;background:white;margin-bottom:8px;';
+        window.familles.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f.id;
+            opt.textContent = f.nom;
+            if (f.id == r.famille_id) opt.selected = true;
+            familleSel.appendChild(opt);
+        });
+        familleSel.addEventListener('change', () => peuplerPrestationsGroupe(r.id, familleSel.value, null));
+
+        // Sélecteur prestation
+        const prestLbl = document.createElement('label');
+        prestLbl.textContent = 'Prestation';
+        prestLbl.style.cssText = 'font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:3px;';
+        const prestSel = document.createElement('select');
+        prestSel.id = 'mg-prestation-' + r.id;
+        prestSel.style.cssText = 'width:100%;padding:5px 8px;font-size:13px;border:1px solid #ddd;border-radius:4px;background:white;margin-bottom:8px;';
+        // Peupler directement (pas encore dans le DOM)
+        window.prestationsData.filter(p => p.famille_id == r.famille_id).forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.nom + ' - ' + p.prix.toLocaleString('fr-FR') + ' CFA (' + p.duree + 'h)';
+            opt.dataset.prix = p.prix;
+            opt.dataset.duree = p.duree;
+            if (p.id == r.prestation_id) opt.selected = true;
+            prestSel.appendChild(opt);
+        });
+        prestSel.addEventListener('change', () => {
+            const selOpt = prestSel.options[prestSel.selectedIndex];
+            const duree = selOpt?.dataset?.duree ? parseFloat(selOpt.dataset.duree) : null;
+            const debutSel = document.getElementById('mg-debut-' + r.id);
+            const finSel   = document.getElementById('mg-fin-'   + r.id);
+            if (duree && debutSel?.value && finSel) {
+                const [h, m] = debutSel.value.split(':').map(Number);
+                const totalMin = h * 60 + m + Math.round(duree * 60);
+                const finH = Math.floor(totalMin / 60), finM = totalMin % 60;
+                if (finH <= 23) finSel.innerHTML = genererOptionsHoraires(`${String(finH).padStart(2,'0')}:${String(finM).padStart(2,'0')}`);
+            }
+            verifierConflitModifier(r.id, r.employe_id);
+        });
 
         // Grille début / fin
         const grid = document.createElement('div');
@@ -1931,6 +2035,10 @@ function ouvrirModalModifierGroupe(rdv) {
         conflitEl.style.cssText = 'display:none;background:#fff5f5;border:1px solid #dc3545;border-radius:6px;padding:8px 12px;font-size:12px;color:#dc3545;margin-top:4px;';
 
         card.appendChild(infoRow);
+        card.appendChild(familleLbl);
+        card.appendChild(familleSel);
+        card.appendChild(prestLbl);
+        card.appendChild(prestSel);
         card.appendChild(grid);
         card.appendChild(conflitEl);
         body.appendChild(card);
@@ -1938,6 +2046,24 @@ function ouvrirModalModifierGroupe(rdv) {
         // Vérifier les conflits à l'ouverture
         verifierConflitModifier(r.id, r.employe_id);
     });
+
+    // Champ prix total du groupe
+    const prixSep = document.createElement('hr');
+    prixSep.style.cssText = 'border:none;border-top:1px solid #e0d5b8;margin:4px 0 12px;';
+    const prixLbl = document.createElement('label');
+    prixLbl.style.cssText = 'font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:4px;';
+    prixLbl.innerHTML = 'Prix total du groupe <span style="color:#aaa;font-weight:400;font-size:11px;">(optionnel — remplace les prix individuels)</span>';
+    const prixInput = document.createElement('input');
+    prixInput.type = 'number';
+    prixInput.id = 'mg-prix-groupe';
+    prixInput.step = '1';
+    prixInput.placeholder = 'Laisser vide pour prix individuels';
+    const groupePrixTotal = rdv.groupe_prix_total || 0;
+    if (groupePrixTotal > 0) prixInput.value = groupePrixTotal;
+    prixInput.style.cssText = 'width:100%;padding:8px 12px;font-size:16px;font-weight:700;color:#c9a86a;border:2px solid #c9a86a;border-radius:8px;box-sizing:border-box;';
+    body.appendChild(prixSep);
+    body.appendChild(prixLbl);
+    body.appendChild(prixInput);
 
     // Footer
     const footer = document.createElement('div');
@@ -2006,11 +2132,28 @@ function enregistrerModificationsGroupe(groupeId, callback) {
     const rdvMisesAJour = [];
     document.querySelectorAll('[id^="mg-debut-"]').forEach(debutSel => {
         const rdvId = debutSel.id.replace('mg-debut-', '');
-        const finSel = document.getElementById('mg-fin-' + rdvId);
+        const finSel   = document.getElementById('mg-fin-'        + rdvId);
+        const prestSel = document.getElementById('mg-prestation-' + rdvId);
         if (debutSel.value && finSel?.value) {
-            rdvMisesAJour.push({ id: parseInt(rdvId), heure_debut: debutSel.value, heure_fin: finSel.value });
+            const item = { id: parseInt(rdvId), heure_debut: debutSel.value, heure_fin: finSel.value };
+            const empSelEl = document.getElementById('mg-employe-' + rdvId);
+            if (empSelEl?.value) item.employe_id = parseInt(empSelEl.value);
+            if (prestSel?.value) {
+                item.prestation_id = parseInt(prestSel.value);
+                const selOpt = prestSel.options[prestSel.selectedIndex];
+                if (selOpt?.dataset?.prix) item.prix_base = parseFloat(selOpt.dataset.prix);
+            }
+            rdvMisesAJour.push(item);
         }
     });
+
+    // Prix total groupe
+    const prixGroupeInput = document.getElementById('mg-prix-groupe');
+    const payload = { rdv_mises_a_jour: rdvMisesAJour };
+    if (prixGroupeInput?.value !== '' && prixGroupeInput?.value !== undefined) {
+        const prixVal = parseInt(prixGroupeInput.value);
+        if (!isNaN(prixVal) && prixVal >= 0) payload.groupe_prix_total = prixVal;
+    }
 
     document.getElementById('modal-modifier-groupe').style.display = 'none';
     showPageLoader('Enregistrement...');
@@ -2018,7 +2161,7 @@ function enregistrerModificationsGroupe(groupeId, callback) {
     fetch(`/agenda/{{ institut.code }}/api/groupe/${groupeId}/modifier/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-        body: JSON.stringify({ rdv_mises_a_jour: rdvMisesAJour })
+        body: JSON.stringify(payload)
     })
     .then(r => r.json())
     .then(data => {
@@ -2035,6 +2178,216 @@ function enregistrerModificationsGroupe(groupeId, callback) {
         }
     })
     .catch(() => { hidePageLoader(); showError('Erreur réseau'); });
+}
+
+// Modal modification prestation seule — même style que le groupe
+function ouvrirModalModifierSeul(rdv) {
+    let modal = document.getElementById('modal-modifier-seul');
+    if (modal) modal.remove();
+
+    modal = document.createElement('div');
+    modal.id = 'modal-modifier-seul';
+    modal.className = 'modal';
+    modal.style.display = 'flex';
+
+    const content = document.createElement('div');
+    content.className = 'modal-content';
+    content.style.cssText = 'max-width:500px;max-height:90vh;overflow-y:auto;';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'modal-header';
+    header.style.cssText = 'position:sticky;top:0;background:white;z-index:10;';
+    const h2 = document.createElement('h2');
+    h2.style.cssText = 'display:flex;align-items:center;gap:10px;font-size:17px;';
+    h2.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--secondary,#c9a86a)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifier — ${rdv.client}`;
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'modal-close';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.onclick = () => modal.style.display = 'none';
+    header.appendChild(h2); header.appendChild(closeBtn);
+
+    const body = document.createElement('div');
+    body.className = 'modal-body';
+
+    const card = document.createElement('div');
+    card.style.cssText = 'background:#fdfaf5;border:1px solid #e0d5b8;border-radius:8px;padding:14px;';
+
+    function mkLabel(txt) {
+        const l = document.createElement('label');
+        l.textContent = txt;
+        l.style.cssText = 'font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:3px;';
+        return l;
+    }
+    function mkSelectWrap(labelTxt, selectId) {
+        const w = document.createElement('div'); w.style.marginBottom = '10px';
+        const sel = document.createElement('select');
+        sel.id = selectId;
+        sel.style.cssText = 'width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:4px;background:white;';
+        w.appendChild(mkLabel(labelTxt)); w.appendChild(sel);
+        return { w, sel };
+    }
+
+    // Employé
+    const { w: empW, sel: empSel } = mkSelectWrap('Employé', 'ms-employe');
+    window.employes.forEach(e => {
+        const o = document.createElement('option'); o.value = e.id; o.textContent = e.nom;
+        if (e.id == rdv.employe_id) o.selected = true;
+        empSel.appendChild(o);
+    });
+
+    // Date
+    const dateW = document.createElement('div'); dateW.style.marginBottom = '10px';
+    const dateInput = document.createElement('input');
+    dateInput.type = 'date'; dateInput.id = 'ms-date'; dateInput.value = rdv.date;
+    dateInput.style.cssText = 'width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:4px;background:white;box-sizing:border-box;';
+    dateW.appendChild(mkLabel('Date')); dateW.appendChild(dateInput);
+
+    // Famille
+    const { w: famW, sel: famSel } = mkSelectWrap('Famille', 'ms-famille');
+    window.familles.forEach(f => {
+        const o = document.createElement('option'); o.value = f.id; o.textContent = f.nom;
+        if (f.id == rdv.famille_id) o.selected = true;
+        famSel.appendChild(o);
+    });
+
+    // Prestation
+    const { w: prestW, sel: prestSel } = mkSelectWrap('Prestation', 'ms-prestation');
+    function peuplerMSPrests(familleId, selectedId) {
+        prestSel.innerHTML = '';
+        window.prestationsData.filter(p => p.famille_id == familleId).forEach(p => {
+            const o = document.createElement('option'); o.value = p.id;
+            o.textContent = p.nom + ' - ' + p.prix.toLocaleString('fr-FR') + ' CFA (' + p.duree + 'h)';
+            o.dataset.prix = p.prix; o.dataset.duree = p.duree;
+            if (p.id == selectedId) o.selected = true;
+            prestSel.appendChild(o);
+        });
+    }
+    peuplerMSPrests(rdv.famille_id, rdv.prestation_id);
+    famSel.addEventListener('change', () => peuplerMSPrests(famSel.value, null));
+
+    // Début / Fin
+    const timeGrid = document.createElement('div');
+    timeGrid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;';
+    function mkTimeSel(labelTxt, selectId, valeur) {
+        const w = document.createElement('div');
+        const sel = document.createElement('select'); sel.id = selectId;
+        sel.style.cssText = 'width:100%;padding:6px 8px;font-size:13px;border:1px solid #ddd;border-radius:4px;background:white;';
+        sel.innerHTML = genererOptionsHoraires(valeur);
+        w.appendChild(mkLabel(labelTxt)); w.appendChild(sel);
+        return { w, sel };
+    }
+    const { w: debutW, sel: debutSel } = mkTimeSel('Heure début', 'ms-heure-debut', rdv.heure_debut.substring(0,5));
+    const { w: finW,   sel: finSel }   = mkTimeSel('Heure fin',   'ms-heure-fin',   rdv.heure_fin.substring(0,5));
+    timeGrid.appendChild(debutW); timeGrid.appendChild(finW);
+
+    // Indicateur de conflit
+    const conflitEl = document.createElement('div');
+    conflitEl.id = 'ms-conflit';
+    conflitEl.style.cssText = 'display:none;background:#fff5f5;border:1px solid #dc3545;border-radius:6px;padding:8px 12px;font-size:12px;color:#dc3545;margin-bottom:8px;';
+
+    function checkConflit() {
+        const empId  = empSel.value;
+        const dateV  = dateInput.value;
+        const hDebut = debutSel.value;
+        const hFin   = finSel.value;
+        if (!empId || !dateV || !hDebut || !hFin) { conflitEl.style.display='none'; conflitEl.dataset.conflit=''; return; }
+        fetch(`/agenda/{{ institut.code }}/api/verifier-conflit/?employe_id=${empId}&date=${dateV}&heure_debut=${hDebut}&heure_fin=${hFin}&rdv_exclude_id=${rdv.id}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.conflit) {
+                    conflitEl.innerHTML = `⚠️ Conflit : RDV de ${data.rdv.heure_debut} à ${data.rdv.heure_fin} — ${data.rdv.client} (${data.rdv.prestation})`;
+                    conflitEl.style.display = 'block';
+                    conflitEl.dataset.conflit = 'true';
+                } else {
+                    conflitEl.style.display = 'none';
+                    conflitEl.dataset.conflit = '';
+                }
+            })
+            .catch(() => { conflitEl.style.display='none'; conflitEl.dataset.conflit=''; });
+    }
+
+    empSel.addEventListener('change', checkConflit);
+    dateInput.addEventListener('change', checkConflit);
+    debutSel.addEventListener('change', checkConflit);
+    finSel.addEventListener('change', checkConflit);
+
+    // Prestation change → auto heure_fin + conflit
+    prestSel.addEventListener('change', () => {
+        const selOpt = prestSel.options[prestSel.selectedIndex];
+        const duree = selOpt?.dataset?.duree ? parseFloat(selOpt.dataset.duree) : null;
+        if (duree && debutSel?.value) {
+            const [h, m] = debutSel.value.split(':').map(Number);
+            const totalMin = h * 60 + m + Math.round(duree * 60);
+            const finH = Math.floor(totalMin/60), finM = totalMin%60;
+            if (finH <= 23) finSel.innerHTML = genererOptionsHoraires(`${String(finH).padStart(2,'0')}:${String(finM).padStart(2,'0')}`);
+        }
+        checkConflit();
+    });
+
+    // Vérifier à l'ouverture
+    setTimeout(checkConflit, 100);
+
+    // Prix total
+    const prixW = document.createElement('div');
+    const prixInput = document.createElement('input');
+    prixInput.type = 'number'; prixInput.id = 'ms-prix-total'; prixInput.step = '1'; prixInput.value = rdv.prix_total;
+    prixInput.style.cssText = 'width:100%;padding:6px 8px;font-size:15px;font-weight:700;color:#c9a86a;border:2px solid #c9a86a;border-radius:4px;box-sizing:border-box;';
+    prixW.appendChild(mkLabel('Prix total')); prixW.appendChild(prixInput);
+
+    card.appendChild(empW); card.appendChild(dateW);
+    card.appendChild(famW); card.appendChild(prestW);
+    card.appendChild(timeGrid); card.appendChild(conflitEl); card.appendChild(prixW);
+    body.appendChild(card);
+
+    // Footer
+    const footer = document.createElement('div');
+    footer.style.cssText = 'position:sticky;bottom:0;background:white;z-index:10;border-top:1px solid var(--border,#e8e0d5);padding:16px 20px;';
+    const saveBtn = document.createElement('button');
+    saveBtn.style.cssText = 'width:100%;padding:14px 24px;background:var(--primary,#e8b4b8);color:white;border:none;border-radius:12px;font-weight:700;font-size:15px;cursor:pointer;';
+    saveBtn.textContent = '✓ Enregistrer';
+    saveBtn.onclick = () => {
+        if (document.getElementById('ms-conflit')?.dataset?.conflit === 'true') {
+            showError('Conflit de planning détecté. Corrigez les horaires avant d\'enregistrer.');
+            return;
+        }
+        const formData = new FormData();
+        formData.set('employe_id', document.getElementById('ms-employe').value);
+        formData.set('date', document.getElementById('ms-date').value);
+        formData.set('heure', document.getElementById('ms-heure-debut').value);
+        formData.set('prestation_id', document.getElementById('ms-prestation').value);
+        const prixTotal = parseFloat(document.getElementById('ms-prix-total').value) || 0;
+        formData.set('prix_base', Math.max(0, prixTotal - (rdv.prix_options || 0)));
+        const hd = document.getElementById('ms-heure-debut').value;
+        const hf = document.getElementById('ms-heure-fin').value;
+        if (hd && hf) {
+            const [h1,m1] = hd.split(':').map(Number), [h2,m2] = hf.split(':').map(Number);
+            const dureePerso = (h2*60+m2)-(h1*60+m1);
+            if (dureePerso > 0) formData.set('duree_personnalisee', dureePerso);
+        }
+        // Conserver les options existantes
+        const optionsExistantes = (rdv.options || []).map(o => ({id: o.id, quantite: o.quantite}));
+        formData.set('options_data', JSON.stringify(optionsExistantes));
+        modal.style.display = 'none';
+        showPageLoader('Enregistrement...');
+        fetch(`/agenda/{{ institut.code }}/api/rdv/${rdv.id}/modifier/`, {
+            method: 'POST', body: formData,
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            hidePageLoader();
+            if (data.success) { showSuccess('RDV modifié'); setTimeout(() => location.reload(), 600); }
+            else { modal.style.display = 'flex'; showError(data.message || 'Erreur'); }
+        })
+        .catch(() => { hidePageLoader(); showError('Erreur réseau'); });
+    };
+    footer.appendChild(saveBtn);
+
+    content.appendChild(header); content.appendChild(body); content.appendChild(footer);
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
 }
 
 function retirerPrestationGroupe(rdvId) {
@@ -2109,8 +2462,11 @@ function marquerAnnule(rdvId) {
     });
 }
 
-// Modifier un RDV existant
+// Modifier un RDV existant — délègue au modal compact
 function modifierRdv(rdv) {
+    ouvrirModalModifierSeul(rdv);
+}
+function modifierRdv_ancien(rdv) {
     // Remplir le formulaire avec les données du RDV
     document.getElementById('modal-rdv-title').textContent = 'Modifier le rendez-vous';
     document.getElementById('rdv-id').value = rdv.id;
@@ -2121,42 +2477,29 @@ function modifierRdv(rdv) {
     if (modifConflitEl) { modifConflitEl.style.display = 'none'; modifConflitEl.dataset.conflit = ''; }
     document.getElementById('rdv-client').value = rdv.client_id;
     document.getElementById('rdv-client-search').value = rdv.client;
-    document.getElementById('rdv-prix-base').value = rdv.prix_base;
 
-    // Charger la famille et la prestation
+    // Re-activer les selects (peuvent être désactivés par sélection forfait)
+    document.getElementById('rdv-famille').disabled = false;
+    document.getElementById('rdv-prestation').disabled = false;
+
+    // Charger la famille puis la prestation via callback (pas de setTimeout aléatoire)
     document.getElementById('rdv-famille').value = rdv.famille_id;
-    chargerPrestations();
+    // Pré-remplir heure de fin
+    document.getElementById('rdv-heure-fin').innerHTML = genererOptionsHoraires(rdv.heure_fin ? rdv.heure_fin.substring(0, 5) : '');
 
-    // Attendre un peu que les prestations se chargent
-    setTimeout(() => {
+    chargerPrestations(0, () => {
         document.getElementById('rdv-prestation').value = rdv.prestation_id;
-        // Garder le prix du RDV (pas le prix catalogue)
+        mettreAJourHeureFin_Modif();
         document.getElementById('rdv-prix-base').value = rdv.prix_base;
         calculerTotal(false);
 
-        // Pré-remplir les selects durée depuis heure_debut / heure_fin du RDV
-        if (rdv.heure_debut && rdv.heure_fin) {
-            const [hd, md] = rdv.heure_debut.split(':').map(Number);
-            const [hf, mf] = rdv.heure_fin.split(':').map(Number);
-            const dureeMin = (hf * 60 + mf) - (hd * 60 + md);
-            if (dureeMin > 0) {
-                const selH = document.getElementById('rdv-duree-heures');
-                const selM = document.getElementById('rdv-duree-minutes');
-                if (selH) selH.value = Math.floor(dureeMin / 60);
-                if (selM) selM.value = Math.round((dureeMin % 60) / 15) * 15 % 60;
-                mettreAJourAffichageDureeModif();
-            }
-        }
-
         // Restaurer les quantités des options
-        // D'abord, remettre toutes les quantités à 0
         document.querySelectorAll('.option-counter').forEach(optionDiv => {
             const optionId = optionDiv.dataset.optionId;
             document.getElementById('option-qte-' + optionId).textContent = '0';
             optionDiv.style.background = '#f9f9f9';
             optionDiv.style.borderColor = '#e0e0e0';
         });
-        // Puis restaurer les quantités du RDV
         if (rdv.options && rdv.options.length > 0) {
             rdv.options.forEach(opt => {
                 const qteElement = document.getElementById('option-qte-' + opt.id);
@@ -2171,30 +2514,26 @@ function modifierRdv(rdv) {
             });
         }
         calculerTotal(false);
-    }, 500);
+    });
+
+    // Prix total groupe (si groupe avec plusieurs prestations)
+    const groupeSection = document.getElementById('groupe-prix-section');
+    if (rdv.groupe_id && rdv.nombre_rdv_groupe > 1) {
+        groupeSection.style.display = 'block';
+        document.getElementById('rdv-groupe-prix-total').value = rdv.groupe_prix_total || 0;
+    } else {
+        groupeSection.style.display = 'none';
+    }
 
     window.currentRdvId = rdv.id;
 
     // Afficher le modal
     document.getElementById('modal-rdv').style.display = 'flex';
 
-    // Ajouter un bouton Supprimer (en mode édition uniquement)
-    const footer = document.querySelector('#modal-rdv .modal-footer');
-    if (!document.getElementById('btn-supprimer-rdv')) {
-        const btnSupprimer = document.createElement('button');
-        btnSupprimer.id = 'btn-supprimer-rdv';
-        btnSupprimer.className = 'btn btn-danger';
-        btnSupprimer.style.marginRight = 'auto';
-        btnSupprimer.style.padding = '8px 16px';
-        btnSupprimer.textContent = 'Supprimer';
-        btnSupprimer.onclick = function() {
-            if (confirm('Voulez-vous vraiment supprimer ce rendez-vous ?')) {
-                supprimerRdv(rdv.id);
-            }
-        };
-
-        footer.insertBefore(btnSupprimer, footer.firstChild);
-    }
+    // Prix de base en lecture seule (modifier via Prix total uniquement)
+    document.getElementById('rdv-prix-base').readOnly = true;
+    document.getElementById('rdv-prix-base').style.background = '#f5f5f5';
+    document.getElementById('rdv-prix-base').style.color = '#888';
 }
 
 // Supprimer un RDV
@@ -3066,7 +3405,7 @@ function creerNouveauClient() {
 
 // Données Django sérialisées pour le JS
 window.employes = [{% for e in employes %}{"id":{{ e.id }},"nom":"{{ e.prenom|default:e.nom|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}];
-window.familles = [{% for f in familles %}{"id":{{ f.id }},"nom":"{{ f.nom|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}];
+window.familles = [{% for f in familles %}{"id":{{ f.id }},"nom":"{{ f.nom|escapejs }}","couleur":"{{ f.couleur|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}];
 window.options  = [{% for o in options %}{"id":{{ o.id }},"nom":"{{ o.nom|escapejs }}","prix":{{ o.prix }}}{% if not forloop.last %},{% endif %}{% endfor %}];
 
 let resBlocs = [];

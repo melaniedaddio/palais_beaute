@@ -4,21 +4,21 @@
 
 {% block extra_css %}
 <style>
-    .db-container { max-width: 1200px; margin: 0 auto; }
+    .db-container { max-width: 100%; }
     .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
     .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
     .date-badge { background: var(--bg-section); border: 1px solid var(--border); border-radius: 20px; padding: 6px 16px; font-size: 14px; font-weight: 500; }
 
-    /* Institut tabs */
-    .institut-tabs { display: flex; gap: 10px; overflow-x: auto; margin-bottom: 20px; }
-    .institut-tab { padding: 9px 22px; border-radius: 25px; font-weight: 500; font-size: 13px; cursor: pointer; border: none; background: var(--bg-section); color: var(--text-light); transition: all .2s; text-decoration: none; white-space: nowrap; }
-    .institut-tab.active { background: var(--primary); color: white; }
-    .institut-tab:hover:not(.active) { background: #e0e0e0; }
+    .institut-select { padding: 8px 14px; border-radius: 8px; border: 2px solid var(--primary); font-weight: 500; font-size: 13px; background: white; cursor: pointer; width: 170px; }
+    .periode-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .periode-tab { padding: 7px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); }
+    .periode-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .periode-tab:hover:not(.active) { background: #e0e0e0; }
 
-    /* Date picker */
-    .date-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-    .date-nav a, .date-nav button { padding: 7px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; text-decoration: none; background: var(--bg-section); color: var(--text-dark); border: 1px solid var(--border); cursor: pointer; }
-    .date-nav input[type=date] { padding: 7px 12px; border: 1px solid var(--border); border-radius: 20px; font-size: 13px; }
+    .date-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 20px; }
+    .btn-nav-day { width: 34px; height: 34px; border: 1.5px solid #e0d5c5; background: white; border-radius: 8px; cursor: pointer; font-size: 20px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; color: #888; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+    .btn-nav-day:hover { background: #f0ece5; color: var(--primary-dark); border-color: var(--primary); }
+    .date-nav input[type=date] { width: 160px; height: 34px; box-sizing: border-box; border: 1.5px solid #e0d5c5; border-radius: 8px; padding: 0 10px; font-size: 13px; }
 
     /* KPI cards */
     .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-bottom: 24px; }
@@ -91,38 +91,63 @@
 <div class="db-container">
 
     <div class="page-header">
-        <h1>Tableau de bord Présences</h1>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <a href="{% url 'gestion:presences_historique' %}" class="link-btn">Historique</a>
-            <a href="{% url 'gestion:presences_pointage' %}" class="link-btn">← Pointage</a>
-            <span class="date-badge">{{ jour|date:"l d F Y" }}</span>
-        </div>
-    </div>
-
-    <!-- Institut tabs -->
-    <div class="institut-tabs">
-        {% for inst in instituts %}
-        <a href="?institut={{ inst.code }}&date={{ jour|date:'Y-m-d' }}"
-           class="institut-tab {% if institut_code == inst.code %}active{% endif %}">
-            {{ inst.nom }}
-        </a>
-        {% endfor %}
-        <a href="?institut=autres&date={{ jour|date:'Y-m-d' }}"
-           class="institut-tab {% if institut_code == 'autres' %}active{% endif %}">Autres</a>
-    </div>
-
-    <!-- Navigation date -->
-    <div class="date-nav">
-        <a href="?institut={{ institut_code }}&date={{ jour|date:'Y-m-d'|add:'-1' }}">← Hier</a>
-        <form method="get" style="display:inline-flex;align-items:center;gap:6px;">
-            <input type="hidden" name="institut" value="{{ institut_code }}">
-            <input type="date" name="date" value="{{ jour|date:'Y-m-d' }}" onchange="this.form.submit()">
-        </form>
-        <a href="?institut={{ institut_code }}&date={% now 'Y-m-d' %}">Aujourd'hui</a>
+        <h1>Tableau de bord {{ jour|date:"l d F Y" }}</h1>
         {% if is_patron %}
-        <a href="{% url 'gestion:export_presences' %}?date_debut={{ jour|date:'Y-m-d' }}&date_fin={{ jour|date:'Y-m-d' }}&institut={{ institut_code }}" style="margin-left:auto;">⬇ Export CSV</a>
+        <a href="{% url 'gestion:export_presences' %}?date_debut={{ jour|date:'Y-m-d' }}&date_fin={{ jour|date:'Y-m-d' }}&institut={{ institut_code }}" class="link-btn">⬇ Export CSV</a>
         {% endif %}
     </div>
+
+    <!-- Navigation date — style agenda -->
+    <div class="date-nav">
+        <button onclick="changeDay(-1)" class="btn-nav-day">‹</button>
+        <input type="date" id="day-selector" value="{{ jour|date:'Y-m-d' }}" onchange="changeDay(0)" class="form-control" style="width:160px;height:34px;box-sizing:border-box;border:1.5px solid #e0d5c5;border-radius:8px;">
+        <button onclick="changeDay(1)" class="btn-nav-day">›</button>
+    </div>
+
+    <div class="page-tabs">
+        <a href="{% url 'gestion:presences_pointage' %}" class="page-tab">Pointage</a>
+        <a href="{% url 'gestion:presences_dashboard' %}" class="page-tab active">Tableau de bord</a>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+        <select class="institut-select" style="margin-bottom:0;" onchange="changePeriode(this.value)">
+            <option value="aujourd_hui" selected>Aujourd'hui</option>
+            <option value="semaine">Cette semaine</option>
+            <option value="mois">Ce mois</option>
+            <option value="custom">Personnalisé</option>
+        </select>
+        <select class="institut-select" style="margin-bottom:0;" onchange="updateInstitut(this.value)">
+        {% for inst in instituts %}
+        <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
+        {% endfor %}
+        <option value="autres" {% if institut_code == 'autres' %}selected{% endif %}>Autres</option>
+    </select>
+    </div>
+    <script>
+    const INSTITUT_CODE = '{{ institut_code }}';
+    function changeDay(delta) {
+        const input = document.getElementById('day-selector');
+        const d = new Date(input.value);
+        d.setDate(d.getDate() + delta);
+        const newDate = d.toISOString().slice(0, 10);
+        window.location.href = '?institut=' + INSTITUT_CODE + '&date=' + newDate;
+    }
+    function updateInstitut(code) {
+        const url = new URL(window.location);
+        url.searchParams.set('institut', code);
+        window.location.href = url.toString();
+    }
+    function changePeriode(val) {
+        const base = INSTITUT_CODE;
+        const urls = {
+            'aujourd_hui': "{% url 'gestion:presences_dashboard' %}?institut=" + base,
+            'semaine': "{% url 'gestion:presences_historique' %}?periode=semaine&institut=" + base,
+            'mois':    "{% url 'gestion:presences_historique' %}?periode=mois&institut=" + base,
+            'custom':  "{% url 'gestion:presences_historique' %}?periode=custom&institut=" + base,
+        };
+        window.location.href = urls[val];
+    }
+    </script>
 
     <!-- KPI -->
     <div class="kpi-row">

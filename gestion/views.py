@@ -945,7 +945,12 @@ def presences_historique(request):
     today = date.today()
 
     if periode == 'semaine':
-        d_debut = today - timedelta(days=today.weekday())
+        ref = today
+        try:
+            ref = date.fromisoformat(request.GET.get('date_debut', ''))
+        except ValueError:
+            pass
+        d_debut = ref - timedelta(days=ref.weekday())
         d_fin = d_debut + timedelta(days=6)
     elif periode == 'custom':
         try:
@@ -955,10 +960,10 @@ def presences_historique(request):
             d_debut = today.replace(day=1)
             d_fin = today
     else:  # mois
-        mois_str = request.GET.get('mois')
+        mois_str = request.GET.get('mois') or request.GET.get('date_debut', '')[:7]
         if mois_str:
             try:
-                mois = date.fromisoformat(f"{mois_str}-01")
+                mois = date.fromisoformat(f"{mois_str[:7]}-01")
             except ValueError:
                 mois = today.replace(day=1)
         else:

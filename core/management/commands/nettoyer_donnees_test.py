@@ -8,14 +8,13 @@ Usage: python manage.py nettoyer_donnees_test
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from core.models import (
-    RendezVous, RendezVousOption, Paiement, CarteCadeau,
+    RendezVous, RendezVousOption, GroupeRDV, Paiement, CarteCadeau,
     ForfaitClient, SeanceForfait, ModificationLog, ClotureCaisse,
     PaiementCredit, Credit,
-    # Nouveaux
     VenteProduit, LigneVenteProduit,
     Presence, ModificationPointage,
     CalculSalaire, Prime, Avance,
-    MouvementStock,
+    MouvementStock, Produit,
     Inventaire, LigneInventaire,
     Depense, ValidationDepenseRecurrente,
     ReconciliationCaisse,
@@ -36,7 +35,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING('⚠️  ATTENTION : Cette opération va supprimer toutes les données de test !'))
         self.stdout.write('')
         self.stdout.write('Les données suivantes seront supprimées :')
-        self.stdout.write(f'  - Rendez-vous : {RendezVous.objects.count()}')
+        self.stdout.write(f'  - Rendez-vous : {RendezVous.objects.count()} ({GroupeRDV.objects.count()} groupes)')
         self.stdout.write(f'  - Paiements : {Paiement.objects.count()}')
         self.stdout.write(f'  - Cartes cadeaux : {CarteCadeau.objects.count()}')
         self.stdout.write(f'  - Forfaits clients : {ForfaitClient.objects.count()}')
@@ -108,6 +107,11 @@ class Command(BaseCommand):
                 RendezVous.objects.all().delete()
                 self.stdout.write(f'✓ {count_rdv} rendez-vous supprimés')
 
+                # 8b. Supprimer les groupes de RDV (orphelins après suppression des RDV)
+                count_groupes = GroupeRDV.objects.count()
+                GroupeRDV.objects.all().delete()
+                self.stdout.write(f'✓ {count_groupes} groupes de RDV supprimés')
+
                 # 9. Supprimer les clôtures de caisse
                 count_clotures = ClotureCaisse.objects.count()
                 ClotureCaisse.objects.all().delete()
@@ -149,10 +153,12 @@ class Command(BaseCommand):
                 Avance.objects.all().delete()
                 self.stdout.write(f'✓ {count_avances} avances supprimées')
 
-                # 14. Mouvements de stock
+                # 14. Mouvements de stock + remise à zéro des stocks produits
                 count_mvt = MouvementStock.objects.count()
                 MouvementStock.objects.all().delete()
                 self.stdout.write(f'✓ {count_mvt} mouvements de stock supprimés')
+                count_produits = Produit.objects.update(stock_actuel=0)
+                self.stdout.write(f'✓ {count_produits} produits remis à stock_actuel=0')
 
                 # 15. Inventaires (lignes avant entêtes)
                 count_lignes_inv = LigneInventaire.objects.count()

@@ -16,9 +16,10 @@
 
     /* Filtres */
     .filters-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
-    .filters-bar select, .filters-bar input { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
-    .filters-bar button { padding: 8px 16px; border-radius: 8px; border: none; background: var(--primary); color: white; font-size: 13px; font-weight: 600; cursor: pointer; }
-    .filter-label { font-size: 12px; font-weight: 600; color: var(--text-light); text-transform: uppercase; }
+    .filters-bar select, .filters-bar input[type=date], .filters-bar input[type=month] { padding: 8px 14px; border: 2px solid var(--primary); border-radius: 8px; font-size: 13px; font-weight: 500; background: white; cursor: pointer; width: 170px; }
+    .btn-nav-day { width: 34px; height: 34px; border: 1.5px solid #e0d5c5; background: white; border-radius: 8px; cursor: pointer; font-size: 20px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; color: #888; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+    .btn-nav-day:hover { background: #f0ece5; color: var(--primary-dark); border-color: var(--primary); }
+    .nav-date-input { width: 130px; height: 34px; box-sizing: border-box; border: 1.5px solid #e0d5c5; border-radius: 8px; padding: 0 10px; font-size: 13px; }
 
     /* KPI */
     .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 20px; }
@@ -65,40 +66,64 @@
 
     <div class="page-header">
         <h1>Historique des présences</h1>
-        <div style="display:flex;gap:10px;align-items:center;">
-            {% if is_patron %}
-            <a href="{% url 'gestion:export_presences' %}?date_debut={{ d_debut|date:'Y-m-d' }}&date_fin={{ d_fin|date:'Y-m-d' }}&institut={{ institut_code }}" class="link-btn">⬇ Export CSV</a>
-            <a href="{% url 'gestion:presences_dashboard' %}" class="link-btn">Tableau de bord</a>
-            {% endif %}
-            <a href="{% url 'gestion:presences_pointage' %}" class="link-btn">← Pointage</a>
-        </div>
+        {% if is_patron %}
+        <a href="{% url 'gestion:export_presences' %}?date_debut={{ d_debut|date:'Y-m-d' }}&date_fin={{ d_fin|date:'Y-m-d' }}&institut={{ institut_code }}" class="link-btn">⬇ Export CSV</a>
+        {% endif %}
     </div>
 
-    <!-- Onglets période -->
-    <div class="periode-tabs">
-        <a href="?periode=semaine&institut={{ institut_code }}" class="periode-tab {% if periode == 'semaine' %}active{% endif %}">Cette semaine</a>
-        <a href="?periode=mois&mois={{ d_debut|date:'Y-m' }}&institut={{ institut_code }}" class="periode-tab {% if periode == 'mois' %}active{% endif %}">Ce mois</a>
-        <a href="?periode=custom&institut={{ institut_code }}" class="periode-tab {% if periode == 'custom' %}active{% endif %}">Personnalisé</a>
+    <div class="page-tabs">
+        <a href="{% url 'gestion:presences_pointage' %}" class="page-tab">Pointage</a>
+        <a href="{% url 'gestion:presences_dashboard' %}" class="page-tab active">Tableau de bord</a>
     </div>
+
+    <script>
+    const PERIODE = '{{ periode }}';
+    const INST_CODE = '{{ institut_code }}';
+
+    function changePeriode(val) {
+        const urls = {
+            'aujourd_hui': "{% url 'gestion:presences_dashboard' %}?institut=" + INST_CODE,
+            'semaine': "?periode=semaine&institut=" + INST_CODE,
+            'mois':    "?periode=mois&institut=" + INST_CODE,
+            'custom':  "?periode=custom&institut=" + INST_CODE,
+        };
+        window.location.href = urls[val];
+    }
+
+    function shiftDate(delta) {
+        const input = document.getElementById('nav-date');
+        const d = new Date(input.value);
+        if (PERIODE === 'semaine') d.setDate(d.getDate() + delta * 7);
+        else if (PERIODE === 'mois') d.setMonth(d.getMonth() + delta);
+        else d.setDate(d.getDate() + delta);
+        const iso = d.toISOString().slice(0, 10);
+        const url = new URL(window.location);
+        url.searchParams.set('date_debut', iso);
+        url.searchParams.set('periode', PERIODE);
+        window.location.href = url.toString();
+    }
+    </script>
 
     <!-- Filtres -->
     <form method="get" class="filters-bar">
         <input type="hidden" name="periode" value="{{ periode }}">
+        <select onchange="changePeriode(this.value)">
+            <option value="aujourd_hui">Aujourd'hui</option>
+            <option value="semaine" {% if periode == 'semaine' %}selected{% endif %}>Cette semaine</option>
+            <option value="mois"    {% if periode == 'mois' %}selected{% endif %}>Ce mois</option>
+            <option value="custom"  {% if periode == 'custom' %}selected{% endif %}>Personnalisé</option>
+        </select>
 
         {% if periode == 'mois' %}
-        <span class="filter-label">Mois :</span>
-        <input type="month" name="mois" value="{{ d_debut|date:'Y-m' }}">
+        <input type="month" name="mois" value="{{ d_debut|date:'Y-m' }}" onchange="this.form.submit()">
         {% elif periode == 'custom' %}
-        <span class="filter-label">Du :</span>
-        <input type="date" name="date_debut" value="{{ d_debut|date:'Y-m-d' }}">
-        <span class="filter-label">Au :</span>
-        <input type="date" name="date_fin" value="{{ d_fin|date:'Y-m-d' }}">
+        <input type="date" name="date_debut" value="{{ d_debut|date:'Y-m-d' }}" onchange="this.form.submit()">
+        <input type="date" name="date_fin" value="{{ d_fin|date:'Y-m-d' }}" onchange="this.form.submit()">
         {% endif %}
 
         {% if is_patron %}
-        <span class="filter-label">Institut :</span>
-        <select name="institut">
-            <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous</option>
+        <select name="institut" onchange="this.form.submit()">
+            <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
             {% for inst in instituts %}
             <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
             {% endfor %}
@@ -106,24 +131,24 @@
         </select>
         {% endif %}
 
-        <span class="filter-label">Employé :</span>
-        <select name="employe_id">
-            <option value="">Tous</option>
+        <select name="employe_id" onchange="this.form.submit()">
+            <option value="">Tous les employés</option>
             {% for emp in employes_filtre %}
             <option value="{{ emp.id }}" {% if employe_id_filtre == emp.id|stringformat:'s' %}selected{% endif %}>{{ emp.get_full_name }}</option>
             {% endfor %}
         </select>
 
-        <span class="filter-label">Statut :</span>
-        <select name="statut">
-            <option value="tous" {% if statut_filtre == 'tous' %}selected{% endif %}>Tous</option>
+        <select name="statut" onchange="this.form.submit()">
+            <option value="tous" {% if statut_filtre == 'tous' %}selected{% endif %}>Tous les statuts</option>
             <option value="retard" {% if statut_filtre == 'retard' %}selected{% endif %}>Retards</option>
             <option value="absent" {% if statut_filtre == 'absent' %}selected{% endif %}>Absences</option>
             <option value="absent_nj" {% if statut_filtre == 'absent_nj' %}selected{% endif %}>Absences non justifiées</option>
             <option value="valide" {% if statut_filtre == 'valide' %}selected{% endif %}>Validées</option>
         </select>
 
-        <button type="submit">Filtrer</button>
+        <button type="button" class="btn-nav-day" onclick="shiftDate(-1)">‹</button>
+        <input type="date" id="nav-date" class="nav-date-input" value="{{ d_debut|date:'Y-m-d' }}" onchange="shiftDate(0)">
+        <button type="button" class="btn-nav-day" onclick="shiftDate(1)">›</button>
     </form>
 
     <!-- KPI résumé -->

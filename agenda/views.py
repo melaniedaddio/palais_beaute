@@ -42,7 +42,7 @@ def index(request, institut_code):
         date=date_selectionnee
     ).exclude(
         statut__in=['annule', 'annule_client']
-    ).select_related('client', 'employe', 'prestation', 'groupe').prefetch_related('options_selectionnees__option')
+    ).select_related('client', 'employe', 'prestation', 'prestation__famille', 'groupe').prefetch_related('options_selectionnees__option')
 
     # Créer la grille horaire (7h à 23h, créneaux de 15min)
     debut_journee = time(7, 0)
@@ -74,11 +74,15 @@ def index(request, institut_code):
                                       datetime.combine(date.today(), rdv.heure_debut)).total_seconds() / 900),
                 'prix_total': float(rdv.prix_total),
                 'statut': rdv.statut,
-                'couleur': rdv.get_couleur(),
+                'couleur': rdv.prestation.famille.couleur,
                 'options': [opt.option.nom for opt in rdv.options_selectionnees.all()],
                 'est_seance_forfait': rdv.est_seance_forfait,
                 'groupe_id': rdv.groupe_id,
                 'groupe_duree_personnalisee': rdv.groupe.duree_personnalisee if rdv.groupe else None,
+                'prestation_id': rdv.prestation.id,
+                'famille_id': rdv.famille_id,
+                'prix_base': float(rdv.prix_base),
+                'groupe_prix_total': rdv.groupe.prix_total if rdv.groupe else None,
             }
             # Ajouter les infos forfait si applicable
             if rdv.est_seance_forfait and rdv.forfait:
@@ -564,6 +568,8 @@ def api_rdv_details(request, institut_code, rdv_id):
         'statut': rdv.statut,
         'est_seance_forfait': rdv.est_seance_forfait,
         'groupe_id': rdv.groupe_id,
+        'groupe_prix_total': float(rdv.groupe.prix_total) if rdv.groupe else None,
+        'nombre_rdv_groupe': rdv.groupe.rendez_vous.exclude(statut__in=['annule', 'annule_client']).count() if rdv.groupe else 0,
         'options': [{'id': opt.option.id, 'nom': opt.option.nom, 'prix': float(opt.prix_unitaire), 'quantite': opt.quantite} for opt in options]
     }
 
@@ -842,6 +848,15 @@ def api_rdv_modifier(request, institut_code, rdv_id):
                 valeur_apres=f"{prix_base} CFA (Total: {nouveau_prix_total} CFA)",
                 rendez_vous=rdv
             )
+
+        # Prix total groupe forcé manuellement
+        groupe_prix_total = request.POST.get('groupe_prix_total')
+        if groupe_prix_total and rdv.groupe:
+            try:
+                rdv.groupe.prix_total = int(Decimal(groupe_prix_total))
+                rdv.groupe.save(update_fields=['prix_total'])
+            except Exception:
+                pass
 
         return JsonResponse({
             'success': True,
@@ -1682,18 +1697,40 @@ def api_groupe_modifier(request, institut_code, groupe_id):
         if not rdvs_actifs:
             return JsonResponse({'success': False, 'message': 'Aucun RDV actif dans ce groupe'}, status=400)
 
-        # --- Mises à jour individuelles par RDV (heure_debut + heure_fin) ---
+        # --- Mises à jour individuelles par RDV (heure_debut + heure_fin + prestation) ---
         rdv_mises_a_jour = data.get('rdv_mises_a_jour', [])
         for item in rdv_mises_a_jour:
             try:
                 rdv_obj = RendezVous.objects.get(id=item['id'], groupe=groupe)
-                heure_debut_new = datetime.strptime(item['heure_debut'], '%H:%M').time()
-                heure_fin_new   = datetime.strptime(item['heure_fin'],   '%H:%M').time()
-                RendezVous.objects.filter(id=rdv_obj.id).update(
-                    heure_debut=heure_debut_new,
-                    heure_fin=heure_fin_new,
-                )
+                rdv_obj.heure_debut = datetime.strptime(item['heure_debut'], '%H:%M').time()
+                rdv_obj.heure_fin   = datetime.strptime(item['heure_fin'],   '%H:%M').time()
+                employe_id = item.get('employe_id')
+                if employe_id:
+                    from core.models import Employe as _Employe
+                    try:
+                        rdv_obj.employe = _Employe.objects.get(id=employe_id, institut=institut)
+                    except _Employe.DoesNotExist:
+                        pass
+                prestation_id = item.get('prestation_id')
+                if prestation_id:
+                    from core.models import Prestation as _Prestation
+                    new_prest = _Prestation.objects.get(id=prestation_id, famille__institut=institut)
+                    rdv_obj.prestation = new_prest
+                    rdv_obj.famille = new_prest.famille
+                    prix_base_val = item.get('prix_base')
+                    rdv_obj.prix_base = int(Decimal(str(prix_base_val))) if prix_base_val is not None else int(new_prest.prix)
+                    rdv_obj.prix_total = rdv_obj.prix_base + rdv_obj.prix_options
+                rdv_obj.save()
             except (RendezVous.DoesNotExist, KeyError, ValueError):
+                pass
+
+        # --- Prix total groupe forcé ---
+        groupe_prix_total = data.get('groupe_prix_total')
+        if groupe_prix_total is not None:
+            try:
+                groupe.prix_total = int(Decimal(str(groupe_prix_total)))
+                groupe.save(update_fields=['prix_total'])
+            except Exception:
                 pass
 
         # --- Décaler l'heure de début de tous les RDVs (compatibilité ancienne API) ---
