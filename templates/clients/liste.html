@@ -513,9 +513,9 @@ function avatarColor(id) { return AVATAR_COLORS[id % AVATAR_COLORS.length]; }
 
 // Colorier les avatars (initial render)
 document.querySelectorAll('.client-avatar').forEach(el => {
-    const row = el.closest('tr');
-    if (row) {
-        const id = parseInt(row.dataset.id || '0');
+    const card = el.closest('.client-card');
+    if (card) {
+        const id = parseInt(card.dataset.id || '0');
         el.style.background = avatarColor(id);
     }
 });
@@ -574,56 +574,60 @@ function executeSearch() {
 }
 
 function renderClients(clients) {
-    const tbody = document.getElementById('clients-tbody');
+    const grid = document.getElementById('clients-tbody');
     if (!clients.length) {
-        tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><div class="empty-state-icon">👥</div><h3 style="color:#888;margin:0 0 8px;">Aucun client trouvé</h3></div></td></tr>`;
+        grid.innerHTML = `<div style="grid-column:1/-1;"><div class="empty-state"><div class="empty-state-icon">👥</div><h3 style="color:#888;margin:0 0 8px;">Aucun client trouvé</h3></div></div>`;
         return;
     }
-    tbody.innerHTML = clients.map(c => {
+    grid.innerHTML = clients.map(c => {
         const initials = (c.prenom[0] || '').toUpperCase() + (c.nom[0] || '').toUpperCase();
-        const color = avatarColor(c.id);
         const badgeClass = !c.actif ? 'badge-inactif' : c.has_debt ? 'badge-dette' : 'badge-actif';
         const badgeLabel = !c.actif ? 'Inactif' : c.has_debt ? 'Dette' : 'Actif';
         const sub = c.telephone + (c.email ? ' · ' + c.email : '');
-        const rowStyle = c.actif ? '' : 'opacity:0.6;';
         const detailUrl = '/clients/' + c.id + '/';
+        const cardStyle = c.actif ? '' : 'opacity:0.65;';
 
         const kebabHtml = IS_PATRON ? `
-        <td class="kebab-cell" onclick="event.stopPropagation()">
-            <button class="kebab-btn" onclick="toggleKebab(this, ${c.id}, ${c.actif}, '${escJs(c.nom)}', '${escJs(c.prenom)}', '${escJs(c.telephone)}', '${escJs(c.email)}', '${escJs(c.date_naissance)}', '${escJs(c.notes)}')">⋮</button>
-            <div class="kebab-dropdown" id="kebab-${c.id}">
-                <button class="kebab-item" onclick="window.location.href='${detailUrl}'">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                    Voir le profil
-                </button>
-                <button class="kebab-item" onclick="ouvrirModalModifier(${c.id}, '${escJs(c.nom)}', '${escJs(c.prenom)}', '${escJs(c.telephone)}', '${escJs(c.email)}', '${escJs(c.date_naissance)}', '${escJs(c.notes)}')">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                    Modifier
-                </button>
-                <div class="kebab-separator"></div>
-                ${c.actif
-                    ? `<button class="kebab-item" onclick="changerStatut(${c.id}, false)"><span class="kebab-dot" style="background:#bbb;"></span>Marquer inactif</button>`
-                    : `<button class="kebab-item" onclick="changerStatut(${c.id}, true)"><span class="kebab-dot" style="background:#27ae60;"></span>Marquer actif</button>`
-                }
-            </div>
-        </td>` : '';
+            <div class="kebab-cell" onclick="event.stopPropagation()" style="position:relative;">
+                <button class="kebab-btn" onclick="toggleKebab(this, ${c.id}, ${c.actif}, '${escJs(c.nom)}', '${escJs(c.prenom)}', '${escJs(c.telephone)}', '${escJs(c.email)}', '${escJs(c.date_naissance)}', '${escJs(c.notes)}')">⋮</button>
+                <div class="kebab-dropdown" id="kebab-${c.id}">
+                    <button class="kebab-item" onclick="window.location.href='${detailUrl}'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        Voir le profil
+                    </button>
+                    <button class="kebab-item" onclick="ouvrirModalModifier(${c.id}, '${escJs(c.nom)}', '${escJs(c.prenom)}', '${escJs(c.telephone)}', '${escJs(c.email)}', '${escJs(c.date_naissance)}', '${escJs(c.notes)}')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        Modifier
+                    </button>
+                    <div class="kebab-separator"></div>
+                    ${c.actif
+                        ? `<button class="kebab-item" onclick="changerStatut(${c.id}, false)"><span class="kebab-dot" style="background:#bbb;"></span>Marquer inactif</button>`
+                        : `<button class="kebab-item" onclick="changerStatut(${c.id}, true)"><span class="kebab-dot" style="background:#27ae60;"></span>Marquer actif</button>`
+                    }
+                </div>
+            </div>` : '';
 
         return `
-        <tr data-id="${c.id}" style="${rowStyle}" onclick="goToClient(event, '${detailUrl}')">
-            <td>
-                <div class="client-identity">
-                    <div class="client-avatar" style="background:${color};">${initials}</div>
-                    <div>
-                        <div class="client-info-name">${c.full_name}</div>
-                        <div class="client-info-sub">${sub}</div>
-                    </div>
+        <div class="client-card" data-id="${c.id}" style="${cardStyle}" onclick="goToClient(event, '${detailUrl}')">
+            <div class="client-card-header">
+                <div class="client-avatar">${initials}</div>
+                <div style="flex:1;min-width:0;">
+                    <div class="client-card-name">${c.full_name}</div>
+                    <div class="client-card-sub">${sub}</div>
                 </div>
-            </td>
-            <td style="color:#555;font-size:14px;white-space:nowrap;">${c.date_creation}</td>
-            <td><span class="badge ${badgeClass}">${badgeLabel}</span></td>
-            ${kebabHtml}
-        </tr>`;
+                ${kebabHtml}
+            </div>
+            <div class="client-card-footer">
+                <span class="badge ${badgeClass}">${badgeLabel}</span>
+                <span class="client-card-date">${c.date_creation}</span>
+            </div>
+        </div>`;
     }).join('');
+    // Colorier les avatars après injection
+    grid.querySelectorAll('.client-avatar').forEach(el => {
+        const card = el.closest('.client-card');
+        if (card) el.style.background = avatarColor(parseInt(card.dataset.id || '0'));
+    });
 }
 
 function escJs(s) { return (s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"'); }
