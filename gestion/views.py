@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from core.decorators import login_required_json as login_required
 from django.http import JsonResponse, HttpResponse
-from django.db.models import Q, Max, Count
+from django.db.models import Q, Max, Count, Prefetch
 from django.views.decorators.http import require_POST
 from core.decorators import role_required, institut_required
 from core.models import (
@@ -42,8 +42,8 @@ def catalogue_view(request):
     familles = FamillePrestation.objects.filter(
         institut=institut_actif
     ).prefetch_related(
-        'prestations'
-    ).order_by('ordre_affichage', 'nom')
+        Prefetch('prestations', queryset=Prestation.objects.order_by('nom'))
+    ).order_by('nom')
 
     # Recherche
     recherche = request.GET.get('q', '').strip()
@@ -647,10 +647,10 @@ def export_catalogue_excel(request):
         familles = FamillePrestation.objects.filter(
             institut=institut,
             actif=True
-        ).prefetch_related('prestations').order_by('ordre_affichage', 'nom')
+        ).prefetch_related('prestations').order_by('nom')
 
         for famille in familles:
-            prestations = famille.prestations.order_by('ordre_affichage', 'nom')
+            prestations = famille.prestations.order_by('nom')
 
             if not prestations.exists():
                 # Famille sans prestations
@@ -909,10 +909,10 @@ def presences_pointage(request):
 
     if institut_code == 'autres':
         institut_actif = None
-        employes = Employe.objects.filter(institut__isnull=True, actif=True).order_by('ordre_affichage', 'nom')
+        employes = Employe.objects.filter(institut__isnull=True, actif=True).order_by('nom')
     else:
         institut_actif = Institut.objects.filter(code=institut_code).first()
-        employes = Employe.objects.filter(institut=institut_actif, actif=True).order_by('ordre_affichage', 'nom')
+        employes = Employe.objects.filter(institut=institut_actif, actif=True).order_by('nom')
 
     presences = {p.employe_id: p for p in Presence.objects.filter(employe__in=employes, date=today)}
 
@@ -1387,10 +1387,10 @@ def presences_dashboard(request):
     institut_code = request.GET.get('institut', instituts[0].code if instituts else 'palais')
     if institut_code == 'autres':
         institut_actif = None
-        employes = Employe.objects.filter(institut__isnull=True, actif=True).order_by('ordre_affichage', 'nom')
+        employes = Employe.objects.filter(institut__isnull=True, actif=True).order_by('nom')
     else:
         institut_actif = Institut.objects.filter(code=institut_code).first()
-        employes = Employe.objects.filter(institut=institut_actif, actif=True).order_by('ordre_affichage', 'nom')
+        employes = Employe.objects.filter(institut=institut_actif, actif=True).order_by('nom')
 
     presences_map = {p.employe_id: p for p in Presence.objects.filter(employe__in=employes, date=jour).select_related('valide_par')}
 

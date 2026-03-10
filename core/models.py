@@ -5,7 +5,7 @@ from datetime import timedelta
 from django.db import models
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password, check_password
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 
 
@@ -37,6 +37,7 @@ class Utilisateur(models.Model):
     ROLE_CHOICES = [
         ('patron', 'Patron'),
         ('manager', 'Manager'),
+        ('employe', 'Employé'),
     ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -63,6 +64,9 @@ class Utilisateur(models.Model):
 
     def is_manager(self):
         return self.role == 'manager'
+
+    def is_employe(self):
+        return self.role == 'employe'
 
     def set_pin(self, raw_pin):
         """
@@ -1251,6 +1255,7 @@ class RendezVous(models.Model):
         validators=[MinValueValidator(0)]
     )  # Prix avant modification
     raison_modification = models.CharField(max_length=200, blank=True, null=True)
+    remise_pourcent = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(99)])
 
     # Statut et validation
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='planifie')
@@ -1805,6 +1810,9 @@ class ClotureCaisse(models.Model):
         default=30000,
         validators=[MinValueValidator(0)]
     )
+
+    # Retrait espèces (remise en banque)
+    montant_retrait = models.IntegerField(default=0, validators=[MinValueValidator(0)])
 
     # Écart
     ecart = models.IntegerField(default=0)  # montant_reel - (total_especes_calcule + fond_caisse)

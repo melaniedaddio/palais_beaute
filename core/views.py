@@ -125,6 +125,8 @@ def login_view(request):
             # Redirection selon le rôle
             if utilisateur.is_patron():
                 return redirect('dashboard:index')
+            elif utilisateur.is_employe():
+                return redirect('agenda:index', institut_code='palais')
             elif utilisateur.institut.code == 'express':
                 return redirect('express:index')
             else:
@@ -231,9 +233,9 @@ def client_detail(request, pk):
     """
     client = get_object_or_404(Client, pk=pk)
 
-    # Historique des rendez-vous validés
+    # Historique + RDV à venir
     rendez_vous = RendezVous.objects.filter(
-        client=client, statut='valide'
+        client=client, statut__in=['valide', 'planifie']
     ).select_related(
         'institut', 'prestation', 'employe'
     ).prefetch_related('paiements').order_by('-date', '-heure_debut')[:50]

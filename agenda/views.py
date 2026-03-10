@@ -139,6 +139,7 @@ def index(request, institut_code):
     import json
     rdv_par_employe_json = json.dumps(rdv_par_employe)
 
+    utilisateur = request.user.utilisateur
     context = {
         'institut': institut,
         'date_selectionnee': date_selectionnee,
@@ -153,6 +154,7 @@ def index(request, institut_code):
         'credits_encaisses': credits_encaisses,
         'ca_forfaits_reel': ca_forfaits_reel,
         'ca_forfaits_encaisse': ca_forfaits_encaisse,
+        'is_employe': utilisateur.is_employe(),
     }
 
     return render(request, 'agenda/agenda.html', context)
@@ -254,6 +256,7 @@ def api_verifier_conflit(request, institut_code):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 @require_POST
 def api_rdv_creer(request, institut_code):
@@ -382,6 +385,7 @@ def api_rdv_creer(request, institut_code):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 @require_POST
 def api_rdv_creer_groupe(request, institut_code):
@@ -577,6 +581,7 @@ def api_rdv_details(request, institut_code, rdv_id):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 @require_POST
 def api_rdv_ajouter_prestation(request, institut_code, rdv_id):
@@ -746,6 +751,7 @@ def api_rdv_ajouter_prestation(request, institut_code, rdv_id):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 @require_POST
 def api_rdv_modifier(request, institut_code, rdv_id):
@@ -871,6 +877,7 @@ def api_rdv_modifier(request, institut_code, rdv_id):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 @require_POST
 def api_rdv_supprimer(request, institut_code, rdv_id):
@@ -899,6 +906,7 @@ def api_rdv_supprimer(request, institut_code, rdv_id):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 @require_POST
 def api_rdv_deplacer(request, institut_code, rdv_id):
@@ -950,6 +958,7 @@ def api_rdv_deplacer(request, institut_code, rdv_id):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 @require_POST
 def api_rdv_annuler(request, institut_code, rdv_id):
@@ -999,6 +1008,7 @@ def api_rdv_annuler(request, institut_code, rdv_id):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 @require_POST
 def api_rdv_absent(request, institut_code, rdv_id):
@@ -1034,6 +1044,7 @@ def api_rdv_absent(request, institut_code, rdv_id):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 @require_POST
 def api_rdv_annule_client(request, institut_code, rdv_id):
@@ -1132,6 +1143,7 @@ def api_rdv_client_jour(request, institut_code, rdv_id):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 @require_POST
 def api_rdv_valider(request, institut_code, rdv_id):
@@ -1187,6 +1199,12 @@ def api_rdv_valider(request, institut_code, rdv_id):
         type_paiement = request.POST.get('type_paiement', 'complet')
         moyen_paiement_1 = request.POST.get('moyen_paiement_1', request.POST.get('moyen_paiement', 'especes'))
 
+        # Remise
+        remise_pourcent = max(0, min(99, int(request.POST.get('remise_pourcent', 0) or 0)))
+        prix_effectif = int(rdv.prix_total * (100 - remise_pourcent) / 100)
+        rdv.remise_pourcent = remise_pourcent
+        rdv.save()
+
         # Double paiement
         utilise_double_paiement = request.POST.get('utilise_double_paiement') == 'true'
         moyen_paiement_2 = request.POST.get('moyen_paiement_2', '')
@@ -1195,10 +1213,10 @@ def api_rdv_valider(request, institut_code, rdv_id):
         except (ValueError, InvalidOperation):
             montant_paiement_2 = Decimal('0')
 
-        # 1. Traiter les cartes cadeaux sur le prix total (indépendamment du type de paiement)
+        # 1. Traiter les cartes cadeaux sur le prix effectif (après remise)
         cartes_json = request.POST.get('cartes_cadeaux', '')
         montant_total_cartes = 0
-        montant_restant_prix = int(rdv.prix_total)
+        montant_restant_prix = prix_effectif
         if cartes_json:
             cartes_data = json.loads(cartes_json)
             for carte_item in cartes_data:
@@ -1264,12 +1282,12 @@ def api_rdv_valider(request, institut_code, rdv_id):
 
         # 4. Si paiement partiel ou différé, créer un crédit
         montant_effectif = montant_total_cartes + montant_restant
-        if montant_effectif < rdv.prix_total:
+        if montant_effectif < prix_effectif:
             Credit.objects.create(
                 client=rdv.client,
                 institut=institut,
                 rendez_vous=rdv,
-                montant_total=int(rdv.prix_total),
+                montant_total=prix_effectif,
                 montant_paye=int(montant_effectif),
                 description=f"{rdv.prestation.nom} - {rdv.date.strftime('%d/%m/%Y')}",
             )
@@ -1292,6 +1310,7 @@ def api_rdv_valider(request, institut_code, rdv_id):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 def cloture_caisse(request, institut_code):
     """Vue de clôture de caisse journalière - supporte plusieurs clôtures par jour"""
@@ -1519,6 +1538,7 @@ def cloture_caisse(request, institut_code):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 @require_POST
 def api_cloturer_caisse(request, institut_code):
@@ -1530,6 +1550,7 @@ def api_cloturer_caisse(request, institut_code):
     try:
         date_str = request.POST.get('date')
         montant_reel = request.POST.get('montant_reel')
+        montant_retrait = max(0, int(request.POST.get('montant_retrait', 0) or 0))
 
         date_cloture = datetime.strptime(date_str, '%Y-%m-%d').date()
 
@@ -1636,6 +1657,16 @@ def api_cloturer_caisse(request, institut_code):
         total_om = total_om_rdv + total_om_credit + ventes_cartes_par_mode['om']
         total_wave = total_wave_rdv + total_wave_credit + ventes_cartes_par_mode['wave']
 
+        # Valider le retrait : ne peut pas laisser moins de 30 000 CFA dans la caisse
+        # On se base sur le montant réel saisi, pas le calculé
+        fond_caisse_min = 30000
+        especes_disponibles_retrait = max(0, int(montant_reel) - fond_caisse_min)
+        if montant_retrait > especes_disponibles_retrait:
+            return JsonResponse({
+                'success': False,
+                'message': f'Le retrait ne peut pas dépasser {especes_disponibles_retrait:,} CFA (fond de caisse minimum de 30 000 CFA conservé)'
+            }, status=400)
+
         # Créer une NOUVELLE clôture (plus de get_or_create)
         cloture = ClotureCaisse.objects.create(
             institut=institut,
@@ -1648,6 +1679,7 @@ def api_cloturer_caisse(request, institut_code):
             total_om_calcule=total_om,
             total_wave_calcule=total_wave,
             total_calcule=total_especes + total_carte + total_cheque + total_om + total_wave,
+            montant_retrait=montant_retrait,
             cloture=True,
             cloture_par=request.user.utilisateur,
             date_cloture=timezone.now()
@@ -1676,6 +1708,7 @@ def api_cloturer_caisse(request, institut_code):
 # ============================
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 @require_POST
 def api_groupe_modifier(request, institut_code, groupe_id):
@@ -1704,6 +1737,9 @@ def api_groupe_modifier(request, institut_code, groupe_id):
                 rdv_obj = RendezVous.objects.get(id=item['id'], groupe=groupe)
                 rdv_obj.heure_debut = datetime.strptime(item['heure_debut'], '%H:%M').time()
                 rdv_obj.heure_fin   = datetime.strptime(item['heure_fin'],   '%H:%M').time()
+                date_str_item = item.get('date')
+                if date_str_item:
+                    rdv_obj.date = datetime.strptime(date_str_item, '%Y-%m-%d').date()
                 employe_id = item.get('employe_id')
                 if employe_id:
                     from core.models import Employe as _Employe
@@ -1819,6 +1855,7 @@ def api_forfaits_client(request, institut_code, client_id):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 @require_POST
 def api_forfait_acheter(request, institut_code):
@@ -1999,6 +2036,7 @@ def api_forfait_acheter(request, institut_code):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 @require_POST
 def api_rdv_valider_groupe(request, institut_code):
@@ -2064,9 +2102,13 @@ def api_rdv_valider_groupe(request, institut_code):
         # Calculer le prix total de tous les RDV
         prix_total_global = sum(rdv.prix_total for rdv in rdvs)
 
-        # 1. Traiter les cartes cadeaux sur le prix total (indépendamment du type de paiement)
+        # Remise globale sur le groupe
+        remise_pourcent = max(0, min(99, int(request.POST.get('remise_pourcent', 0) or 0)))
+        prix_effectif_global = int(prix_total_global * (100 - remise_pourcent) / 100)
+
+        # 1. Traiter les cartes cadeaux sur le prix effectif (après remise)
         montant_total_cartes = 0
-        montant_restant_prix = int(prix_total_global)
+        montant_restant_prix = prix_effectif_global
         if cartes_json:
             cartes_data = json.loads(cartes_json)
             for carte_item in cartes_data:
@@ -2126,6 +2168,7 @@ def api_rdv_valider_groupe(request, institut_code):
 
         for idx, rdv in enumerate(rdvs):
             rdv.statut = 'valide'
+            rdv.remise_pourcent = remise_pourcent
             rdv.save()
 
             # Si c'est une séance de forfait, la marquer comme effectuée
@@ -2203,13 +2246,13 @@ def api_rdv_valider_groupe(request, institut_code):
 
         # 3. Si paiement partiel ou différé, créer un crédit global
         montant_effectif = montant_total_cartes + montant_cash_total
-        if montant_effectif < prix_total_global:
+        if montant_effectif < prix_effectif_global:
             # Créer la description avec la liste des prestations
             prestations_liste = ", ".join([rdv.prestation.nom for rdv in rdvs])
             Credit.objects.create(
                 client=client,
                 institut=institut,
-                montant_total=int(prix_total_global),
+                montant_total=prix_effectif_global,
                 montant_paye=int(montant_effectif),
                 description=f"Groupe de {len(rdvs)} prestations - {prestations_liste}",
             )
@@ -2277,6 +2320,7 @@ def api_forfait_supprimer(request, institut_code, forfait_id):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 def page_rappels(request, institut_code):
     """Page de rappels : affiche les RDVs du lendemain groupés par employé."""
@@ -2338,6 +2382,7 @@ def page_rappels(request, institut_code):
 
 
 @login_required
+@role_required(['patron', 'manager'])
 @institut_required
 def api_rdv_whatsapp_rappel(request, institut_code, rdv_id):
     """API : Génère un lien WhatsApp de rappel RDV pour le lendemain."""

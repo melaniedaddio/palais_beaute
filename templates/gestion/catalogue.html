@@ -4,89 +4,60 @@
 
 {% block extra_css %}
 <style>
-    .catalogue-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 30px;
-        flex-wrap: wrap;
-        gap: 20px;
+    .catalogue-wrapper {
+        margin: -30px -30px 0 -30px;
+        background: var(--bg-light);
+        min-height: 100%;
+    }
+
+    .catalogue-wrapper .sticky-header {
+        margin: 0 !important;
+        background: var(--bg-light) !important;
+        box-shadow: none !important;
+        padding: 24px 30px 16px !important;
+    }
+
+    .catalogue-content {
+        padding: 0 30px 30px;
     }
 
     .catalogue-title {
-        font-size: 28px;
-        font-weight: 600;
+        font-size: 24px;
+        font-weight: 700;
         color: var(--text-dark);
+        margin: 0;
     }
 
-    .header-actions {
-        display: flex;
-        gap: 15px;
-    }
-
-    .btn-export {
-        padding: 12px 24px;
-        background: var(--secondary);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-family: inherit;
-        font-size: 14px;
-        font-weight: 500;
-        transition: all 0.3s;
-        text-decoration: none;
-        display: inline-block;
-    }
-
-    .btn-export:hover {
-        background: var(--secondary-dark);
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-
-    .institut-tabs {
+    .catalogue-toolbar {
         display: flex;
         gap: 10px;
+        align-items: center;
         margin-bottom: 30px;
-        border-bottom: 2px solid var(--border);
-        padding-bottom: 10px;
-    }
-
-    .institut-tab {
-        padding: 12px 24px;
-        background: transparent;
-        border: none;
-        border-bottom: 3px solid transparent;
-        cursor: pointer;
-        font-weight: 500;
-        color: var(--text-light);
-        transition: all 0.3s;
-        text-decoration: none;
-        margin-bottom: -12px;
-    }
-
-    .institut-tab:hover {
-        color: var(--text-dark);
-    }
-
-    .institut-tab.active {
-        color: var(--primary-dark);
-        border-bottom-color: var(--primary-dark);
     }
 
     .search-bar {
-        margin-bottom: 30px;
         position: relative;
+        display: flex;
+        align-items: center;
+        flex: 1;
+    }
+
+    .search-bar svg {
+        position: absolute;
+        left: 13px;
+        color: #bbb;
+        pointer-events: none;
     }
 
     .search-input {
         width: 100%;
-        padding: 14px 20px 14px 45px;
-        border: 2px solid var(--border);
-        border-radius: 10px;
-        font-size: 15px;
-        transition: all 0.3s;
+        padding: 10px 36px 10px 38px;
+        border: 1.5px solid #e8e0d4;
+        border-radius: 25px;
+        font-size: 14px;
+        font-family: inherit;
+        background: white;
+        transition: border-color 0.2s, box-shadow 0.2s;
     }
 
     .search-input:focus {
@@ -95,13 +66,43 @@
         box-shadow: 0 0 0 3px rgba(232, 180, 184, 0.1);
     }
 
-    .search-icon {
-        position: absolute;
-        left: 15px;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--text-light);
+    .institut-select {
+        padding: 10px 32px 10px 14px;
+        border: 1.5px solid #e8e0d4;
+        border-radius: 25px;
+        font-size: 14px;
+        font-family: inherit;
+        background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23aaa' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") no-repeat right 10px center;
+        appearance: none;
+        -webkit-appearance: none;
+        cursor: pointer;
+        color: #555;
+        transition: border-color 0.2s;
+        width: 145px;
+        flex-shrink: 0;
     }
+    .institut-select:focus { outline: none; border-color: var(--primary); }
+
+    .btn-cat-action {
+        padding: 0 14px;
+        height: 36px;
+        font-size: 13px;
+        font-family: inherit;
+        line-height: 1;
+        box-sizing: border-box;
+        border-radius: 8px;
+        font-weight: 500;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        transition: opacity 0.2s;
+        white-space: nowrap;
+        text-decoration: none;
+    }
+    .btn-cat-action:hover { opacity: 0.85; }
 
     .famille-card {
         background: white;
@@ -169,37 +170,67 @@
 
     .famille-actions {
         display: flex;
-        gap: 10px;
+        gap: 6px;
         align-items: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+    }
+
+    .famille-header:hover .famille-actions {
+        opacity: 1;
+        pointer-events: auto;
     }
 
     .btn-icon {
-        padding: 8px 12px;
-        background: transparent;
-        font-family: inherit;
-        border: 1px solid var(--border);
+        padding: 4px 8px;
         border-radius: 6px;
+        border: none;
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 600;
         cursor: pointer;
-        transition: all 0.3s;
-        color: var(--text-dark);
-        font-size: 14px;
+        transition: all 0.2s ease;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
 
-    .btn-icon:hover {
-        background: var(--primary);
+    .btn-order {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+
+    .btn-order:hover {
+        background: #1976d2;
         color: white;
-        border-color: var(--primary);
+    }
+
+    .btn-edit {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+
+    .btn-edit:hover {
+        background: #1976d2;
+        color: white;
     }
 
     .btn-danger {
-        background: transparent;
-        border-color: var(--danger);
-        color: var(--danger);
+        background: #ffebee;
+        color: #c62828;
     }
 
     .btn-danger:hover {
-        background: var(--danger);
+        background: #c62828;
         color: white;
+    }
+
+    .btn-icon.btn-danger {
+        padding: 4px 8px;
+        font-size: 12px;
+        line-height: 1;
     }
 
     .prestations-list {
@@ -272,6 +303,19 @@
         gap: 8px;
         justify-content: flex-end;
         align-items: center;
+    }
+
+    .actions-buttons {
+        display: flex;
+        gap: 6px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+    }
+
+    .prestation-row:hover .actions-buttons {
+        opacity: 1;
+        pointer-events: auto;
     }
 
     /* Toggle Switch pour actif/inactif */
@@ -407,7 +451,12 @@
             flex-wrap: wrap;
         }
 
-        .famille-header {
+        .actions-buttons, .famille-actions {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+
+.famille-header {
             flex-direction: column;
             align-items: flex-start;
             gap: 15px;
@@ -418,37 +467,40 @@
 
 {% block content %}
 {% csrf_token %}
-<div class="page-container">
+<div class="catalogue-wrapper">
     <div class="sticky-header">
-        <div class="catalogue-header">
-            <h1 class="catalogue-title">📚 Catalogue des Prestations</h1>
-            <div class="header-actions">
-                <button class="btn-add" onclick="ouvrirModalNouvelleFamille()">+ Nouvelle famille</button>
-                <button class="btn-add" onclick="ouvrirModalOptions()" style="background: #9b59b6;">⚙️ Gérer les options</button>
-                <a href="{% url 'gestion:export_catalogue_excel' %}?institut={{ institut_actif.code }}" class="btn-export">📥 Exporter Excel</a>
+        <!-- Ligne 1 : Titre seul -->
+        <h1 class="catalogue-title" style="margin-bottom:16px;">Catalogue des Prestations</h1>
+
+        <!-- Ligne 2 : Recherche + filtre + boutons -->
+        <div class="catalogue-toolbar">
+            <div class="search-bar">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text"
+                       class="search-input"
+                       id="catalogue-search"
+                       placeholder="Rechercher une famille ou une prestation..."
+                       value="{{ recherche }}">
             </div>
-        </div>
-
-        <!-- Onglets instituts -->
-        <div class="institut-tabs">
-            {% for institut in instituts %}
-            <a href="?institut={{ institut.code }}"
-               class="institut-tab {% if institut_actif.code == institut.code %}active{% endif %}">
-                {{ institut.nom }}
-            </a>
-            {% endfor %}
-        </div>
-
-        <!-- Barre de recherche -->
-        <div class="search-bar">
-            <span class="search-icon">🔍</span>
-            <input type="text"
-                   class="search-input"
-                   placeholder="Rechercher une famille ou une prestation..."
-                   value="{{ recherche }}">
+            <select class="institut-select" id="institut-select" onchange="changerInstitut(this.value)">
+                {% for institut in instituts %}
+                <option value="{{ institut.code }}" {% if institut_actif.code == institut.code %}selected{% endif %}>
+                    {{ institut.nom }}
+                </option>
+                {% endfor %}
+            </select>
+            <button class="btn-cat-action" style="background:var(--primary);color:white;" onclick="ouvrirModalNouvelleFamille()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Nouvelle famille
+            </button>
+            <button class="btn-cat-action" style="background:var(--secondary);color:white;" onclick="ouvrirModalOptions()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+                Gérer les options
+            </button>
         </div>
     </div>
 
+    <div class="catalogue-content">
     <!-- Liste des familles -->
     <div id="famillesContainer">
     {% if familles %}
@@ -462,11 +514,13 @@
                         <span class="famille-count">{{ famille.get_prestations_count }} prestation{{ famille.get_prestations_count|pluralize }}</span>
                     </div>
                 </div>
-                <div class="famille-actions" onclick="event.stopPropagation()">
-                    <button class="btn-icon" onclick="deplacerFamille({{ famille.id }}, 'up')" title="Monter">⬆️</button>
-                    <button class="btn-icon" onclick="deplacerFamille({{ famille.id }}, 'down')" title="Descendre">⬇️</button>
-                    <button class="btn-icon" onclick="ouvrirModalModifierFamille({{ famille.id }}, '{{ famille.nom }}', '{{ famille.couleur }}')" title="Modifier">✏️</button>
-                    <button class="btn-icon btn-danger" onclick="ouvrirModalSupprimerFamille({{ famille.id }})" title="Supprimer">🗑️</button>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div class="famille-actions" onclick="event.stopPropagation()">
+                        <button class="btn-icon btn-order" onclick="deplacerFamille({{ famille.id }}, 'up')" title="Monter">▲</button>
+                        <button class="btn-icon btn-order" onclick="deplacerFamille({{ famille.id }}, 'down')" title="Descendre">▼</button>
+                        <button class="btn-icon btn-edit" onclick="ouvrirModalModifierFamille({{ famille.id }}, '{{ famille.nom }}', '{{ famille.couleur }}')" title="Modifier"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                        <button class="btn-icon btn-danger" onclick="ouvrirModalSupprimerFamille({{ famille.id }})" title="Supprimer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                    </div>
                     <span class="toggle-icon" id="toggle-{{ famille.id }}">▼</span>
                 </div>
             </div>
@@ -486,10 +540,12 @@
                     <div class="prestation-duree">{{ prestation.get_duree_display }}</div>
                     <div class="prestation-prix">{{ prestation.prix|floatformat:0 }} CFA</div>
                     <div class="prestation-actions">
-                        <button class="btn-icon" onclick="event.stopPropagation(); deplacerPrestation({{ prestation.id }}, 'up')" title="Monter">⬆️</button>
-                        <button class="btn-icon" onclick="event.stopPropagation(); deplacerPrestation({{ prestation.id }}, 'down')" title="Descendre">⬇️</button>
-                        <button class="btn-icon" onclick="event.stopPropagation(); ouvrirModalModifierPrestation({{ prestation.id }})" title="Modifier">✏️</button>
-                        <button class="btn-icon btn-danger" onclick="event.stopPropagation(); ouvrirModalSupprimerPrestation({{ prestation.id }})" title="Supprimer">🗑️</button>
+                        <div class="actions-buttons">
+                            <button class="btn-icon btn-order" onclick="event.stopPropagation(); deplacerPrestation({{ prestation.id }}, 'up')" title="Monter">▲</button>
+                            <button class="btn-icon btn-order" onclick="event.stopPropagation(); deplacerPrestation({{ prestation.id }}, 'down')" title="Descendre">▼</button>
+                            <button class="btn-icon btn-edit" onclick="event.stopPropagation(); ouvrirModalModifierPrestation({{ prestation.id }})" title="Modifier"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                            <button class="btn-icon btn-danger" onclick="event.stopPropagation(); ouvrirModalSupprimerPrestation({{ prestation.id }})" title="Supprimer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                        </div>
                         <div class="prestation-statut">
                             <span class="statut-label {% if prestation.actif %}actif{% else %}inactif{% endif %}" id="statut-label-{{ prestation.id }}">
                                 {% if prestation.actif %}Actif{% else %}Inactif{% endif %}
@@ -808,13 +864,14 @@ async function deplacerFamille(familleId, direction) {
 }
 
 // Recherche en temps réel
-const searchInput = document.querySelector('.search-input');
+const searchInput = document.getElementById('catalogue-search');
 if (searchInput) {
     let searchTimeout;
     searchInput.addEventListener('input', function(e) {
         clearTimeout(searchTimeout);
         const query = e.target.value;
-        const currentInstitut = new URLSearchParams(window.location.search).get('institut') || 'palais';
+        const currentInstitut = document.getElementById('institut-select')?.value
+            || new URLSearchParams(window.location.search).get('institut') || 'palais';
 
         searchTimeout = setTimeout(() => {
             if (query.length > 2 || query.length === 0) {
@@ -822,6 +879,11 @@ if (searchInput) {
             }
         }, 500);
     });
+}
+
+function changerInstitut(code) {
+    const q = document.getElementById('catalogue-search')?.value || '';
+    window.location.href = `?institut=${code}${q ? '&q=' + encodeURIComponent(q) : ''}`;
 }
 
 // =============================================================================
@@ -1567,8 +1629,8 @@ function afficherListeOptions(options) {
                     </div>
                 </div>
                 <div style="display: flex; gap: 8px;">
-                    <button class="btn-icon" onclick="ouvrirModalModifierOption(${option.id})" title="Modifier">✏️</button>
-                    <button class="btn-icon" onclick="ouvrirModalSupprimerOption(${option.id}, '${option.nom}')" title="Supprimer" style="color: #f44336;">🗑️</button>
+                    <button class="btn-icon btn-edit" onclick="ouvrirModalModifierOption(${option.id})" title="Modifier"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                    <button class="btn-icon btn-danger" onclick="ouvrirModalSupprimerOption(${option.id}, '${option.nom}')" title="Supprimer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
                 </div>
             </div>
         </div>

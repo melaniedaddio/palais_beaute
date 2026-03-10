@@ -332,11 +332,13 @@ def index(request):
         ecarts_jour = clotures_jour.aggregate(
             total_ecart=Sum('ecart'),
             total_especes_calcule=Sum('total_especes_calcule'),
-            total_especes_reel=Sum('montant_reel_especes')
+            total_especes_reel=Sum('montant_reel_especes'),
+            total_retrait=Sum('montant_retrait')
         )
         total_ecart = ecarts_jour['total_ecart'] or 0
         total_especes_calcule = ecarts_jour['total_especes_calcule'] or 0
         total_especes_reel = ecarts_jour['total_especes_reel'] or 0
+        total_retrait = ecarts_jour['total_retrait'] or 0
 
         nb_clotures = clotures_jour.count()
         derniere_cloture = clotures_jour.order_by('-date_cloture').first()
@@ -364,6 +366,7 @@ def index(request):
             'total_ecart': total_ecart,
             'total_especes_calcule': total_especes_calcule,
             'total_especes_reel': total_especes_reel,
+            'total_retrait': total_retrait,
         })
 
     # Top 10 clients (par CA total)
@@ -541,8 +544,10 @@ def index(request):
         cloture=True
     ).select_related('institut', 'cloture_par__user').order_by('-date', '-date_cloture')
 
-    # Total des écarts de la période
-    total_ecart_periode = clotures_periode.aggregate(total=Sum('ecart'))['total'] or 0
+    # Total des écarts et retraits de la période
+    agg_periode = clotures_periode.aggregate(total_ecart=Sum('ecart'), total_retrait=Sum('montant_retrait'))
+    total_ecart_periode = agg_periode['total_ecart'] or 0
+    total_retrait_periode = agg_periode['total_retrait'] or 0
 
     montrer_evolution_ca = not (
         periode == 'jour' or
@@ -590,6 +595,7 @@ def index(request):
         # Clôtures et écarts
         'clotures_periode': clotures_periode,
         'total_ecart_periode': total_ecart_periode,
+        'total_retrait_periode': total_retrait_periode,
     }
 
     # ── DÉBIT : Dépenses de la période ──

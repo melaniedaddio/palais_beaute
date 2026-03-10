@@ -130,6 +130,7 @@
                         <th>Heure</th>
                         <th>Espèces calculé</th>
                         <th>Montant réel</th>
+                        <th>Retrait</th>
                         <th>Écart</th>
                         <th>Par</th>
                     </tr>
@@ -140,6 +141,7 @@
                         <td><strong>{{ cloture.date_cloture|date:"H:i" }}</strong></td>
                         <td>{{ cloture.total_especes_calcule|floatformat:0 }} CFA</td>
                         <td>{{ cloture.montant_reel_especes|floatformat:0 }} CFA</td>
+                        <td>{% if cloture.montant_retrait %}<strong style="color:#e67e22;">{{ cloture.montant_retrait|floatformat:0 }} CFA</strong>{% else %}—{% endif %}</td>
                         <td style="color:#dc3545;">{% if cloture.ecart >= 0 %}+{% endif %}{{ cloture.ecart|floatformat:0 }} CFA</td>
                         <td>{% if cloture.cloture_par %}{{ cloture.cloture_par.user.first_name }}{% else %}—{% endif %}</td>
                     </tr>
@@ -232,7 +234,7 @@
         <!-- Formulaire de clôture -->
         <div class="content-card">
             <h2>{% if nb_clotures > 0 %}Nouvelle clôture{% else %}Clôture de caisse{% endif %}</h2>
-            <form id="form-cloture">
+            <form id="form-cloture" novalidate>
                 {% csrf_token %}
                 <input type="hidden" name="date" value="{{ date_selectionnee|date:'Y-m-d' }}">
 
@@ -254,6 +256,19 @@
                 <label class="form-label" for="montant_reel">Montant réel dans la caisse (espèces)</label>
                 <input type="number" class="input-reel" id="montant_reel" name="montant_reel"
                        value="{{ montant_attendu }}" min="0" step="1" required oninput="calculerEcart()">
+
+                <div style="margin-top:16px;">
+                    <label class="form-label" for="montant_retrait">Retrait espèces (remise en banque)</label>
+                    <input type="number" class="input-reel" id="montant_retrait" name="montant_retrait"
+                           value="0" min="0" step="1" oninput="calculerEcart()">
+                    <p style="font-size:12px;color:#666;margin-top:6px;">
+                        Max disponible : <strong id="retrait-max-display">—</strong> CFA
+                        <span style="color:#999;">(fond minimum 30 000 CFA conservé)</span>
+                    </p>
+                    <div id="retrait-warning" style="display:none;background:#fff3cd;border-left:4px solid #ffc107;color:#856404;padding:8px 14px;border-radius:8px;font-size:13px;margin-top:8px;">
+                        ⚠️ Le retrait dépasse le montant disponible (fond minimum de 30 000 CFA requis)
+                    </div>
+                </div>
 
                 <div id="ecart-display" class="calcul-ecart" style="display:none;margin-top:14px;">
                     <div class="calcul-row" id="ecart-row">
@@ -280,6 +295,23 @@
 <script>
 const montantAttendu = {{ montant_attendu }};
 
+function getMaxRetrait() {
+    const montantReel = parseInt(document.getElementById('montant_reel').value) || 0;
+    return Math.max(0, montantReel - 30000);
+}
+
+function mettreAJourRetrait() {
+    const max = getMaxRetrait();
+    const retraitInput = document.getElementById('montant_retrait');
+    document.getElementById('retrait-max-display').textContent = max.toLocaleString('fr-FR');
+    retraitInput.max = max;
+    // Réduire automatiquement si la valeur dépasse le nouveau max
+    const retrait = parseInt(retraitInput.value) || 0;
+    if (retrait > max) retraitInput.value = max;
+}
+
+document.addEventListener('DOMContentLoaded', mettreAJourRetrait);
+
 function changeDate(days) {
     const dateInput = document.getElementById('date-input');
     const currentDate = new Date(dateInput.value);
@@ -289,6 +321,8 @@ function changeDate(days) {
 
 function calculerEcart() {
     const montantReel = parseInt(document.getElementById('montant_reel').value) || 0;
+    mettreAJourRetrait();
+    const retrait = parseInt(document.getElementById('montant_retrait').value) || 0;
     const ecart = montantReel - montantAttendu;
     const ecartDisplay = document.getElementById('ecart-display');
     const ecartRow = document.getElementById('ecart-row');
@@ -301,6 +335,9 @@ function calculerEcart() {
     } else {
         ecartDisplay.style.display = 'none';
     }
+    // Validation retrait
+    const warning = document.getElementById('retrait-warning');
+    warning.style.display = retrait > getMaxRetrait() ? 'block' : 'none';
 }
 
 document.getElementById('form-cloture')?.addEventListener('submit', async function(e) {

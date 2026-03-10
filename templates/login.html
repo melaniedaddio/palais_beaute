@@ -234,7 +234,7 @@
                     {% for util in utilisateurs %}
                         <option value="{{ util.id }}">
                             {{ util.user.first_name }} {{ util.user.last_name }}
-                            {% if util.institut %}({{ util.institut.nom }}){% else %}(Patron){% endif %}
+                            {% if util.institut %}({{ util.institut.nom }}){% elif util.is_employe %}(Agenda){% else %}(Patron){% endif %}
                         </option>
                     {% endfor %}
                 </select>

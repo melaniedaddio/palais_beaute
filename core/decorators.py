@@ -79,8 +79,8 @@ def institut_required(view_func):
 
         institut_code = kwargs.get('institut_code')
 
-        # Le patron peut tout voir
-        if utilisateur.is_patron():
+        # Le patron et les employés peuvent tout voir (institut NULL)
+        if utilisateur.is_patron() or utilisateur.is_employe():
             return view_func(request, *args, **kwargs)
 
         # Le manager ne peut voir que son institut

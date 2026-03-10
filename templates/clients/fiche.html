@@ -655,7 +655,7 @@
             <!-- Historique RDV -->
             <div class="section-card">
                 <div class="section-header">
-                    <h2 class="section-title">Historique des rendez-vous</h2>
+                    <h2 class="section-title">Rendez-vous</h2>
                     <span class="badge-count">{{ nombre_visites }}</span>
                 </div>
 
@@ -667,15 +667,22 @@
                             <div class="rdv-date">
                                 {{ rdv.date|date:"d/m/Y" }} à {{ rdv.heure_debut|time:"H:i" }}
                                 <span class="rdv-institut">{{ rdv.institut.nom }}</span>
+                                {% if rdv.statut == 'planifie' %}
+                                <span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#e8f4fd;color:#1a73e8;border-radius:10px;font-size:11px;font-weight:600;">À venir</span>
+                                {% endif %}
                             </div>
                             <div class="rdv-detail">
                                 {{ rdv.prestation.nom }} · {{ rdv.employe.prenom|default:rdv.employe.nom }}
                             </div>
                         </div>
                         <div class="rdv-amount">
+                            {% if rdv.statut == 'planifie' %}
+                                —
+                            {% else %}
                             {% with paiement=rdv.paiements.first %}
                                 {% if paiement %}{{ paiement.montant|floatformat:0 }}{% else %}0{% endif %} CFA
                             {% endwith %}
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}
