@@ -12,7 +12,7 @@ from core.models import (
     ForfaitClient, SeanceForfait, ModificationLog, ClotureCaisse,
     PaiementCredit, Credit,
     VenteProduit, LigneVenteProduit,
-    Presence, ModificationPointage,
+    Presence, ModificationPointage, Absence, Avertissement,
     CalculSalaire, Prime, Avance,
     MouvementStock, Produit,
     Inventaire, LigneInventaire,
@@ -44,6 +44,8 @@ class Command(BaseCommand):
         self.stdout.write(f'  - Logs de modifications : {ModificationLog.objects.count()}')
         self.stdout.write(f'  - Ventes produits : {VenteProduit.objects.count()} ({LigneVenteProduit.objects.count()} lignes)')
         self.stdout.write(f'  - Présences : {Presence.objects.count()} ({ModificationPointage.objects.count()} modifications)')
+        self.stdout.write(f'  - Absences : {Absence.objects.count()}')
+        self.stdout.write(f'  - Avertissements : {Avertissement.objects.count()}')
         self.stdout.write(f'  - Salaires calculés : {CalculSalaire.objects.count()}')
         self.stdout.write(f'  - Primes : {Prime.objects.count()}')
         self.stdout.write(f'  - Avances : {Avance.objects.count()}')
@@ -139,6 +141,14 @@ class Command(BaseCommand):
                 count_presences = Presence.objects.count()
                 Presence.objects.all().delete()
                 self.stdout.write(f'✓ {count_presences} présences supprimées')
+
+                count_absences = Absence.objects.count()
+                Absence.objects.all().delete()
+                self.stdout.write(f'✓ {count_absences} absences supprimées')
+
+                count_avert = Avertissement.objects.count()
+                Avertissement.objects.all().delete()
+                self.stdout.write(f'✓ {count_avert} avertissements supprimés')
 
                 # 13. Salaires, primes, avances
                 count_calculs = CalculSalaire.objects.count()
