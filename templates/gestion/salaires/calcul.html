@@ -11,12 +11,34 @@
     .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; }
 
     /* Filtres auto-submit */
-    .filters-bar { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
-    .filters-bar select, .filters-bar input {
-        padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px;
-        background: var(--bg-light); font-size: 14px; color: var(--text-dark);
+    .filters-bar { display: flex; gap: 10px; margin-bottom: 24px; align-items: center; }
+    .filters-bar select, .filters-bar input[type="month"] {
+        height: 40px;
+        padding: 0 40px 0 16px;
+        border: 1.5px solid var(--border);
+        border-radius: 30px;
+        background: white;
+        font-size: 14px;
+        color: var(--text-dark);
+        font-family: inherit;
+        outline: none;
+        cursor: pointer;
+        transition: border-color .2s;
     }
-    .filters-bar select[name="vue"] { font-weight: 600; border-color: var(--primary); color: var(--primary); }
+    .filters-bar select {
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 14px center;
+        padding-right: 40px;
+    }
+    .filters-bar input[type="month"] {
+        padding: 0 16px;
+        cursor: default;
+    }
+    .filters-bar select:hover, .filters-bar input[type="month"]:hover { border-color: var(--primary); }
+    .filters-bar select:focus, .filters-bar input[type="month"]:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(var(--primary-rgb, 180,140,90), .12); }
 
     /* Cards totaux */
     .totaux-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 24px; }
@@ -71,8 +93,8 @@
     .btn-pay:hover { background: #3498db; color: white; }
     .btn-recalc { background: var(--bg-section); color: var(--text-light); border: 1px solid var(--border); }
     .btn-recalc:hover { background: #e0e0e0; }
-    .btn-icon { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 13px; }
-    .btn-icon:hover { background: #ffeaea; border-color: #e74c3c; }
+    .btn-icon { padding: 7px 9px; border-radius: 8px; border: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: all .3s ease; background: #ffebee; color: #c62828; }
+    .btn-icon:hover { background: #c62828; color: white; }
 
     /* Banner total (primes/avances) */
     .total-banner { border-radius: 14px; padding: 18px 24px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; }
@@ -132,13 +154,7 @@
 <div class="sal-container">
 
     <div class="page-header">
-        <h1>
-            {% if vue == 'primes' %}Primes
-            {% elif vue == 'avances' %}Avances
-            {% else %}Salaires
-            {% endif %}
-            — {{ mois|date:"F Y" }}
-        </h1>
+        <h1>Salaires — {{ mois|date:"F Y" }}</h1>
         {% if vue == 'primes' %}
         <button class="btn-primary" onclick="ouvrirModalPrime(null)">+ Ajouter une prime</button>
         {% elif vue == 'avances' %}
@@ -146,8 +162,19 @@
         {% endif %}
     </div>
 
+    <!-- Onglets de navigation -->
+    <div class="page-tabs">
+        <a href="?vue=calcul&mois={{ mois|date:'Y-m' }}&institut={{ institut_code }}"
+           class="page-tab {% if vue == 'calcul' %}active{% endif %}">Calcul mensuel</a>
+        <a href="?vue=primes&mois={{ mois|date:'Y-m' }}&institut={{ institut_code }}"
+           class="page-tab {% if vue == 'primes' %}active{% endif %}">Primes</a>
+        <a href="?vue=avances&mois={{ mois|date:'Y-m' }}&institut={{ institut_code }}"
+           class="page-tab {% if vue == 'avances' %}active{% endif %}">Avances</a>
+    </div>
+
     <!-- Filtres auto-submit -->
     <form method="get" class="filters-bar" id="filters-form">
+        <input type="hidden" name="vue" value="{{ vue }}">
         <input type="month" name="mois" value="{{ mois|date:'Y-m' }}" onchange="this.form.submit()">
         <select name="institut" onchange="this.form.submit()">
             <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
@@ -155,11 +182,6 @@
             <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
             {% endfor %}
             <option value="autres" {% if institut_code == 'autres' %}selected{% endif %}>Autres</option>
-        </select>
-        <select name="vue" onchange="this.form.submit()">
-            <option value="calcul"  {% if vue == 'calcul' %}selected{% endif %}>Calcul mensuel</option>
-            <option value="primes"  {% if vue == 'primes' %}selected{% endif %}>Primes</option>
-            <option value="avances" {% if vue == 'avances' %}selected{% endif %}>Avances</option>
         </select>
         {% if vue == 'avances' %}
         <select name="statut" onchange="this.form.submit()">
@@ -263,6 +285,8 @@
                               title="Enregistrer / voir les avances">
                             {% if c.total_avances_deduites > 0 %}
                                 <span class="detail-red">-{{ c.total_avances_deduites|floatformat:0 }}</span>
+                            {% elif c.avance_accordee_ce_mois %}
+                                <span class="detail-green">+{{ c.avance_accordee_ce_mois|floatformat:0 }}</span>
                             {% else %}—{% endif %}
                         </span>
                     </td>
@@ -339,7 +363,7 @@
                     <td>{{ p.commentaire|default:"—" }}</td>
                     <td style="color:var(--text-light);">{{ p.date_creation|date:"d/m/Y" }}</td>
                     <td>
-                        <button class="btn-icon" onclick="supprimerPrime({{ p.id }}, '{{ p.type_prime.nom|escapejs }}')" title="Supprimer">🗑️</button>
+                        <button class="btn-icon" onclick="supprimerPrime({{ p.id }}, '{{ p.type_prime.nom|escapejs }}')" title="Supprimer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6M14 11v6"></path><path d="M9 6V4h6v2"></path></svg></button>
                     </td>
                 </tr>
                 {% empty %}
@@ -398,7 +422,7 @@
                     <td><span class="badge badge-{{ av.statut }}">{{ av.get_statut_display }}</span></td>
                     <td>
                         {% if av.statut == 'en_cours' %}
-                        <button class="btn-icon" onclick="supprimerAvance({{ av.id }}, '{{ av.employe.get_full_name|escapejs }}')" title="Supprimer">🗑️</button>
+                        <button class="btn-icon" onclick="supprimerAvance({{ av.id }}, '{{ av.employe.get_full_name|escapejs }}')" title="Supprimer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6M14 11v6"></path><path d="M9 6V4h6v2"></path></svg></button>
                         {% endif %}
                     </td>
                 </tr>

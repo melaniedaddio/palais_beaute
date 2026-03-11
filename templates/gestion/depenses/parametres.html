@@ -59,14 +59,14 @@
 <div class="dep-container">
 
     <div class="page-header">
-        <h1>Dépenses</h1>
+        <h1>Paramètres</h1>
+    </div>
+    <div class="page-tabs">
+        <a href="{% url 'gestion:catalogue' %}" class="page-tab">Catalogue</a>
+        <a href="{% url 'gestion:stocks_parametres' %}" class="page-tab">Stocks</a>
+        <a href="{% url 'gestion:depenses_parametres' %}" class="page-tab active">Dépenses</a>
     </div>
 
-    <div class="links-bar">
-        <a href="{% url 'gestion:depenses_liste' %}" class="link-btn">Informelles</a>
-        <a href="{% url 'gestion:depenses_recurrentes' %}" class="link-btn">Récurrentes</a>
-        <a href="{% url 'gestion:depenses_parametres' %}" class="link-btn active">Paramètres</a>
-    </div>
 
     <div class="layout">
 

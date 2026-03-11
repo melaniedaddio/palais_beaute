@@ -1,3 +1,4 @@
+import math
 from django.shortcuts import render, get_object_or_404, redirect
 from core.decorators import login_required_json as login_required
 from django.http import JsonResponse
@@ -14,7 +15,7 @@ from core.models import (
     Institut, Employe, Client, Prestation, Option, RendezVous,
     RendezVousOption, Paiement, Credit, FamillePrestation, ClotureCaisse,
     PaiementCredit, ModificationLog, CarteCadeau, UtilisationCarteCadeau,
-    ForfaitClient, SeanceForfait, GroupeRDV
+    ForfaitClient, SeanceForfait, GroupeRDV, Depense, MouvementStock
 )
 
 @login_required
@@ -73,6 +74,7 @@ def index(request, institut_code):
                 'duree_creneaux': int((datetime.combine(date.today(), rdv.heure_fin) -
                                       datetime.combine(date.today(), rdv.heure_debut)).total_seconds() / 900),
                 'prix_total': float(rdv.prix_total),
+                'remise_pourcent': rdv.remise_pourcent or 0,
                 'statut': rdv.statut,
                 'couleur': rdv.prestation.famille.couleur,
                 'options': [opt.option.nom for opt in rdv.options_selectionnees.all()],
@@ -569,6 +571,7 @@ def api_rdv_details(request, institut_code, rdv_id):
         'prix_base': float(rdv.prix_base),
         'prix_options': float(rdv.prix_options),
         'prix_total': float(rdv.prix_total),
+        'remise_pourcent': rdv.remise_pourcent or 0,
         'statut': rdv.statut,
         'est_seance_forfait': rdv.est_seance_forfait,
         'groupe_id': rdv.groupe_id,
@@ -1132,10 +1135,17 @@ def api_rdv_client_jour(request, institut_code, rdv_id):
         rdvs_data.append(rdv_data)
         prix_total_global += rdv.prix_total
 
+    # Si tous les RDV ont un groupe avec un prix personnalisé, l'utiliser comme base
+    groupe_prix_custom = None
+    if rdvs_data:
+        premier_rdv = rdvs_client.first()
+        if premier_rdv and premier_rdv.groupe and premier_rdv.groupe.prix_total:
+            groupe_prix_custom = float(premier_rdv.groupe.prix_total)
+
     return JsonResponse({
         'success': True,
         'rdvs': rdvs_data,
-        'prix_total_global': float(prix_total_global),
+        'prix_total_global': groupe_prix_custom if groupe_prix_custom else float(prix_total_global),
         'client': rdv_actuel.client.get_full_name(),
         'date': rdv_actuel.date.strftime('%d/%m/%Y'),
         'nb_rdvs': len(rdvs_data)
@@ -1201,7 +1211,7 @@ def api_rdv_valider(request, institut_code, rdv_id):
 
         # Remise
         remise_pourcent = max(0, min(99, int(request.POST.get('remise_pourcent', 0) or 0)))
-        prix_effectif = int(rdv.prix_total * (100 - remise_pourcent) / 100)
+        prix_effectif = math.ceil(rdv.prix_total * (100 - remise_pourcent) / 100 / 1000) * 1000
         rdv.remise_pourcent = remise_pourcent
         rdv.save()
 
@@ -1445,17 +1455,22 @@ def cloture_caisse(request, institut_code):
     total_encours = total_especes_encours + total_carte_encours + total_cheque_encours + total_om_encours + total_wave_encours + total_carte_cadeau_prestations
 
     # Calculer le total cumulé du jour (toutes les clôtures + en cours)
-    total_jour_especes = clotures_existantes.aggregate(
-        total=models.Sum('total_especes_calcule')
-    )['total'] or 0
-    total_jour_especes += total_especes_encours
-
-    total_jour_carte = clotures_existantes.aggregate(
-        total=models.Sum('total_carte_calcule')
-    )['total'] or 0
-    total_jour_carte += total_carte_encours
-
-    total_jour = total_jour_especes + total_jour_carte + total_cheque_encours + total_om_encours + total_wave_encours
+    totaux_clotures = clotures_existantes.aggregate(
+        especes=models.Sum('total_especes_calcule'),
+        carte=models.Sum('total_carte_calcule'),
+        cheque=models.Sum('total_cheque_calcule'),
+        om=models.Sum('total_om_calcule'),
+        wave=models.Sum('total_wave_calcule'),
+    )
+    total_jour = (
+        (totaux_clotures['especes'] or 0) + total_especes_encours
+        + (totaux_clotures['carte'] or 0) + total_carte_encours
+        + (totaux_clotures['cheque'] or 0) + total_cheque_encours
+        + (totaux_clotures['om'] or 0) + total_om_encours
+        + (totaux_clotures['wave'] or 0) + total_wave_encours
+    )
+    total_jour_especes = (totaux_clotures['especes'] or 0) + total_especes_encours
+    total_jour_carte = (totaux_clotures['carte'] or 0) + total_carte_encours
 
     # Compter les RDV validés et non validés
     rdv_valides = RendezVous.objects.filter(
@@ -1470,8 +1485,25 @@ def cloture_caisse(request, institut_code):
         statut='planifie'
     ).count()
 
-    # Montant espèces attendu = total espèces en cours + fond de caisse
-    montant_attendu = total_especes_encours + institut.fond_caisse
+    # Dépenses en espèces depuis la dernière clôture (ou début de journée)
+    depenses_especes = Depense.objects.filter(
+        institut=institut,
+        date=date_selectionnee,
+        mode_paiement='especes',
+        date_creation__gte=heure_debut
+    ).aggregate(total=models.Sum('montant'))['total'] or 0
+
+    # Sorties de stock depuis la dernière clôture (quantité × prix_achat produit)
+    sorties_stock_qs = MouvementStock.objects.filter(
+        institut=institut,
+        type_mouvement='sortie',
+        date_creation__date=date_selectionnee,
+        date_creation__gte=heure_debut
+    ).select_related('produit')
+    total_sorties_stock = sum(m.quantite * m.produit.prix_achat for m in sorties_stock_qs)
+
+    # Montant espèces attendu = total espèces en cours - dépenses espèces - sorties stock + fond de caisse
+    montant_attendu = total_especes_encours - depenses_especes - total_sorties_stock + institut.fond_caisse
 
     # Forfaits (uniquement pour La Klinic)
     nb_forfaits_vendus = 0
@@ -1523,6 +1555,8 @@ def cloture_caisse(request, institut_code):
         'ventes_cartes_cheque': ventes_cartes_cheque,
         'ventes_cartes_om': ventes_cartes_om,
         'ventes_cartes_wave': ventes_cartes_wave,
+        'depenses_especes': depenses_especes,
+        'total_sorties_stock': total_sorties_stock,
         'rdv_valides': rdv_valides,
         'rdv_non_valides': rdv_non_valides,
         'fond_caisse': institut.fond_caisse,
@@ -2099,12 +2133,17 @@ def api_rdv_valider_groupe(request, institut_code):
         client = rdvs.first().client
         utilisateur = request.user.utilisateur
 
-        # Calculer le prix total de tous les RDV
+        # Calculer le prix total de tous les RDV (pour la répartition proportionnelle)
         prix_total_global = sum(rdv.prix_total for rdv in rdvs)
+
+        # Utiliser le prix personnalisé du groupe si défini (pour la base de calcul du montant total)
+        premier_rdv = rdvs.first()
+        groupe_obj = premier_rdv.groupe if premier_rdv else None
+        prix_base_global = float(groupe_obj.prix_total) if (groupe_obj and groupe_obj.prix_total) else prix_total_global
 
         # Remise globale sur le groupe
         remise_pourcent = max(0, min(99, int(request.POST.get('remise_pourcent', 0) or 0)))
-        prix_effectif_global = int(prix_total_global * (100 - remise_pourcent) / 100)
+        prix_effectif_global = math.ceil(prix_base_global * (100 - remise_pourcent) / 100 / 1000) * 1000
 
         # 1. Traiter les cartes cadeaux sur le prix effectif (après remise)
         montant_total_cartes = 0
