@@ -1044,10 +1044,10 @@
             <div class="rdv-info">
                 <div class="rdv-date">{{ rdv.date|date:"d/m/Y" }} à {{ rdv.heure_debut|time:"H:i" }} - {{ rdv.institut.nom }}</div>
                 <div class="rdv-client">{{ rdv.client.get_full_name }}</div>
-                <div class="rdv-detail">{{ rdv.employe.prenom|default:rdv.employe.nom }} - {{ rdv.prestation.nom }}</div>
+                <div class="rdv-detail">{{ rdv.employe_label }} - {{ rdv.prestation_label }}</div>
             </div>
             <div class="rdv-amount">
-                {{ rdv.prix_total|floatformat:0 }} CFA
+                {{ rdv.prix_total_display|floatformat:0 }} CFA
             </div>
         </div>
         {% endfor %}

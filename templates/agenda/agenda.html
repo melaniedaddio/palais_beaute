@@ -1850,6 +1850,17 @@ function ouvrirModalActions(rdv) {
         `;
     }
 
+    // Libellé et prix : agréger le groupe si nécessaire
+    let labelPrestation, prixLabel;
+    if (rdv.groupe_id && getRdvsGroupe(rdv.groupe_id).length > 1) {
+        const groupe = getRdvsGroupe(rdv.groupe_id);
+        labelPrestation = groupe.map(r => r.prestation).join(' + ');
+        prixLabel = groupe.reduce((s, r) => s + (r.prix_total || 0), 0).toLocaleString('fr-FR');
+    } else {
+        labelPrestation = rdv.prestation;
+        prixLabel = rdv.prix_total.toLocaleString('fr-FR');
+    }
+
     modal = document.createElement('div');
     modal.id = 'modal-actions';
     modal.className = 'modal';
@@ -1862,7 +1873,7 @@ function ouvrirModalActions(rdv) {
             </div>
             <div class="modal-body">
                 <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
-                    <strong>${rdv.prestation}</strong> - ${rdv.prix_total.toLocaleString('fr-FR')} CFA
+                    <strong>${labelPrestation}</strong> - ${prixLabel} CFA
                 </p>
                 <div style="display:flex;flex-direction:column;">
                     ${rdv.groupe_id && getRdvsGroupe(rdv.groupe_id).length > 1 ? `

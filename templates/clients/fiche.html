@@ -672,16 +672,14 @@
                                 {% endif %}
                             </div>
                             <div class="rdv-detail">
-                                {{ rdv.prestation.nom }} · {{ rdv.employe.prenom|default:rdv.employe.nom }}
+                                {{ rdv.prestation_label }} · {{ rdv.employe_label }}
                             </div>
                         </div>
                         <div class="rdv-amount">
                             {% if rdv.statut == 'planifie' %}
                                 —
                             {% else %}
-                            {% with paiement=rdv.paiements.first %}
-                                {% if paiement %}{{ paiement.montant|floatformat:0 }}{% else %}0{% endif %} CFA
-                            {% endwith %}
+                                {{ rdv.montant_total|floatformat:0 }} CFA
                             {% endif %}
                         </div>
                     </div>

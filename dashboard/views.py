@@ -393,10 +393,40 @@ def index(request):
 
     clients_dette = sorted(dette_par_client.values(), key=lambda x: -x['total_dette'])[:10]
 
-    # Derniers RDV validés
-    derniers_rdv = RendezVous.objects.filter(
+    # Derniers RDV validés — dédupliqués par groupe (un groupe = une ligne)
+    rdv_raw = list(RendezVous.objects.filter(
         statut='valide'
-    ).select_related('client', 'employe', 'institut', 'prestation').order_by('-date', '-heure_debut')[:10]
+    ).select_related('client', 'employe', 'institut', 'prestation').order_by('-date', '-heure_debut')[:50])
+
+    groupe_ids = [r.groupe_id for r in rdv_raw if r.groupe_id]
+    if groupe_ids:
+        membres_qs = RendezVous.objects.filter(
+            groupe_id__in=groupe_ids, statut='valide'
+        ).select_related('prestation', 'employe').order_by('heure_debut')
+        groupes_dict = {}
+        for m in membres_qs:
+            groupes_dict.setdefault(m.groupe_id, []).append(m)
+    else:
+        groupes_dict = {}
+
+    seen_groupes = set()
+    derniers_rdv = []
+    for rdv in rdv_raw:
+        if rdv.groupe_id:
+            if rdv.groupe_id in seen_groupes:
+                continue
+            seen_groupes.add(rdv.groupe_id)
+            membres = groupes_dict.get(rdv.groupe_id, [rdv])
+            rdv.prestation_label = ' + '.join(m.prestation.nom for m in membres)
+            rdv.employe_label = membres[0].employe.prenom or membres[0].employe.nom
+            rdv.prix_total_display = sum(m.prix_total for m in membres)
+        else:
+            rdv.prestation_label = rdv.prestation.nom
+            rdv.employe_label = rdv.employe.prenom or rdv.employe.nom
+            rdv.prix_total_display = rdv.prix_total
+        derniers_rdv.append(rdv)
+        if len(derniers_rdv) >= 10:
+            break
 
     # Stats cartes cadeaux
     cartes_vendues_periode = CarteCadeau.objects.filter(
@@ -1161,7 +1191,7 @@ def export_rdv_excel(request):
     # Construire le queryset
     rdvs = RendezVous.objects.filter(statut='valide').select_related(
         'client', 'employe', 'institut', 'prestation'
-    ).order_by('-date', '-heure_debut')
+    ).prefetch_related('paiements').order_by('-date', '-heure_debut')
 
     if date_debut:
         rdvs = rdvs.filter(date__gte=date_debut)
@@ -1176,7 +1206,8 @@ def export_rdv_excel(request):
     ws.title = "Rendez-vous"
 
     # En-têtes
-    headers = ['Date', 'Heure', 'Institut', 'Client', 'Téléphone', 'Employé', 'Prestation', 'Montant (CFA)', 'Mode paiement']
+    headers = ['Date', 'Heure', 'Institut', 'Client', 'Téléphone', 'Employé', 'Prestation',
+               'Montant (CFA)', 'Espèces (CFA)', 'Carte (CFA)', 'Chèque (CFA)', 'Orange Money (CFA)', 'Wave (CFA)']
     for col, header in enumerate(headers, 1):
         ws.cell(row=1, column=col, value=header)
         ws.cell(row=1, column=col).font = openpyxl.styles.Font(bold=True)
@@ -1184,22 +1215,32 @@ def export_rdv_excel(request):
     # Données
     row = 2
     for rdv in rdvs:
-        modes = ', '.join(dict.fromkeys(p.get_mode_display() for p in rdv.paiements.all()))
+        paiements = rdv.paiements.all()
+        especes = sum(p.montant for p in paiements if p.mode == 'especes')
+        carte   = sum(p.montant for p in paiements if p.mode == 'carte')
+        cheque  = sum(p.montant for p in paiements if p.mode == 'cheque')
+        om      = sum(p.montant for p in paiements if p.mode == 'om')
+        wave    = sum(p.montant for p in paiements if p.mode == 'wave')
 
-        ws.cell(row=row, column=1, value=rdv.date.strftime('%d/%m/%Y'))
-        ws.cell(row=row, column=2, value=rdv.heure_debut.strftime('%H:%M'))
-        ws.cell(row=row, column=3, value=rdv.institut.nom)
-        ws.cell(row=row, column=4, value=rdv.client.get_full_name())
-        ws.cell(row=row, column=5, value=rdv.client.telephone)
-        ws.cell(row=row, column=6, value=rdv.employe.nom)
-        ws.cell(row=row, column=7, value=rdv.prestation.nom if rdv.prestation else '')
-        ws.cell(row=row, column=8, value=int(rdv.prix_total))
-        ws.cell(row=row, column=9, value=modes)
+        ws.cell(row=row, column=1,  value=rdv.date.strftime('%d/%m/%Y'))
+        ws.cell(row=row, column=2,  value=rdv.heure_debut.strftime('%H:%M'))
+        ws.cell(row=row, column=3,  value=rdv.institut.nom)
+        ws.cell(row=row, column=4,  value=rdv.client.get_full_name())
+        ws.cell(row=row, column=5,  value=rdv.client.telephone)
+        ws.cell(row=row, column=6,  value=rdv.employe.nom)
+        ws.cell(row=row, column=7,  value=rdv.prestation.nom if rdv.prestation else '')
+        ws.cell(row=row, column=8,  value=int(rdv.prix_total))
+        ws.cell(row=row, column=9,  value=especes or None)
+        ws.cell(row=row, column=10, value=carte   or None)
+        ws.cell(row=row, column=11, value=cheque  or None)
+        ws.cell(row=row, column=12, value=om      or None)
+        ws.cell(row=row, column=13, value=wave    or None)
         row += 1
 
     # Ajuster la largeur des colonnes
-    for col in range(1, len(headers) + 1):
-        ws.column_dimensions[get_column_letter(col)].width = 15
+    col_widths = [12, 8, 15, 20, 14, 15, 30, 14, 14, 12, 12, 18, 12]
+    for col, width in enumerate(col_widths, 1):
+        ws.column_dimensions[get_column_letter(col)].width = width
 
     # Générer la réponse
     response = HttpResponse(

@@ -233,12 +233,40 @@ def client_detail(request, pk):
     """
     client = get_object_or_404(Client, pk=pk)
 
-    # Historique + RDV à venir
-    rendez_vous = RendezVous.objects.filter(
+    # Historique + RDV à venir — dédupliqués par groupe (un groupe = une ligne)
+    rdv_raw = list(RendezVous.objects.filter(
         client=client, statut__in=['valide', 'planifie']
     ).select_related(
         'institut', 'prestation', 'employe'
-    ).prefetch_related('paiements').order_by('-date', '-heure_debut')[:50]
+    ).prefetch_related('paiements').order_by('-date', '-heure_debut')[:100])
+
+    groupe_ids = [r.groupe_id for r in rdv_raw if r.groupe_id]
+    if groupe_ids:
+        membres_qs = RendezVous.objects.filter(
+            groupe_id__in=groupe_ids, statut__in=['valide', 'planifie']
+        ).select_related('prestation', 'employe').prefetch_related('paiements').order_by('heure_debut')
+        groupes_dict = {}
+        for m in membres_qs:
+            groupes_dict.setdefault(m.groupe_id, []).append(m)
+    else:
+        groupes_dict = {}
+
+    seen_groupes = set()
+    rendez_vous = []
+    for rdv in rdv_raw:
+        if rdv.groupe_id:
+            if rdv.groupe_id in seen_groupes:
+                continue
+            seen_groupes.add(rdv.groupe_id)
+            membres = groupes_dict.get(rdv.groupe_id, [rdv])
+            rdv.prestation_label = ' + '.join(m.prestation.nom for m in membres)
+            rdv.employe_label = membres[0].employe.prenom or membres[0].employe.nom
+            rdv.montant_total = sum(sum(p.montant for p in m.paiements.all()) for m in membres)
+        else:
+            rdv.prestation_label = rdv.prestation.nom
+            rdv.employe_label = rdv.employe.prenom or rdv.employe.nom
+            rdv.montant_total = sum(p.montant for p in rdv.paiements.all())
+        rendez_vous.append(rdv)
 
     # Crédits du client
     credits = client.credits.all().order_by('-date_creation')
