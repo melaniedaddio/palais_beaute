@@ -54,14 +54,14 @@
 <div class="stk-container">
 
     <div class="page-header">
-        <h1>Paramètres stocks</h1>
+        <h1>Paramètres</h1>
+    </div>
+    <div class="page-tabs">
+        <a href="{% url 'gestion:catalogue' %}" class="page-tab">Catalogue</a>
+        <a href="{% url 'gestion:stocks_parametres' %}" class="page-tab active">Stocks</a>
+        <a href="{% url 'gestion:depenses_parametres' %}" class="page-tab">Dépenses</a>
     </div>
 
-    <div class="links-bar">
-        <a href="{% url 'gestion:stocks_produits' %}" class="link-btn">Produits</a>
-        <a href="{% url 'gestion:stocks_mouvements' %}" class="link-btn">Mouvements</a>
-        <a href="{% url 'gestion:stocks_parametres' %}" class="link-btn active">Paramètres</a>
-    </div>
 
     <div class="sections-grid">
 

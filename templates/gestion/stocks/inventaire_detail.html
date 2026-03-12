@@ -42,6 +42,11 @@
 
 {% block content %}
 <div class="inv-container">
+    <div class="page-tabs">
+        <a href="{% url 'gestion:stocks_produits' %}" class="page-tab">Produits</a>
+        <a href="{% url 'gestion:stocks_mouvements' %}" class="page-tab">Mouvements</a>
+        <a href="{% url 'gestion:inventaire_liste' %}" class="page-tab active">Inventaires</a>
+    </div>
     <div class="page-header">
         <div>
             <h1>{{ titre }}</h1>

@@ -12,7 +12,7 @@ from core.decorators import role_required
 from core.models import (
     Institut, Employe, Client, Prestation, FamillePrestation,
     RendezVous, VenteExpressPrestation, Paiement, Credit, ClotureCaisse,
-    PaiementCredit, CarteCadeau, UtilisationCarteCadeau
+    PaiementCredit, CarteCadeau, UtilisationCarteCadeau, Depense, MouvementStock
 )
 
 
@@ -469,8 +469,25 @@ def cloture_caisse(request):
         statut='planifie'
     ).count()
 
-    # Montant espèces attendu = total espèces en cours + fond de caisse
-    montant_attendu = total_especes_encours + institut.fond_caisse
+    # Dépenses en espèces depuis la dernière clôture (ou début de journée)
+    depenses_especes = Depense.objects.filter(
+        institut=institut,
+        date=date_selectionnee,
+        mode_paiement='especes',
+        date_creation__gte=heure_debut
+    ).aggregate(total=models.Sum('montant'))['total'] or 0
+
+    # Sorties de stock depuis la dernière clôture (quantité × prix_achat produit)
+    sorties_stock_qs = MouvementStock.objects.filter(
+        institut=institut,
+        type_mouvement='sortie',
+        date_creation__date=date_selectionnee,
+        date_creation__gte=heure_debut
+    ).select_related('produit')
+    total_sorties_stock = sum(m.quantite * m.produit.prix_achat for m in sorties_stock_qs)
+
+    # Montant espèces attendu = total espèces en cours - dépenses espèces - sorties stock + fond de caisse
+    montant_attendu = total_especes_encours - depenses_especes - total_sorties_stock + institut.fond_caisse
 
     context = {
         'institut': institut,
@@ -508,6 +525,8 @@ def cloture_caisse(request):
         'ventes_cartes_cheque': ventes_cartes_cheque,
         'ventes_cartes_om': ventes_cartes_om,
         'ventes_cartes_wave': ventes_cartes_wave,
+        'depenses_especes': depenses_especes,
+        'total_sorties_stock': total_sorties_stock,
     }
 
     return render(request, 'express/cloture.html', context)
@@ -597,21 +616,9 @@ def api_cloturer_caisse(request):
     try:
         date_str = request.POST.get('date')
         montant_reel = request.POST.get('montant_reel')
+        montant_retrait = max(0, int(request.POST.get('montant_retrait', 0) or 0))
 
         date_cloture = datetime.strptime(date_str, '%Y-%m-%d').date()
-
-        # Vérifier qu'il n'y a plus de ventes non validées
-        ventes_non_validees = RendezVous.objects.filter(
-            institut=institut,
-            date=date_cloture,
-            statut='planifie'
-        ).count()
-
-        if ventes_non_validees > 0:
-            return JsonResponse({
-                'success': False,
-                'message': f'Il reste {ventes_non_validees} ventes non validées. Veuillez les valider ou les annuler avant de clôturer.'
-            }, status=400)
 
         # Trouver la dernière clôture effectuée pour cette date
         derniere_cloture = ClotureCaisse.objects.filter(
@@ -700,12 +707,22 @@ def api_cloturer_caisse(request):
         total_om = total_om_ventes + total_om_credit + ventes_cartes_par_mode['om']
         total_wave = total_wave_ventes + total_wave_credit + ventes_cartes_par_mode['wave']
 
-        # Créer une NOUVELLE clôture (plus de get_or_create)
+        # Validation du retrait (fond minimum 30 000 CFA)
+        fond_caisse_min = 30000
+        especes_disponibles_retrait = max(0, int(montant_reel) - fond_caisse_min)
+        if montant_retrait > especes_disponibles_retrait:
+            return JsonResponse({
+                'success': False,
+                'message': f'Le retrait ne peut pas dépasser {especes_disponibles_retrait:,} CFA (fond minimum de {fond_caisse_min:,} CFA requis).'
+            }, status=400)
+
+        # Créer une NOUVELLE clôture
         cloture = ClotureCaisse.objects.create(
             institut=institut,
             date=date_cloture,
             fond_caisse=institut.fond_caisse,
             montant_reel_especes=int(montant_reel),
+            montant_retrait=montant_retrait,
             total_especes_calcule=total_especes,
             total_carte_calcule=total_carte,
             total_cheque_calcule=total_cheque,

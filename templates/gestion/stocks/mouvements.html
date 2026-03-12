@@ -13,9 +13,17 @@
     .link-btn:hover { background: var(--border); }
     .link-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 
-    .filters-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
-    .filters-bar select { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; }
-    .filters-bar button { padding: 8px 20px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+    .filters-bar { display: flex; gap: 10px; margin-bottom: 24px; align-items: center; }
+    .filters-bar select {
+        height: 40px; padding: 0 40px 0 16px; border: 1.5px solid var(--border);
+        border-radius: 30px; background: white; font-size: 14px; color: var(--text-dark);
+        font-family: inherit; outline: none; cursor: pointer; transition: border-color .2s;
+        appearance: none; -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 14px center;
+    }
+    .filters-bar select:hover { border-color: var(--primary); }
+    .filters-bar button[type="submit"] { display: none; }
 
     .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(212,175,122,0.10); border: 1px solid var(--border); }
     table { width: 100%; border-collapse: collapse; }
@@ -65,20 +73,20 @@
         </button>
     </div>
 
-    <div class="links-bar">
-        <a href="{% url 'gestion:stocks_produits' %}" class="link-btn">Produits</a>
-        <a href="{% url 'gestion:stocks_mouvements' %}" class="link-btn active">Mouvements</a>
-        <a href="{% url 'gestion:stocks_parametres' %}" class="link-btn">Paramètres</a>
+    <div class="page-tabs">
+        <a href="{% url 'gestion:stocks_produits' %}" class="page-tab">Produits</a>
+        <a href="{% url 'gestion:stocks_mouvements' %}" class="page-tab active">Mouvements</a>
+        <a href="{% url 'gestion:inventaire_liste' %}" class="page-tab">Inventaires</a>
     </div>
 
     <form method="get" class="filters-bar">
-        <select name="produit">
+        <select name="produit" onchange="this.form.submit()">
             <option value="tous" {% if produit_id == 'tous' %}selected{% endif %}>Tous les produits</option>
             {% for p in produits %}
             <option value="{{ p.id }}" {% if produit_id == p.id|stringformat:"s" %}selected{% endif %}>{{ p.nom }}</option>
             {% endfor %}
         </select>
-        <select name="type">
+        <select name="type" onchange="this.form.submit()">
             <option value="tous" {% if type_mouv == 'tous' %}selected{% endif %}>Tous les types</option>
             <option value="entree"     {% if type_mouv == 'entree' %}selected{% endif %}>Entrée</option>
             <option value="sortie"     {% if type_mouv == 'sortie' %}selected{% endif %}>Sortie</option>
@@ -181,6 +189,21 @@
             <label>Prix unitaire (CFA) — requis pour comptabiliser la dépense</label>
             <input type="number" id="m_prix" min="0" value="0">
         </div>
+        <div class="modal-field" id="m_institut_group">
+            <label>Institut (salon concerné)</label>
+            {% if is_manager %}
+            <input type="text" value="{{ manager_institut.nom }}" disabled style="background:#f5f5f5;color:#999;">
+            <input type="hidden" id="m_institut" value="{{ manager_institut.code }}">
+            {% else %}
+            <select id="m_institut">
+                <option value="">— Non assigné —</option>
+                {% for inst in instituts %}
+                <option value="{{ inst.code }}">{{ inst.nom }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+            <p id="m_institut_note" style="display:none;font-size:12px;color:#e67e22;margin-top:4px;">⚠️ Le montant (quantité × prix achat) sera déduit de la clôture de ce salon.</p>
+        </div>
         <div class="modal-field">
             <label>Commentaire</label>
             <input type="text" id="m_commentaire" placeholder="Optionnel...">
@@ -209,6 +232,7 @@ function majModal() {
     };
     document.getElementById('m_qte_label').textContent = labels[type] || 'Quantité *';
     document.getElementById('m_prix_group').style.display = type === 'entree' ? '' : 'none';
+    document.getElementById('m_institut_note').style.display = type === 'sortie' ? '' : 'none';
 }
 
 document.getElementById('m_produit').addEventListener('change', function() {
@@ -248,6 +272,8 @@ async function soumettreModal() {
     fd.append('quantite', qte);
     fd.append('prix_unitaire', prix);
     fd.append('commentaire', commentaire);
+    const institutEl = document.getElementById('m_institut');
+    if (institutEl) fd.append('institut_code', institutEl.value);
 
     try {
         const resp = await fetch('{% url "gestion:api_mouvement_creer" %}', { method: 'POST', body: fd });

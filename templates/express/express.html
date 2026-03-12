@@ -9,9 +9,17 @@
             <h1 class="page-title">Express - Caisse du jour</h1>
             <p class="page-subtitle">{{ date_selectionnee|date:"l d F Y" }}</p>
         </div>
-        <div class="nav-links" style="margin:0;">
-            <a href="{% url 'express:index' %}" class="nav-link active">Caisse</a>
-            <a href="{% url 'express:historique' %}" class="nav-link">Historique</a>
+        <div style="display:flex;gap:10px;align-items:center;">
+            <div class="nav-links" style="margin:0;">
+                <a href="{% url 'express:index' %}" class="nav-link active">Caisse</a>
+                <a href="{% url 'express:historique' %}" class="nav-link">Historique</a>
+            </div>
+            {% if request.user.utilisateur.is_patron or request.user.utilisateur.is_manager %}
+            <a href="{% url 'express:cloture_caisse' %}" class="btn-agenda-header" style="background:var(--secondary);color:white;text-decoration:none;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="12" y2="15"/></svg>
+                Clôture caisse
+            </a>
+            {% endif %}
         </div>
     </div>
 </div>

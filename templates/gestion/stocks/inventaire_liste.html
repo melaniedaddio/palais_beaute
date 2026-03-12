@@ -35,6 +35,11 @@
         <h1>Inventaires</h1>
         <a href="{% url 'gestion:inventaire_nouveau' %}" class="btn-primary">+ Nouvel inventaire</a>
     </div>
+    <div class="page-tabs">
+        <a href="{% url 'gestion:stocks_produits' %}" class="page-tab">Produits</a>
+        <a href="{% url 'gestion:stocks_mouvements' %}" class="page-tab">Mouvements</a>
+        <a href="{% url 'gestion:inventaire_liste' %}" class="page-tab active">Inventaires</a>
+    </div>
 
     <div class="card">
         {% if inventaires %}
@@ -51,7 +56,7 @@
             <tbody>
                 {% for inv in inventaires %}
                 <tr>
-                    <td><strong>{{ inv.date|date:"d/m/Y" }}</strong></td>
+                    <td><strong>{{ inv.date|date:"d/m/Y" }}</strong><br><span style="font-size:12px;color:var(--text-light);">{{ inv.date|date:"H:i" }}</span></td>
                     <td>
                         {% if inv.statut == 'en_cours' %}<span class="badge badge-en-cours">En cours</span>
                         {% elif inv.statut == 'termine' %}<span class="badge badge-termine">Terminé</span>

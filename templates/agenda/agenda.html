@@ -1703,7 +1703,15 @@ function afficherRdvSurGrille() {
                 const rdvsGroupe = window.rdvData[employeId].filter(r => r.groupe_id === rdv.groupe_id);
                 // Noms combinés et prix total
                 const nomsCombines = rdvsGroupe.map(r => r.prestation).join(' + ');
-                const prixGroupeTotal = rdvsGroupe.reduce((s, r) => s + (r.prix_total || 0), 0);
+                // Utiliser le prix personnalisé du groupe si défini, sinon la somme
+                const prixGroupeBase = rdvsGroupe[0].groupe_prix_total != null
+                    ? rdvsGroupe[0].groupe_prix_total
+                    : rdvsGroupe.reduce((s, r) => s + (r.prix_total || 0), 0);
+                // Appliquer la remise si applicable
+                const groupeRemise = rdvsGroupe.find(r => r.remise_pourcent > 0)?.remise_pourcent || 0;
+                const prixGroupeTotal = groupeRemise > 0
+                    ? Math.ceil(prixGroupeBase * (100 - groupeRemise) / 100 / 1000) * 1000
+                    : prixGroupeBase;
                 // Heure de début la plus tôt (pour positionner le bloc)
                 const toMins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
                 const earliestDebut = rdvsGroupe.reduce((min, r) => r.heure_debut < min ? r.heure_debut : min, rdvsGroupe[0].heure_debut);
@@ -1716,6 +1724,7 @@ function afficherRdvSurGrille() {
                     heure_debut: earliestDebut,
                     prestation: nomsCombines,
                     prix_total: prixGroupeTotal,
+                    remise_pourcent: 0, // déjà appliquée dans prixGroupeTotal
                     _nb_prestations: rdvsGroupe.length,
                 });
             }
@@ -1772,12 +1781,20 @@ function afficherRdvSurGrille() {
                     groupeBadge = `<div style="font-size: 10px; color: #0077aa; font-weight: 600;">📦 ${rdv._nb_prestations} prestations</div>`;
                 }
 
+                // Prix effectif (après remise si applicable)
+                const prixAffiche = (rdv.remise_pourcent > 0)
+                    ? Math.ceil(rdv.prix_total * (100 - rdv.remise_pourcent) / 100 / 1000) * 1000
+                    : rdv.prix_total;
+                const remiseBadge = (rdv.remise_pourcent > 0 && !rdv._nb_prestations)
+                    ? `<div style="font-size:10px;color:#e67e22;font-weight:600;">-${rdv.remise_pourcent}%</div>`
+                    : '';
                 card.innerHTML = `
                     <div class="rdv-client">${rdv.client}</div>
                     <div class="rdv-prestation">${rdv.prestation}</div>
                     ${forfaitBadge}
                     ${groupeBadge}
-                    <div class="rdv-prix">${rdv.prix_total.toLocaleString('fr-FR')} CFA</div>
+                    <div class="rdv-prix">${prixAffiche.toLocaleString('fr-FR')} CFA</div>
+                    ${remiseBadge}
                     ${statutBadge}
                 `;
 
@@ -1801,8 +1818,12 @@ function afficherDetailsRdv(rdvId) {
             if (rdv.statut === 'planifie') {
                 ouvrirModalActions(rdv);
             } else if (rdv.statut === 'valide') {
+                const prixValidé = (rdv.remise_pourcent > 0)
+                    ? Math.ceil(rdv.prix_total * (100 - rdv.remise_pourcent) / 100 / 1000) * 1000
+                    : rdv.prix_total;
+                const remiseInfo = rdv.remise_pourcent > 0 ? ` (remise ${rdv.remise_pourcent}%)` : '';
                 showInfo('RDV validé - Client: ' + rdv.client + ' | Prestation: ' + rdv.prestation +
-                      ' | Date: ' + rdv.date + ' à ' + rdv.heure_debut + ' | Prix: ' + rdv.prix_total.toLocaleString('fr-FR') + ' CFA');
+                      ' | Date: ' + rdv.date + ' à ' + rdv.heure_debut + ' | Prix: ' + prixValidé.toLocaleString('fr-FR') + ' CFA' + remiseInfo);
             } else if (rdv.statut === 'absent' || rdv.statut === 'annule_client') {
                 showInfo('RDV annulé - Client: ' + rdv.client + ' | Prestation: ' + rdv.prestation +
                       ' | Date: ' + rdv.date + ' à ' + rdv.heure_debut);
@@ -2994,7 +3015,7 @@ function calculerReste() {
 // Appliquer la remise et recalculer le prix effectif
 function appliquerRemise() {
     const pct = Math.min(99, Math.max(0, parseInt(document.getElementById('remise-pourcent-input').value) || 0));
-    prixEffectifValidation = Math.round(prixTotalValidation * (100 - pct) / 100);
+    prixEffectifValidation = Math.ceil(prixTotalValidation * (100 - pct) / 100 / 1000) * 1000;
     const display = document.getElementById('prix-apres-remise-display');
     if (pct > 0) {
         display.style.display = 'inline';
@@ -3002,6 +3023,17 @@ function appliquerRemise() {
     } else {
         display.style.display = 'none';
     }
+    // Mettre à jour le champ montant partiel si affiché
+    const typePaiement = document.getElementById('validation-type-paiement').value;
+    if (typePaiement === 'partiel') {
+        const resteApresCartes = getResteApresCartes();
+        const montantInput = document.getElementById('validation-montant');
+        montantInput.max = resteApresCartes;
+        montantInput.value = resteApresCartes;
+        calculerReste();
+    }
+    // Mettre à jour le double paiement si actif
+    calculerMontant2();
     updateMontantPaiement();
 }
 

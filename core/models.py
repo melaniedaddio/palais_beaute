@@ -594,6 +594,7 @@ class MouvementStock(models.Model):
     quantite_apres = models.IntegerField(default=0)
     prix_unitaire = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     commentaire = models.TextField(blank=True, null=True)
+    institut = models.ForeignKey('Institut', on_delete=models.SET_NULL, null=True, blank=True, related_name='mouvements_stock')
     cree_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
     date_creation = models.DateTimeField(auto_now_add=True)
 
@@ -613,7 +614,7 @@ class Inventaire(models.Model):
         ('termine', 'Terminé'),
         ('annule', 'Annulé'),
     ]
-    date = models.DateField()
+    date = models.DateTimeField()
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='en_cours')
     commentaire = models.TextField(blank=True, null=True)
     effectue_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)
@@ -842,8 +843,8 @@ class CalculSalaire(models.Model):
         self.total_primes = sum(p.montant for p in primes)
         self.details_primes = [{'type': p.type_prime.nom, 'montant': p.montant} for p in primes]
 
-        # Avances en cours
-        avances = Avance.objects.filter(employe=self.employe, statut='en_cours')
+        # Avances en cours — uniquement celles créées AVANT ce mois (déduction le mois suivant)
+        avances = Avance.objects.filter(employe=self.employe, statut='en_cours', date__lt=self.mois)
         total_avances = 0
         details_av = []
         for avance in avances:
@@ -857,12 +858,21 @@ class CalculSalaire(models.Model):
         self.total_avances_deduites = total_avances
         self.details_avances = details_av
 
+        # Avances accordées CE mois-ci (ajoutées au net — elles seront déduites le mois suivant)
+        import calendar
+        dernier_jour = calendar.monthrange(self.mois.year, self.mois.month)[1]
+        from datetime import date as _date
+        fin_mois = _date(self.mois.year, self.mois.month, dernier_jour)
+        avances_ce_mois = Avance.objects.filter(employe=self.employe, date__gte=self.mois, date__lte=fin_mois)
+        total_avances_ce_mois = sum(av.montant for av in avances_ce_mois)
+
         # Net à payer (inclut déduction pointage si données validées disponibles)
         deduction_totale = self.montant_retenue_absences + self.deduction_absences_pointage
         self.net_a_payer = max(0,
             self.salaire_base + self.total_primes
             - deduction_totale
             - self.total_avances_deduites
+            + total_avances_ce_mois
         )
         self.save()
         return self.net_a_payer

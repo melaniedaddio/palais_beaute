@@ -9,12 +9,22 @@
     .page-header h1 { font-size: 22px; color: var(--text-dark); margin: 0; }
     .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; }
 
-    .filters-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
-    .filters-bar select, .filters-bar input { padding: 8px 14px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-light); font-size: 14px; }
-    .filters-bar button.filter { padding: 8px 20px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+    .filters-bar { display: flex; gap: 10px; margin-bottom: 24px; align-items: center; }
+    .filters-bar select, .filters-bar input[type="month"] {
+        height: 40px; padding: 0 40px 0 16px; border: 1.5px solid var(--border);
+        border-radius: 30px; background: white; font-size: 14px; color: var(--text-dark);
+        font-family: inherit; outline: none; cursor: pointer; transition: border-color .2s;
+    }
+    .filters-bar select {
+        appearance: none; -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 14px center;
+    }
+    .filters-bar input[type="month"] { padding: 0 16px; cursor: default; }
+    .filters-bar select:hover, .filters-bar input[type="month"]:hover { border-color: var(--primary); }
+    .filters-bar button.filter { display: none; }
 
-    .layout { display: grid; grid-template-columns: 1fr 280px; gap: 24px; align-items: start; }
-    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+    .layout { display: flex; flex-direction: column; gap: 24px; }
 
     .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(212,175,122,0.10); border: 1px solid var(--border); }
     table { width: 100%; border-collapse: collapse; }
@@ -28,11 +38,11 @@
     .total-banner .label { font-size: 14px; opacity: 0.85; }
     .total-banner .val { font-size: 28px; font-weight: 700; }
 
-    /* Sidebar résumé */
-    .sidebar-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid var(--border); box-shadow: 0 2px 10px rgba(212,175,122,0.08); margin-bottom: 16px; }
-    .sidebar-card h3 { font-size: 14px; font-weight: 700; color: var(--text-dark); margin: 0 0 14px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .cat-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-    .cat-row:last-child { border-bottom: none; }
+    /* Résumé par catégorie (sous le tableau) */
+    .sidebar-card { background: white; border-radius: 16px; padding: 16px 20px; border: 1px solid var(--border); box-shadow: 0 2px 10px rgba(212,175,122,0.08); }
+    .sidebar-card h3 { font-size: 13px; font-weight: 700; color: var(--text-dark); margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .cat-list { display: flex; flex-wrap: wrap; gap: 10px; }
+    .cat-row { display: flex; align-items: center; gap: 8px; background: var(--bg-light); border-radius: 20px; padding: 5px 14px; font-size: 13px; border: 1px solid var(--border); }
     .cat-nom { color: var(--text-dark); }
     .cat-montant { font-weight: 700; color: #e74c3c; }
 
@@ -75,28 +85,30 @@
         <button class="btn-primary" onclick="document.getElementById('modalDepense').style.display='flex'">+ Enregistrer une dépense</button>
     </div>
 
-    <div class="links-bar">
-        <a href="{% url 'gestion:depenses_liste' %}" class="link-btn active">Informelles</a>
-        <a href="{% url 'gestion:depenses_recurrentes' %}" class="link-btn">Récurrentes</a>
-        <a href="{% url 'gestion:depenses_parametres' %}" class="link-btn">Paramètres</a>
+    {% if not is_manager %}
+    <div class="page-tabs">
+        <a href="{% url 'gestion:depenses_liste' %}" class="page-tab active">Informelles</a>
+        <a href="{% url 'gestion:depenses_recurrentes' %}" class="page-tab">Récurrentes</a>
     </div>
+    {% endif %}
 
     <form method="get" class="filters-bar">
-        <input type="month" name="mois" value="{{ mois|date:'Y-m' }}">
-        <select name="categorie">
+        <input type="month" name="mois" value="{{ mois|date:'Y-m' }}" onchange="this.form.submit()">
+        <select name="categorie" onchange="this.form.submit()">
             <option value="tous" {% if categorie_id == 'tous' %}selected{% endif %}>Toutes catégories</option>
             {% for cat in categories %}
             <option value="{{ cat.id }}" {% if categorie_id == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.nom }}</option>
             {% endfor %}
         </select>
-        <select name="institut">
+        {% if not is_manager %}
+        <select name="institut" onchange="this.form.submit()">
             <option value="tous" {% if institut_code == 'tous' %}selected{% endif %}>Tous les instituts</option>
             {% for inst in instituts %}
             <option value="{{ inst.code }}" {% if institut_code == inst.code %}selected{% endif %}>{{ inst.nom }}</option>
             {% endfor %}
             <option value="autres" {% if institut_code == 'autres' %}selected{% endif %}>Non assigné</option>
         </select>
-        <button type="submit" class="filter">Filtrer</button>
+        {% endif %}
     </form>
 
     {% if total > 0 %}
@@ -134,7 +146,7 @@
                         <td><span class="badge-mode">{{ d.get_mode_paiement_display }}</span></td>
                         <td class="text-right" style="font-weight:700;color:#e74c3c;">{{ d.montant|floatformat:0 }} CFA</td>
                         <td>
-                            {% if request.user.role == 'patron' or d.cree_par == request.user %}
+                            {% if not is_manager %}
                             <button class="btn-icon" onclick="supprimerDepense({{ d.id }}, {{ d.montant }})" title="Supprimer">🗑️</button>
                             {% endif %}
                         </td>
@@ -153,15 +165,15 @@
             </table>
         </div>
 
-        <!-- Sidebar résumé par catégorie -->
+        <!-- Résumé par catégorie -->
         {% if par_categorie %}
-        <div>
-            <div class="sidebar-card">
-                <h3>Par catégorie</h3>
+        <div class="sidebar-card">
+            <h3>Par catégorie</h3>
+            <div class="cat-list">
                 {% for nom, montant in par_categorie %}
                 <div class="cat-row">
                     <span class="cat-nom">{{ nom }}</span>
-                    <span class="cat-montant">{{ montant|floatformat:0 }}</span>
+                    <span class="cat-montant">{{ montant|floatformat:0 }} CFA</span>
                 </div>
                 {% endfor %}
             </div>
@@ -203,15 +215,24 @@
             <div class="form-row">
                 <div class="form-group">
                     <label>Institut</label>
+                    {% if is_manager %}
+                    <input type="text" value="{{ manager_institut.nom }}" disabled style="background:var(--bg-section);color:var(--text-light);">
+                    <input type="hidden" name="institut_code" value="{{ manager_institut.code }}">
+                    {% else %}
                     <select name="institut_code">
                         <option value="">— Non assigné —</option>
                         {% for inst in instituts %}
                         <option value="{{ inst.code }}">{{ inst.nom }}</option>
                         {% endfor %}
                     </select>
+                    {% endif %}
                 </div>
                 <div class="form-group">
                     <label>Mode de paiement</label>
+                    {% if is_manager %}
+                    <input type="text" value="Espèces" disabled style="background:var(--bg-section);color:var(--text-light);">
+                    <input type="hidden" name="mode_paiement" value="especes">
+                    {% else %}
                     <select name="mode_paiement">
                         <option value="especes">Espèces</option>
                         <option value="virement">Virement</option>
@@ -221,6 +242,7 @@
                         <option value="wave">Wave</option>
                         <option value="autre">Autre</option>
                     </select>
+                    {% endif %}
                 </div>
             </div>
             <div class="form-group">

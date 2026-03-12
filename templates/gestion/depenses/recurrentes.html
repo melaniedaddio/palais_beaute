@@ -57,10 +57,9 @@
         <button class="btn-primary" onclick="openModal()">+ Ajouter une récurrente</button>
     </div>
 
-    <div class="links-bar">
-        <a href="{% url 'gestion:depenses_liste' %}" class="link-btn">Informelles</a>
-        <a href="{% url 'gestion:depenses_recurrentes' %}" class="link-btn active">Récurrentes</a>
-        <a href="{% url 'gestion:depenses_parametres' %}" class="link-btn">Paramètres</a>
+    <div class="page-tabs">
+        <a href="{% url 'gestion:depenses_liste' %}" class="page-tab">Informelles</a>
+        <a href="{% url 'gestion:depenses_recurrentes' %}" class="page-tab active">Récurrentes</a>
     </div>
 
     <div class="card">

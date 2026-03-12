@@ -470,7 +470,12 @@
 <div class="catalogue-wrapper">
     <div class="sticky-header">
         <!-- Ligne 1 : Titre seul -->
-        <h1 class="catalogue-title" style="margin-bottom:16px;">Catalogue des Prestations</h1>
+        <h1 class="catalogue-title" style="margin-bottom:16px;">Paramètres</h1>
+        <div class="page-tabs" style="margin-bottom:16px;">
+            <a href="{% url 'gestion:catalogue' %}" class="page-tab active">Catalogue</a>
+            <a href="{% url 'gestion:stocks_parametres' %}" class="page-tab">Stocks</a>
+            <a href="{% url 'gestion:depenses_parametres' %}" class="page-tab">Dépenses</a>
+        </div>
 
         <!-- Ligne 2 : Recherche + filtre + boutons -->
         <div class="catalogue-toolbar">

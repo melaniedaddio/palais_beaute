@@ -1797,6 +1797,18 @@ def salaires_calcul(request):
                 calcul.calculer()
             calculs.append(calcul)
 
+        # Avances accordées CE mois-ci → attachées à chaque calcul (affichées en positif)
+        import calendar
+        dernier_jour = calendar.monthrange(mois.year, mois.month)[1]
+        from datetime import date as date_cls
+        fin_mois = date_cls(mois.year, mois.month, dernier_jour)
+        avances_ce_mois = Avance.objects.filter(date__gte=mois, date__lte=fin_mois)
+        avances_mois_par_emp = {}
+        for av in avances_ce_mois:
+            avances_mois_par_emp[av.employe_id] = avances_mois_par_emp.get(av.employe_id, 0) + av.montant
+        for c in calculs:
+            c.avance_accordee_ce_mois = avances_mois_par_emp.get(c.employe_id, 0)
+
         context['calculs'] = calculs
         context['total_net'] = sum(c.net_a_payer for c in calculs)
         context['total_base'] = sum(c.salaire_base for c in calculs)
@@ -2037,7 +2049,7 @@ def stocks_mouvements(request):
     produit_id = request.GET.get('produit', 'tous')
     type_mouv = request.GET.get('type', 'tous')
 
-    mouvements = MouvementStock.objects.select_related('produit', 'cree_par')
+    mouvements = MouvementStock.objects.select_related('produit', 'cree_par', 'institut')
 
     if produit_id != 'tous' and produit_id:
         mouvements = mouvements.filter(produit_id=produit_id)
@@ -2049,12 +2061,20 @@ def stocks_mouvements(request):
     mouvements_page = paginator.get_page(page)
 
     produits = Produit.objects.filter(actif=True).order_by('nom')
+    instituts = Institut.objects.all()
+
+    utilisateur = request.user.utilisateur
+    is_manager = utilisateur.is_manager()
+    manager_institut = utilisateur.institut if is_manager else None
 
     return render(request, 'gestion/stocks/mouvements.html', {
         'mouvements': mouvements_page,
         'produits': produits,
         'produit_id': produit_id,
         'type_mouv': type_mouv,
+        'instituts': instituts,
+        'is_manager': is_manager,
+        'manager_institut': manager_institut,
     })
 
 
@@ -2164,6 +2184,15 @@ def api_mouvement_creer(request):
 
         produit.save()
 
+        utilisateur = request.user.utilisateur if request.user.is_authenticated and hasattr(request.user, 'utilisateur') else None
+
+        # Institut : forcé pour manager, choisi par le patron
+        if utilisateur and utilisateur.is_manager():
+            mouv_institut = utilisateur.institut
+        else:
+            institut_code = request.POST.get('institut_code', '').strip()
+            mouv_institut = Institut.objects.filter(code=institut_code).first() if institut_code else None
+
         MouvementStock.objects.create(
             produit=produit,
             type_mouvement=type_mouv,
@@ -2172,7 +2201,8 @@ def api_mouvement_creer(request):
             quantite_apres=produit.stock_actuel,
             prix_unitaire=int(request.POST.get('prix_unitaire', produit.prix_achat) or produit.prix_achat),
             commentaire=request.POST.get('commentaire', '').strip() or None,
-            cree_par=request.user.utilisateur if request.user.is_authenticated and hasattr(request.user, 'utilisateur') else None,
+            institut=mouv_institut,
+            cree_par=utilisateur,
         )
 
         return JsonResponse({
@@ -2357,9 +2387,18 @@ def api_fournisseur_supprimer(request, pk):
 def depenses_liste(request):
     from django.db.models import Sum
 
+    utilisateur = request.user.utilisateur
+    is_manager = utilisateur.is_manager()
+    manager_institut = utilisateur.institut if is_manager else None
+
     mois_param = request.GET.get('mois', '')
     categorie_id = request.GET.get('categorie', 'tous')
-    institut_code = request.GET.get('institut', 'tous')
+
+    # Manager : toujours filtré sur son institut
+    if is_manager and manager_institut:
+        institut_code = manager_institut.code
+    else:
+        institut_code = request.GET.get('institut', 'tous')
 
     if mois_param:
         try:
@@ -2376,7 +2415,9 @@ def depenses_liste(request):
 
     if categorie_id != 'tous' and categorie_id:
         depenses = depenses.filter(categorie_id=categorie_id)
-    if institut_code != 'tous':
+    if is_manager and manager_institut:
+        depenses = depenses.filter(institut=manager_institut)
+    elif institut_code != 'tous':
         if institut_code == 'autres':
             depenses = depenses.filter(institut__isnull=True)
         else:
@@ -2402,6 +2443,8 @@ def depenses_liste(request):
         'instituts': instituts,
         'categorie_id': categorie_id,
         'institut_code': institut_code,
+        'is_manager': is_manager,
+        'manager_institut': manager_institut,
     })
 
 
@@ -2424,8 +2467,16 @@ def api_depense_creer(request):
         from datetime import datetime
         date_depense = datetime.strptime(date_str, '%Y-%m-%d').date()
 
-        institut_code = request.POST.get('institut_code', '').strip()
-        institut = Institut.objects.filter(code=institut_code).first() if institut_code else None
+        utilisateur = request.user.utilisateur if hasattr(request.user, 'utilisateur') else None
+
+        # Manager : mode forcé espèces, institut forcé sur le sien
+        if utilisateur and utilisateur.is_manager():
+            mode_paiement = 'especes'
+            institut = utilisateur.institut
+        else:
+            mode_paiement = request.POST.get('mode_paiement', 'especes')
+            institut_code = request.POST.get('institut_code', '').strip()
+            institut = Institut.objects.filter(code=institut_code).first() if institut_code else None
 
         depense = Depense.objects.create(
             categorie=get_object_or_404(CategoriDepense, id=categorie_id),
@@ -2434,8 +2485,8 @@ def api_depense_creer(request):
             date=date_depense,
             description=request.POST.get('description', '').strip() or None,
             beneficiaire=request.POST.get('beneficiaire', '').strip(),
-            mode_paiement=request.POST.get('mode_paiement', 'especes'),
-            cree_par=request.user.utilisateur if request.user.is_authenticated and hasattr(request.user, 'utilisateur') else None,
+            mode_paiement=mode_paiement,
+            cree_par=utilisateur,
         )
         return JsonResponse({'success': True, 'message': f'Dépense de {depense.montant} CFA enregistrée'})
     except Exception as e:
@@ -2946,7 +2997,7 @@ def inventaire_nouveau(request):
     produits = Produit.objects.filter(actif=True).select_related('categorie').order_by('categorie__nom', 'nom')
 
     inv = Inventaire.objects.create(
-        date=timezone.now().date(),
+        date=timezone.now(),
         effectue_par=user,
     )
     for p in produits:

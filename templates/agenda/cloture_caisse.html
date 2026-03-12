@@ -128,8 +128,13 @@
                 <thead>
                     <tr>
                         <th>Heure</th>
-                        <th>Espèces calculé</th>
-                        <th>Montant réel</th>
+                        <th>Espèces</th>
+                        <th>Carte</th>
+                        <th>Chèque</th>
+                        <th>OM</th>
+                        <th>Wave</th>
+                        <th style="border-left:2px solid var(--border);">Total CA</th>
+                        <th>Réel espèces</th>
                         <th>Retrait</th>
                         <th>Écart</th>
                         <th>Par</th>
@@ -140,9 +145,16 @@
                     <tr>
                         <td><strong>{{ cloture.date_cloture|date:"H:i" }}</strong></td>
                         <td>{{ cloture.total_especes_calcule|floatformat:0 }} CFA</td>
+                        <td>{% if cloture.total_carte_calcule %}{{ cloture.total_carte_calcule|floatformat:0 }} CFA{% else %}—{% endif %}</td>
+                        <td>{% if cloture.total_cheque_calcule %}{{ cloture.total_cheque_calcule|floatformat:0 }} CFA{% else %}—{% endif %}</td>
+                        <td>{% if cloture.total_om_calcule %}{{ cloture.total_om_calcule|floatformat:0 }} CFA{% else %}—{% endif %}</td>
+                        <td>{% if cloture.total_wave_calcule %}{{ cloture.total_wave_calcule|floatformat:0 }} CFA{% else %}—{% endif %}</td>
+                        <td style="border-left:2px solid var(--border);font-weight:700;">{{ cloture.total_calcule|floatformat:0 }} CFA</td>
                         <td>{{ cloture.montant_reel_especes|floatformat:0 }} CFA</td>
                         <td>{% if cloture.montant_retrait %}<strong style="color:#e67e22;">{{ cloture.montant_retrait|floatformat:0 }} CFA</strong>{% else %}—{% endif %}</td>
-                        <td style="color:#dc3545;">{% if cloture.ecart >= 0 %}+{% endif %}{{ cloture.ecart|floatformat:0 }} CFA</td>
+                        <td style="{% if cloture.ecart < 0 %}color:#dc3545;{% elif cloture.ecart > 0 %}color:#28a745;{% endif %}">
+                            {% if cloture.ecart > 0 %}+{% endif %}{{ cloture.ecart|floatformat:0 }} CFA
+                        </td>
                         <td>{% if cloture.cloture_par %}{{ cloture.cloture_par.user.first_name }}{% else %}—{% endif %}</td>
                     </tr>
                     {% endfor %}
@@ -217,6 +229,20 @@
                         <td colspan="6" style="text-align:center;color:#9b59b6;font-style:italic;">Déjà payé via forfait</td>
                     </tr>
                     {% endif %}
+                    {% if depenses_especes > 0 %}
+                    <tr style="color:#dc3545;">
+                        <td><strong>Dépenses espèces</strong></td>
+                        <td><strong>−{{ depenses_especes|floatformat:0 }} CFA</strong></td>
+                        <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+                    </tr>
+                    {% endif %}
+                    {% if total_sorties_stock > 0 %}
+                    <tr style="color:#e67e22;">
+                        <td><strong>Sorties stock</strong></td>
+                        <td><strong>−{{ total_sorties_stock|floatformat:0 }} CFA</strong></td>
+                        <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+                    </tr>
+                    {% endif %}
                     <tr class="total-row">
                         <td>Total {% if nb_clotures > 0 %}en cours{% else %}du jour{% endif %}</td>
                         <td>{{ total_especes|floatformat:0 }} CFA</td>
@@ -247,6 +273,18 @@
                         <span>Total espèces encaissé {% if nb_clotures > 0 %}(depuis dernière clôture){% endif %}</span>
                         <span>{{ total_especes|floatformat:0 }} CFA</span>
                     </div>
+                    {% if depenses_especes > 0 %}
+                    <div class="calcul-row" style="color:#dc3545;">
+                        <span>Dépenses espèces</span>
+                        <span>−{{ depenses_especes|floatformat:0 }} CFA</span>
+                    </div>
+                    {% endif %}
+                    {% if total_sorties_stock > 0 %}
+                    <div class="calcul-row" style="color:#e67e22;">
+                        <span>Sorties stock</span>
+                        <span>−{{ total_sorties_stock|floatformat:0 }} CFA</span>
+                    </div>
+                    {% endif %}
                     <div class="calcul-row attendu">
                         <span>Montant espèces attendu</span>
                         <span id="montant-attendu">{{ montant_attendu|floatformat:0 }} CFA</span>
