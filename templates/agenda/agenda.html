@@ -1255,13 +1255,16 @@ window.isEmploye = {{ is_employe|yesno:"true,false" }};
 // Timestamps des clôtures du jour (pour détecter les RDV passés en clôture)
 window.clotureDatetimes = {{ clotures_timestamps_json|safe }}.map(s => new Date(s));
 
-// Marquer chaque RDV is_cloture = true si une clôture a été faite après son heure de début
+// Marquer chaque RDV is_cloture = true si une clôture a été faite après sa validation
 (function() {
     Object.values(window.rdvData).forEach(list => {
         list.forEach(rdv => {
             if (rdv.statut !== 'valide') { rdv.is_cloture = false; return; }
-            const rdvDt = new Date(rdv.date + 'T' + rdv.heure_debut + ':00');
-            rdv.is_cloture = window.clotureDatetimes.some(c => c > rdvDt);
+            // Utiliser la date de validation (paiement) si disponible, sinon heure_debut
+            const checkDt = rdv.validation_datetime
+                ? new Date(rdv.validation_datetime)
+                : new Date(rdv.date + 'T' + rdv.heure_debut + ':00');
+            rdv.is_cloture = window.clotureDatetimes.some(c => c > checkDt);
         });
     });
 })();

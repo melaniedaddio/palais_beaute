@@ -45,6 +45,14 @@ def index(request, institut_code):
         statut__in=['annule', 'annule_client']
     ).select_related('client', 'employe', 'prestation', 'prestation__famille', 'groupe').prefetch_related('options_selectionnees__option')
 
+    # Dates de validation (dernier paiement) par RDV validé
+    from django.db.models import Max as DBMax
+    validation_dates = dict(
+        Paiement.objects.filter(
+            rendez_vous__in=rendez_vous.filter(statut='valide')
+        ).values('rendez_vous_id').annotate(last=DBMax('date')).values_list('rendez_vous_id', 'last')
+    )
+
     # Créer la grille horaire (7h à 23h, créneaux de 15min)
     debut_journee = time(7, 0)
     fin_journee = time(23, 0)
@@ -85,6 +93,7 @@ def index(request, institut_code):
                 'famille_id': rdv.famille_id,
                 'prix_base': float(rdv.prix_base),
                 'groupe_prix_total': rdv.groupe.prix_total if rdv.groupe else None,
+                'validation_datetime': validation_dates[rdv.id].isoformat() if rdv.id in validation_dates else None,
             }
             # Ajouter les infos forfait si applicable
             if rdv.est_seance_forfait and rdv.forfait:
@@ -1075,12 +1084,16 @@ def api_rdv_annule_client(request, institut_code, rdv_id):
 
     # RDV validé : vérifier qu'il n'est pas passé en clôture
     if rdv.statut == 'valide':
-        rdv_datetime = timezone.make_aware(datetime.combine(rdv.date, rdv.heure_debut))
+        # Utiliser la date du dernier paiement (= heure de validation réelle)
+        from django.db.models import Max as DBMax
+        last_paiement_date = rdv.paiements.aggregate(last=DBMax('date'))['last']
+        if last_paiement_date is None:
+            last_paiement_date = timezone.make_aware(datetime.combine(rdv.date, rdv.heure_debut))
         est_cloture = ClotureCaisse.objects.filter(
             institut=rdv.institut,
             date=rdv.date,
             cloture=True,
-            date_cloture__gt=rdv_datetime
+            date_cloture__gt=last_paiement_date
         ).exists()
         if est_cloture:
             return JsonResponse({
