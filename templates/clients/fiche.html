@@ -366,12 +366,21 @@
 
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <a href="{% url 'core:clients_list' %}" class="back-btn" style="margin-bottom: 0;">← Retour à la liste</a>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
         {% if request.user.utilisateur.is_patron %}
         <button class="btn-profile btn-profile-primary" onclick="ouvrirModalModifier()"
                 style="width: auto; padding: 9px 20px; font-size: 13px;">
             Modifier le profil
         </button>
         {% endif %}
+        {% if request.user.utilisateur.is_patron or request.user.utilisateur.is_manager %}
+        {% if forfaits_disponibles %}
+        <button onclick="ouvrirModalRenseignerForfait()" style="padding: 9px 20px; background: white; color: #9b59b6; border: 1.5px solid #9b59b6; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+            Renseigner un forfait
+        </button>
+        {% endif %}
+        {% endif %}
+        </div>
     </div>
 
     <div class="fiche-grid">
@@ -592,9 +601,16 @@
             <div class="section-card">
                 <div class="section-header">
                     <h2 class="section-title">Cartes Cadeaux</h2>
-                    <button onclick="ouvrirModalVenteCarte()" style="padding: 7px 16px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
-                        + Vendre une carte
-                    </button>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button onclick="ouvrirModalVenteCarte()" style="padding: 7px 16px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                            + Vendre une carte
+                        </button>
+                        {% if request.user.utilisateur.is_patron or request.user.utilisateur.is_manager %}
+                        <button onclick="ouvrirModalRenseignerCarte()" style="padding: 7px 16px; background: white; color: var(--primary); border: 1.5px solid var(--primary); border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                            Renseigner une carte
+                        </button>
+                        {% endif %}
+                    </div>
                 </div>
 
                 {% if cartes_achetees %}
@@ -1046,6 +1062,108 @@ document.getElementById('modalSupprimerClient').addEventListener('click', functi
     </div>
 </div>
 
+<!-- Modal Renseigner Carte Cadeau (patron + manager uniquement) -->
+{% if request.user.utilisateur.is_patron or request.user.utilisateur.is_manager %}
+<div class="modal" id="modalRenseignerCarte">
+    <div class="modal-content" style="max-width: 520px;">
+        <div id="rcFormulaire">
+            <div class="modal-header">
+                <h2>Renseigner une carte existante</h2>
+            </div>
+            <div style="padding: 10px 14px; background: #f0f4ff; border-radius: 8px; margin-bottom: 18px; font-size: 13px; color: #3a4a8a;">
+                Cette carte n'est pas comptabilisée dans la caisse du jour.
+            </div>
+            <div style="padding: 8px 14px; background: #fdf6ed; border-radius: 8px; margin-bottom: 18px; font-size: 13px; color: #7a5a1e;">
+                Client : <strong>{{ client.get_full_name }}</strong>
+            </div>
+
+            <div class="form-group">
+                <label>Solde actuel (CFA) *</label>
+                <input type="number" id="rcSolde" class="form-control" min="0" step="1000" placeholder="Ex: 30000">
+            </div>
+
+            <div class="form-group">
+                <label>Date d'achat</label>
+                <input type="date" id="rcDateAchat" class="form-control">
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="fermerModalRenseignerCarte()">Annuler</button>
+                <button type="button" class="btn-submit" id="rcBtnValider" onclick="validerRenseignerCarte()">Enregistrer la carte</button>
+            </div>
+        </div>
+
+        <div id="rcConfirmation" style="display:none; text-align:center;">
+            <div style="font-size:18px; font-weight:700; color:#2e7d32; margin-bottom:16px;">Carte cadeau enregistrée !</div>
+            <div style="background:#f0f9f4; border-radius:12px; padding:20px; margin-bottom:20px;">
+                <div style="font-size:26px; font-weight:800; color:var(--primary); letter-spacing:2px; margin-bottom:12px;" id="rcConfirmCode"></div>
+                <p style="margin:6px 0; font-size:14px;">Solde : <strong id="rcConfirmSolde"></strong></p>
+                <p style="margin:6px 0; font-size:14px;">Client : <strong id="rcConfirmBenef"></strong></p>
+            </div>
+            <div class="modal-actions" style="justify-content:center;">
+                <button type="button" class="btn-cancel" onclick="fermerModalRenseignerCarte(); location.reload();">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal Renseigner Forfait (patron + manager uniquement) -->
+{% if request.user.utilisateur.is_patron or request.user.utilisateur.is_manager %}
+{% if forfaits_disponibles %}
+<div class="modal" id="modalRenseignerForfait">
+    <div class="modal-content" style="max-width: 480px;">
+        <div id="rfFormulaire">
+            <div class="modal-header">
+                <h2>Renseigner un forfait existant</h2>
+            </div>
+            <div style="padding: 10px 14px; background: #f5f0ff; border-radius: 8px; margin-bottom: 18px; font-size: 13px; color: #6a3a9a;">
+                Ce forfait n'est pas comptabilisé dans la caisse du jour.
+            </div>
+            <div style="padding: 8px 14px; background: #fdf6ed; border-radius: 8px; margin-bottom: 18px; font-size: 13px; color: #7a5a1e;">
+                Client : <strong>{{ client.get_full_name }}</strong>
+            </div>
+
+            <div class="form-group">
+                <label>Forfait *</label>
+                <select id="rfForfait" class="form-control" onchange="rfMajSeances()">
+                    <option value="">-- Choisir un forfait --</option>
+                    {% for f in forfaits_disponibles %}
+                    <option value="{{ f.id }}" data-seances="{{ f.nombre_seances }}" data-nom="{{ f.nom }}">
+                        {{ f.nom }} — {{ f.nombre_seances }} séances — {{ f.prix|floatformat:0 }} CFA
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Séances déjà utilisées *</label>
+                <input type="number" id="rfNbUtilisees" class="form-control" min="0" value="0" placeholder="0">
+                <div id="rfSeancesInfo" style="font-size:12px; color:#888; margin-top:5px;"></div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="fermerModalRenseignerForfait()">Annuler</button>
+                <button type="button" class="btn-submit" id="rfBtnValider" style="background:#9b59b6;" onclick="validerRenseignerForfait()">Enregistrer le forfait</button>
+            </div>
+        </div>
+
+        <div id="rfConfirmation" style="display:none; text-align:center;">
+            <div style="font-size:18px; font-weight:700; color:#9b59b6; margin-bottom:16px;">Forfait enregistré !</div>
+            <div style="background:#f8f0ff; border-radius:12px; padding:20px; margin-bottom:20px;">
+                <p style="margin:6px 0; font-size:15px; font-weight:700;" id="rfConfirmNom"></p>
+                <p style="margin:6px 0; font-size:14px;">Séances utilisées : <strong id="rfConfirmUtilisees"></strong></p>
+                <p style="margin:6px 0; font-size:14px;">Séances restantes : <strong id="rfConfirmRestantes"></strong></p>
+            </div>
+            <div class="modal-actions" style="justify-content:center;">
+                <button type="button" class="btn-cancel" onclick="fermerModalRenseignerForfait(); location.reload();">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
 <script>
 const VC_CSRF = '{{ csrf_token }}';
 
@@ -1196,5 +1314,156 @@ async function validerVenteCarte() {
     }
 }
 </script>
+
+{% if request.user.utilisateur.is_patron or request.user.utilisateur.is_manager %}
+<script>
+function ouvrirModalRenseignerCarte() {
+    document.getElementById('rcSolde').value = '';
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('rcDateAchat').value = today;
+    document.getElementById('rcFormulaire').style.display = 'block';
+    document.getElementById('rcConfirmation').style.display = 'none';
+    document.getElementById('rcBtnValider').disabled = false;
+    document.getElementById('rcBtnValider').textContent = 'Enregistrer la carte';
+    document.getElementById('modalRenseignerCarte').classList.add('active');
+}
+
+function fermerModalRenseignerCarte() {
+    document.getElementById('modalRenseignerCarte').classList.remove('active');
+}
+
+document.getElementById('modalRenseignerCarte').addEventListener('click', function(e) {
+    if (e.target === this) fermerModalRenseignerCarte();
+});
+
+async function validerRenseignerCarte() {
+    const solde = parseInt(document.getElementById('rcSolde').value) || 0;
+    const dateAchat = document.getElementById('rcDateAchat').value;
+
+    if (solde <= 0) { showError('Veuillez entrer un solde valide'); return; }
+
+    const formData = new FormData();
+    formData.append('acheteur_id', '{{ client.id }}');
+    formData.append('meme_personne', 'true');
+    formData.append('montant_initial', solde);
+    formData.append('solde', solde);
+    if (dateAchat) formData.append('date_achat', dateAchat);
+
+    const btn = document.getElementById('rcBtnValider');
+    btn.disabled = true;
+    btn.textContent = 'Enregistrement...';
+
+    try {
+        const resp = await fetch('{% url "core:api_renseigner_carte_cadeau" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': VC_CSRF },
+            body: formData
+        });
+        const data = await resp.json();
+        if (data.success) {
+            document.getElementById('rcFormulaire').style.display = 'none';
+            document.getElementById('rcConfirmation').style.display = 'block';
+            document.getElementById('rcConfirmCode').textContent = data.carte.code;
+            document.getElementById('rcConfirmSolde').textContent = new Intl.NumberFormat('fr-FR').format(data.carte.solde) + ' CFA';
+            document.getElementById('rcConfirmBenef').textContent = data.carte.beneficiaire;
+        } else {
+            showError(data.message || 'Erreur lors de l\'enregistrement');
+            btn.disabled = false;
+            btn.textContent = 'Enregistrer la carte';
+        }
+    } catch(e) {
+        showError('Erreur: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = 'Enregistrer la carte';
+    }
+}
+</script>
+{% endif %}
+
+{% if request.user.utilisateur.is_patron or request.user.utilisateur.is_manager %}
+{% if forfaits_disponibles %}
+<script>
+function rfMajSeances() {
+    const sel = document.getElementById('rfForfait');
+    const opt = sel.options[sel.selectedIndex];
+    const nb = opt && opt.dataset.seances ? parseInt(opt.dataset.seances) : 0;
+    const input = document.getElementById('rfNbUtilisees');
+    input.max = nb;
+    if (nb > 0) {
+        document.getElementById('rfSeancesInfo').textContent = `Total : ${nb} séances`;
+    } else {
+        document.getElementById('rfSeancesInfo').textContent = '';
+    }
+}
+
+function ouvrirModalRenseignerForfait() {
+    document.getElementById('rfForfait').value = '';
+    document.getElementById('rfNbUtilisees').value = '0';
+    document.getElementById('rfNbUtilisees').max = '';
+    document.getElementById('rfSeancesInfo').textContent = '';
+    document.getElementById('rfFormulaire').style.display = 'block';
+    document.getElementById('rfConfirmation').style.display = 'none';
+    document.getElementById('rfBtnValider').disabled = false;
+    document.getElementById('rfBtnValider').textContent = 'Enregistrer le forfait';
+    document.getElementById('modalRenseignerForfait').classList.add('active');
+}
+
+function fermerModalRenseignerForfait() {
+    document.getElementById('modalRenseignerForfait').classList.remove('active');
+}
+
+document.getElementById('modalRenseignerForfait').addEventListener('click', function(e) {
+    if (e.target === this) fermerModalRenseignerForfait();
+});
+
+async function validerRenseignerForfait() {
+    const prestationId = document.getElementById('rfForfait').value;
+    const nbUtilisees = parseInt(document.getElementById('rfNbUtilisees').value) || 0;
+    const sel = document.getElementById('rfForfait');
+    const opt = sel.options[sel.selectedIndex];
+    const nbTotal = opt && opt.dataset.seances ? parseInt(opt.dataset.seances) : 0;
+
+    if (!prestationId) { showError('Veuillez sélectionner un forfait'); return; }
+    if (nbUtilisees < 0 || nbUtilisees > nbTotal) {
+        showError(`Le nombre de séances utilisées doit être entre 0 et ${nbTotal}`);
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('client_id', '{{ client.id }}');
+    formData.append('prestation_id', prestationId);
+    formData.append('nb_utilisees', nbUtilisees);
+
+    const btn = document.getElementById('rfBtnValider');
+    btn.disabled = true;
+    btn.textContent = 'Enregistrement...';
+
+    try {
+        const resp = await fetch('{% url "core:api_renseigner_forfait" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': VC_CSRF },
+            body: formData
+        });
+        const data = await resp.json();
+        if (data.success) {
+            document.getElementById('rfFormulaire').style.display = 'none';
+            document.getElementById('rfConfirmation').style.display = 'block';
+            document.getElementById('rfConfirmNom').textContent = data.forfait.prestation;
+            document.getElementById('rfConfirmUtilisees').textContent = data.forfait.nb_utilisees + ' / ' + data.forfait.nb_total;
+            document.getElementById('rfConfirmRestantes').textContent = data.forfait.nb_restantes;
+        } else {
+            showError(data.message || 'Erreur lors de l\'enregistrement');
+            btn.disabled = false;
+            btn.textContent = 'Enregistrer le forfait';
+        }
+    } catch(e) {
+        showError('Erreur: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = 'Enregistrer le forfait';
+    }
+}
+</script>
+{% endif %}
+{% endif %}
 
 {% endblock %}

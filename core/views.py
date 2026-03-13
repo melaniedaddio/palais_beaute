@@ -9,7 +9,7 @@ from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.utils import timezone
-from .models import Utilisateur, Client, Employe, CategorieEmploye, Institut, CarteCadeau, UtilisationCarteCadeau, ForfaitClient, RendezVous, Credit, Prestation, Paiement
+from .models import Utilisateur, Client, Employe, CategorieEmploye, Institut, CarteCadeau, UtilisationCarteCadeau, ForfaitClient, SeanceForfait, RendezVous, Credit, Prestation, Paiement
 from .decorators import role_required
 import re
 
@@ -291,11 +291,19 @@ def client_detail(request, pk):
 
     instituts = Institut.objects.all().order_by('nom')
 
+    forfaits_disponibles = list(
+        Prestation.objects.filter(est_forfait=True, actif=True)
+        .select_related('famille')
+        .order_by('famille__nom', 'nom')
+        .values('id', 'nom', 'prix', 'nombre_seances', 'famille__nom')
+    )
+
     return render(request, 'clients/fiche.html', {
         'client': client,
         'rendez_vous': rendez_vous,
         'credits': credits,
         'forfaits': forfaits,
+        'forfaits_disponibles': forfaits_disponibles,
         'cartes_achetees': cartes_achetees,
         'cartes_recues': cartes_recues,
         'instituts': instituts,
@@ -1193,6 +1201,158 @@ def api_carte_cadeau_whatsapp(request, carte_id, destinataire):
 
 @login_required
 @role_required(['patron'])
+@require_POST
+@login_required
+@require_POST
+def api_renseigner_carte_cadeau(request):
+    """API pour enregistrer une carte cadeau pré-existante (hors caisse)."""
+    try:
+        utilisateur = request.user.utilisateur
+        if not (utilisateur.is_patron() or utilisateur.is_manager()):
+            return JsonResponse({'success': False, 'message': 'Accès refusé'}, status=403)
+
+        from datetime import date as date_type
+
+        acheteur_id = request.POST.get('acheteur_id')
+        beneficiaire_id = request.POST.get('beneficiaire_id')
+        meme_personne = request.POST.get('meme_personne') == 'true'
+        montant_initial = int(request.POST.get('montant_initial', 0))
+        solde = int(request.POST.get('solde', montant_initial))
+        date_achat_str = request.POST.get('date_achat', '')
+
+        if not acheteur_id:
+            return JsonResponse({'success': False, 'message': 'Acheteur requis'})
+        if montant_initial <= 0:
+            return JsonResponse({'success': False, 'message': 'Le montant doit être supérieur à 0'})
+        if solde < 0 or solde > montant_initial:
+            return JsonResponse({'success': False, 'message': 'Le solde doit être compris entre 0 et le montant initial'})
+
+        acheteur = Client.objects.get(id=acheteur_id)
+
+        if meme_personne:
+            beneficiaire = acheteur
+        else:
+            if not beneficiaire_id:
+                return JsonResponse({'success': False, 'message': 'Bénéficiaire requis'})
+            beneficiaire = Client.objects.get(id=beneficiaire_id)
+
+        if utilisateur.is_patron():
+            institut = Institut.objects.first()
+        else:
+            institut = utilisateur.institut
+
+        carte = CarteCadeau.objects.create(
+            acheteur=acheteur,
+            beneficiaire=beneficiaire,
+            montant_initial=montant_initial,
+            solde=solde,
+            institut_achat=institut,
+            mode_paiement_achat='especes',
+            vendue_par=utilisateur,
+            montant_paiement_1=montant_initial,
+        )
+
+        # Mettre à jour la date d'achat si fournie (contourne auto_now_add)
+        if date_achat_str:
+            try:
+                from datetime import datetime
+                date_achat = datetime.strptime(date_achat_str, '%Y-%m-%d').date()
+                from django.utils import timezone as tz
+                CarteCadeau.objects.filter(id=carte.id).update(
+                    date_achat=tz.make_aware(datetime.combine(date_achat, datetime.min.time()))
+                )
+            except (ValueError, Exception):
+                pass
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Carte cadeau {carte.code} enregistrée avec succès',
+            'carte': {
+                'id': carte.id,
+                'code': carte.code,
+                'montant_initial': carte.montant_initial,
+                'solde': solde,
+                'beneficiaire': carte.beneficiaire.get_full_name(),
+            }
+        })
+
+    except Client.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Client non trouvé'})
+    except Institut.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Institut non trouvé'})
+    except (ValueError, TypeError):
+        return JsonResponse({'success': False, 'message': 'Données invalides'})
+
+
+@login_required
+@require_POST
+def api_renseigner_forfait(request):
+    """API pour enregistrer un forfait pré-existant (hors caisse)."""
+    try:
+        utilisateur = request.user.utilisateur
+        if not (utilisateur.is_patron() or utilisateur.is_manager()):
+            return JsonResponse({'success': False, 'message': 'Accès refusé'}, status=403)
+
+        client_id = request.POST.get('client_id')
+        prestation_id = request.POST.get('prestation_id')
+        nb_utilisees = int(request.POST.get('nb_utilisees', 0))
+
+        if not client_id or not prestation_id:
+            return JsonResponse({'success': False, 'message': 'Données manquantes'})
+
+        client = Client.objects.get(id=client_id)
+        prestation = Prestation.objects.get(id=prestation_id, est_forfait=True)
+        nb_total = prestation.nombre_seances
+
+        if nb_utilisees < 0 or nb_utilisees > nb_total:
+            return JsonResponse({'success': False, 'message': f'Le nombre de séances utilisées doit être entre 0 et {nb_total}'})
+
+        # Les forfaits sont toujours liés à La Klinic
+        institut = Institut.objects.get(code='klinic')
+
+        from django.db import transaction
+        with transaction.atomic():
+            statut = 'termine' if nb_utilisees >= nb_total else 'actif'
+            forfait = ForfaitClient.objects.create(
+                client=client,
+                prestation=prestation,
+                institut=institut,
+                nombre_seances_total=nb_total,
+                nombre_seances_utilisees=nb_utilisees,
+                prix_total=prestation.prix,
+                montant_paye_initial=0,
+                statut=statut,
+                vendu_par=utilisateur,
+            )
+
+            for i in range(1, nb_total + 1):
+                SeanceForfait.objects.create(
+                    forfait=forfait,
+                    numero=i,
+                    statut='effectuee' if i <= nb_utilisees else 'disponible',
+                )
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Forfait {prestation.nom} enregistré avec succès',
+            'forfait': {
+                'id': forfait.id,
+                'prestation': prestation.nom,
+                'nb_total': nb_total,
+                'nb_utilisees': nb_utilisees,
+                'nb_restantes': nb_total - nb_utilisees,
+            }
+        })
+
+    except Client.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Client non trouvé'})
+    except Prestation.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Forfait non trouvé'})
+    except (ValueError, TypeError):
+        return JsonResponse({'success': False, 'message': 'Données invalides'})
+
+
+@login_required
 @require_POST
 def api_supprimer_carte_cadeau(request, carte_id):
     """API pour supprimer une carte cadeau (patron uniquement)"""
