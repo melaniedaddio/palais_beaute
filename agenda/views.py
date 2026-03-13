@@ -100,11 +100,16 @@ def index(request, institut_code):
     options = Option.objects.filter(institut=institut, actif=True).order_by('nom')
 
     # Vérifier si la caisse est clôturée pour ce jour
-    caisse_cloturee = ClotureCaisse.objects.filter(
+    clotures_du_jour = list(ClotureCaisse.objects.filter(
         institut=institut,
         date=date_selectionnee,
         cloture=True
-    ).exists()
+    ).values_list('date_cloture', flat=True).order_by('date_cloture'))
+
+    caisse_cloturee = bool(clotures_du_jour)
+
+    # Timestamps ISO des clôtures du jour (pour le JS)
+    clotures_timestamps_json = json.dumps([c.isoformat() for c in clotures_du_jour])
 
     # Compter séparément les RDV annulés/absents pour les stats
     rdv_annules_absents_count = RendezVous.objects.filter(
@@ -138,7 +143,6 @@ def index(request, institut_code):
     ca_encaisse = ca_paiements_rdv + credits_encaisses + ca_forfaits_encaisse
 
     # Convertir rdv_par_employe en JSON pour le template
-    import json
     rdv_par_employe_json = json.dumps(rdv_par_employe)
 
     utilisateur = request.user.utilisateur
@@ -151,6 +155,7 @@ def index(request, institut_code):
         'familles': familles,
         'options': options,
         'caisse_cloturee': caisse_cloturee,
+        'clotures_timestamps_json': clotures_timestamps_json,
         'rdv_annules_absents_count': rdv_annules_absents_count,
         'ca_encaisse': ca_encaisse,
         'credits_encaisses': credits_encaisses,
@@ -1062,33 +1067,48 @@ def api_rdv_annule_client(request, institut_code, rdv_id):
             'message': 'Seul le patron peut marquer un RDV comme annulé par le client'
         }, status=403)
 
-    if rdv.statut in ('valide', 'absent', 'annule_client'):
+    if rdv.statut in ('absent', 'annule_client'):
         return JsonResponse({
             'success': False,
             'message': f'Impossible : ce rendez-vous est déjà {rdv.get_statut_display().lower()}'
         }, status=400)
 
+    # RDV validé : vérifier qu'il n'est pas passé en clôture
+    if rdv.statut == 'valide':
+        rdv_datetime = timezone.make_aware(datetime.combine(rdv.date, rdv.heure_debut))
+        est_cloture = ClotureCaisse.objects.filter(
+            institut=rdv.institut,
+            date=rdv.date,
+            cloture=True,
+            date_cloture__gt=rdv_datetime
+        ).exists()
+        if est_cloture:
+            return JsonResponse({
+                'success': False,
+                'message': 'Impossible : ce rendez-vous a déjà été comptabilisé dans une clôture de caisse'
+            }, status=400)
+
     try:
         annuler_groupe = request.POST.get('annuler_groupe') == 'true'
 
         if annuler_groupe and rdv.groupe_id:
-            # Annuler tous les RDVs du groupe (non validés, non déjà annulés)
+            # Annuler tous les RDVs du groupe (planifiés ou validés non-clôturés)
             rdvs_groupe = RendezVous.objects.filter(
                 groupe_id=rdv.groupe_id,
                 institut=institut,
-            ).exclude(statut__in=['valide', 'absent', 'annule_client'])
+            ).exclude(statut__in=['absent', 'annule_client'])
             nb = rdvs_groupe.count()
             rdvs_groupe.update(statut='annule_client')
             return JsonResponse({
                 'success': True,
-                'message': f'{nb} prestation(s) du groupe annulée(s) par le client'
+                'message': f'{nb} prestation(s) du groupe annulée(s)'
             })
         else:
             rdv.statut = 'annule_client'
             rdv.save()
             return JsonResponse({
                 'success': True,
-                'message': 'Rendez-vous marqué comme annulé par le client'
+                'message': 'Rendez-vous annulé'
             })
 
     except Exception as e:

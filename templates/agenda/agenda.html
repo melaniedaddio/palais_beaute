@@ -1252,6 +1252,20 @@ window.caisseCloturee = {{ caisse_cloturee|yesno:"true,false" }};
 window.isPatron = {{ request.user.utilisateur.is_patron|yesno:"true,false" }};
 window.isEmploye = {{ is_employe|yesno:"true,false" }};
 
+// Timestamps des clôtures du jour (pour détecter les RDV passés en clôture)
+window.clotureDatetimes = {{ clotures_timestamps_json|safe }}.map(s => new Date(s));
+
+// Marquer chaque RDV is_cloture = true si une clôture a été faite après son heure de début
+(function() {
+    Object.values(window.rdvData).forEach(list => {
+        list.forEach(rdv => {
+            if (rdv.statut !== 'valide') { rdv.is_cloture = false; return; }
+            const rdvDt = new Date(rdv.date + 'T' + rdv.heure_debut + ':00');
+            rdv.is_cloture = window.clotureDatetimes.some(c => c > rdvDt);
+        });
+    });
+})();
+
 
 // Initialisation
 document.addEventListener('DOMContentLoaded', function() {
@@ -1756,6 +1770,13 @@ function afficherRdvSurGrille() {
                 // Fond coloré dérivé de la couleur de bordure (hex + opacité 22%)
                 card.style.borderLeftColor = couleurBordure;
                 card.style.backgroundColor = couleurBordure + '28';
+
+                // RDV validé passé en clôture : vert plus transparent
+                if (rdv.is_cloture) {
+                    card.style.borderLeftColor = '#28a745';
+                    card.style.backgroundColor = '#28a74518';
+                    card.style.opacity = '0.65';
+                }
                 card.style.height = (rdv.duree_creneaux * 40 - 4) + 'px';
                 card.onclick = function(e) {
                     e.stopPropagation();
@@ -1816,14 +1837,26 @@ function afficherDetailsRdv(rdvId) {
         .then(rdv => {
             hidePageLoader();
             if (rdv.statut === 'planifie') {
+                rdv.is_cloture = false;
                 ouvrirModalActions(rdv);
             } else if (rdv.statut === 'valide') {
-                const prixValidé = (rdv.remise_pourcent > 0)
-                    ? Math.ceil(rdv.prix_total * (100 - rdv.remise_pourcent) / 100 / 1000) * 1000
-                    : rdv.prix_total;
-                const remiseInfo = rdv.remise_pourcent > 0 ? ` (remise ${rdv.remise_pourcent}%)` : '';
-                showInfo('RDV validé - Client: ' + rdv.client + ' | Prestation: ' + rdv.prestation +
-                      ' | Date: ' + rdv.date + ' à ' + rdv.heure_debut + ' | Prix: ' + prixValidé.toLocaleString('fr-FR') + ' CFA' + remiseInfo);
+                // Récupérer is_cloture depuis rdvData (calculé à l'initialisation)
+                let isCloture = true; // par défaut protecteur
+                Object.values(window.rdvData).forEach(list => {
+                    const found = list.find(r => r.id === rdvId);
+                    if (found) isCloture = found.is_cloture || false;
+                });
+                rdv.is_cloture = isCloture;
+                if (window.isPatron && !isCloture) {
+                    ouvrirModalActions(rdv);
+                } else {
+                    const prixValidé = (rdv.remise_pourcent > 0)
+                        ? Math.ceil(rdv.prix_total * (100 - rdv.remise_pourcent) / 100 / 1000) * 1000
+                        : rdv.prix_total;
+                    const remiseInfo = rdv.remise_pourcent > 0 ? ` (remise ${rdv.remise_pourcent}%)` : '';
+                    showInfo('RDV validé - Client: ' + rdv.client + ' | Prestation: ' + rdv.prestation +
+                          ' | Date: ' + rdv.date + ' à ' + rdv.heure_debut + ' | Prix: ' + prixValidé.toLocaleString('fr-FR') + ' CFA' + remiseInfo);
+                }
             } else if (rdv.statut === 'absent' || rdv.statut === 'annule_client') {
                 showInfo('RDV annulé - Client: ' + rdv.client + ' | Prestation: ' + rdv.prestation +
                       ' | Date: ' + rdv.date + ' à ' + rdv.heure_debut);
@@ -1842,7 +1875,7 @@ function ouvrirModalActions(rdv) {
     if (modal) modal.remove();
 
     let patronButtons = '';
-    if (window.isPatron) {
+    if (window.isPatron && !rdv.is_cloture) {
         patronButtons = `
             <button class="btn-popup-action" style="background:white;color:#dc3545;border-color:#dc3545;" onclick="marquerAnnule(${rdv.id})">
                 ✕ Annulé
@@ -1876,6 +1909,7 @@ function ouvrirModalActions(rdv) {
                     <strong>${labelPrestation}</strong> - ${prixLabel} CFA
                 </p>
                 <div style="display:flex;flex-direction:column;">
+                    ${rdv.statut !== 'valide' ? `
                     ${rdv.groupe_id && getRdvsGroupe(rdv.groupe_id).length > 1 ? `
                     <button class="btn-popup-action" style="background:white;color:#c9a86a;border-color:#c9a86a;" onclick="document.getElementById('modal-actions').style.display='none'; ouvrirModalModifierGroupe(window._actionRdv)">
                         ✎ Modifier le groupe
@@ -1888,7 +1922,7 @@ function ouvrirModalActions(rdv) {
                     </button>
                     <button class="btn-popup-action" style="background:#e8b4b8;color:white;border-color:#e8b4b8;" onclick="document.getElementById('modal-actions').style.display='none'; ouvrirModalValidation(${rdv.id})">
                         ✓ Valider le RDV
-                    </button>
+                    </button>` : ''}
                     ${patronButtons}
                 </div>
             </div>
