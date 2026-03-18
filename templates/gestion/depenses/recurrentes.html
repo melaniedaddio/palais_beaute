@@ -164,7 +164,7 @@
 
 {% block extra_js %}
 <script>
-const CSRF = '{{ csrf_token }}';
+const CSRF = typeof getCsrfToken === 'function' ? getCsrfToken() : '{{ csrf_token }}';
 
 async function valider(valId) {
     if (!confirm('Valider et créer la dépense pour ce mois ?')) return;

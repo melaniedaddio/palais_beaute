@@ -512,7 +512,7 @@
 </div>
 
 <script>
-const CSRF = '{{ csrf_token }}';
+const CSRF = typeof getCsrfToken === 'function' ? getCsrfToken() : '{{ csrf_token }}';
 const IS_PATRON = {{ request.user.utilisateur.is_patron|lower }};
 // Navigation row → fiche (sauf clic sur kebab)
 function goToClient(event, url) {

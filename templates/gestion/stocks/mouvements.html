@@ -220,7 +220,7 @@
 
 {% block extra_js %}
 <script>
-const CSRF = '{{ csrf_token }}';
+const CSRF = typeof getCsrfToken === 'function' ? getCsrfToken() : '{{ csrf_token }}';
 
 function majModal() {
     const type = document.getElementById('m_type').value;

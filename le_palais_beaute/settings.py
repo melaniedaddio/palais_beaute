@@ -151,7 +151,7 @@ SESSION_COOKIE_SECURE = _USE_SSL
 SESSION_COOKIE_HTTPONLY = True  # Pas accessible via JavaScript
 SESSION_COOKIE_SAMESITE = 'Lax'  # Protection CSRF
 CSRF_COOKIE_SECURE = _USE_SSL
-CSRF_COOKIE_HTTPONLY = True  # Pas accessible via JavaScript
+CSRF_COOKIE_HTTPONLY = False  # Accessible via JavaScript pour les requêtes AJAX
 CSRF_COOKIE_SAMESITE = 'Lax'  # Protection CSRF
 
 # Sécurité générale

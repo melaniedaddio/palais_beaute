@@ -788,7 +788,7 @@
 </div>
 
 <script>
-const CSRF = '{{ csrf_token }}';
+const CSRF = typeof getCsrfToken === 'function' ? getCsrfToken() : '{{ csrf_token }}';
 
 function ouvrirModalModifier() {
     document.getElementById('modalModifier').classList.add('active');
@@ -1165,7 +1165,7 @@ document.getElementById('modalSupprimerClient').addEventListener('click', functi
 {% endif %}
 
 <script>
-const VC_CSRF = '{{ csrf_token }}';
+const VC_CSRF = typeof getCsrfToken === 'function' ? getCsrfToken() : '{{ csrf_token }}';
 
 function ouvrirModalVenteCarte() {
     document.getElementById('vcBeneficiaireId').value = '';

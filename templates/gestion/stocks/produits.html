@@ -289,7 +289,7 @@
 
 {% block extra_js %}
 <script>
-const CSRF = '{{ csrf_token }}';
+const CSRF = typeof getCsrfToken === 'function' ? getCsrfToken() : '{{ csrf_token }}';
 let modeEdit = false;
 
 function ouvrirModalMouvement(id, nom, stock, prix) {

@@ -388,7 +388,7 @@
 
 {% block extra_js %}
 <script>
-const CSRF = '{{ csrf_token }}';
+const CSRF = typeof getCsrfToken === 'function' ? getCsrfToken() : '{{ csrf_token }}';
 const URL_POINTER = "{% url 'gestion:api_pointer' %}";
 
 // Horaires théoriques par employé (depuis le contexte Django)

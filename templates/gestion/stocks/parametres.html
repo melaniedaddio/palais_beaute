@@ -204,7 +204,7 @@
 
 {% block extra_js %}
 <script>
-const CSRF = '{{ csrf_token }}';
+const CSRF = typeof getCsrfToken === 'function' ? getCsrfToken() : '{{ csrf_token }}';
 
 const URLS = {
     categorie:   { creer: "{% url 'gestion:api_categorie_produit_creer' %}", modifier: '/gestion/stocks/api/categorie/', supprimer: '/gestion/stocks/api/categorie/' },

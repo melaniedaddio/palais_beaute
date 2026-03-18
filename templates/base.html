@@ -72,6 +72,11 @@
             transform: translateX(-100%);
         }
 
+        .sidebar.no-transition,
+        .sidebar.no-transition ~ * {
+            transition: none !important;
+        }
+
         .sidebar-header {
             padding: 30px 20px;
             border-bottom: 1px solid var(--border);
@@ -228,6 +233,10 @@
             max-width: 100%;
             transition: margin-left 0.3s ease;
             animation: pageFadeIn 0.2s ease;
+        }
+
+        .main-content.no-transition {
+            transition: none !important;
         }
 
         /* Onglets de navigation intra-page (Activité / Dashboard / Crédits) */
@@ -1927,6 +1936,23 @@
     window.validateAndSubmit = validateAndSubmit;
     </script>
 
+    <!-- Utilitaires CSRF globaux -->
+    <script>
+    // Lire le token CSRF depuis le cookie (toujours à jour, même après navigation bfcache)
+    function getCsrfToken() {
+        const name = 'csrftoken';
+        const cookie = document.cookie.split(';').find(c => c.trim().startsWith(name + '='));
+        return cookie ? decodeURIComponent(cookie.trim().slice(name.length + 1)) : '{{ csrf_token }}';
+    }
+
+    // Recharger la page si elle est restaurée depuis le bfcache (évite les tokens CSRF périmés)
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) {
+            location.reload();
+        }
+    });
+    </script>
+
     <!-- Script menu mobile -->
     <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -1974,15 +2000,24 @@
             document.body.style.overflow = '';
         }
 
-        // Restaurer l'état du menu depuis localStorage
+        // Restaurer l'état du menu depuis localStorage SANS animation
+        sidebar.classList.add('no-transition');
+        if (mainContent) mainContent.classList.add('no-transition');
+
         const menuState = localStorage.getItem('menuOpen');
         if (menuState === 'false') {
-            // Menu fermé
             closeMenu();
         } else {
-            // Menu ouvert (défaut ou explicitement ouvert)
             openMenu();
         }
+
+        // Réactiver les transitions après le premier rendu
+        requestAnimationFrame(function() {
+            requestAnimationFrame(function() {
+                sidebar.classList.remove('no-transition');
+                if (mainContent) mainContent.classList.remove('no-transition');
+            });
+        });
 
         if (mobileMenuBtn) {
             mobileMenuBtn.addEventListener('click', toggleMenu);

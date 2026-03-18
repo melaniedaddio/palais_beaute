@@ -379,7 +379,7 @@
 
 {% block extra_js %}
 <script>
-const CSRF = '{{ csrf_token }}';
+const CSRF = typeof getCsrfToken === 'function' ? getCsrfToken() : '{{ csrf_token }}';
 const URL_VALIDER = "{% url 'gestion:api_valider_journee' %}";
 const URL_MODIFIER = "{% url 'gestion:api_modifier_pointage' %}";
 

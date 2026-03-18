@@ -252,7 +252,7 @@
 
 {% block extra_js %}
 <script>
-const CSRF = '{{ csrf_token }}';
+const CSRF = typeof getCsrfToken === 'function' ? getCsrfToken() : '{{ csrf_token }}';
 
 /* ── Catégories ── */
 const TYPE_LABELS = { informelle: 'Informelle', recurrente: 'Récurrente', les_deux: 'Les deux' };
