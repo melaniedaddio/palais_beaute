@@ -1142,9 +1142,14 @@ def api_rechercher_cartes_client(request):
 def imprimer_carte_cadeau(request, carte_id):
     """Génère la page d'impression du bon cadeau."""
     carte = get_object_or_404(
-        CarteCadeau.objects.select_related('acheteur', 'beneficiaire'),
+        CarteCadeau.objects.select_related('acheteur', 'beneficiaire', 'institut_achat'),
         id=carte_id,
     )
+    utilisateur = request.user.utilisateur
+    # Le patron a accès à toutes les cartes ; les managers/employés uniquement à leur institut
+    if not utilisateur.is_patron() and carte.institut_achat != utilisateur.institut:
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("Accès refusé")
     return render(request, 'cartes_cadeaux/bon_cadeau_print.html', {
         'carte': carte,
     })

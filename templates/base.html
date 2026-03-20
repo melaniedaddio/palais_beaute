@@ -1329,11 +1329,13 @@
             <div class="toast-icon">${icons[type] || icons.info}</div>
             <div class="toast-content">
                 <div class="toast-title">${titles[type] || titles.info}</div>
-                <div class="toast-message">${message}</div>
+                <div class="toast-message"></div>
             </div>
             <button class="toast-close" aria-label="Fermer">&times;</button>
             ${duration > 0 ? '<div class="toast-progress"></div>' : ''}
         `;
+        // Injecter le message via textContent pour éviter toute injection XSS
+        toast.querySelector('.toast-message').textContent = message;
 
         // Ajouter le toast au container
         container.appendChild(toast);
@@ -1632,10 +1634,13 @@
         // Créer le message d'erreur
         const errorDiv = document.createElement('div');
         errorDiv.className = 'field-error';
-        errorDiv.innerHTML = `
-            <span class="field-error-icon">⚠</span>
-            <span>${message}</span>
-        `;
+        const errorIcon = document.createElement('span');
+        errorIcon.className = 'field-error-icon';
+        errorIcon.textContent = '⚠';
+        const errorText = document.createElement('span');
+        errorText.textContent = message;
+        errorDiv.appendChild(errorIcon);
+        errorDiv.appendChild(errorText);
 
         // Insérer après le champ
         field.parentNode.insertBefore(errorDiv, field.nextSibling);
@@ -1670,10 +1675,13 @@
         if (message) {
             const successDiv = document.createElement('div');
             successDiv.className = 'field-success';
-            successDiv.innerHTML = `
-                <span class="field-success-icon">✓</span>
-                <span>${message}</span>
-            `;
+            const successIcon = document.createElement('span');
+            successIcon.className = 'field-success-icon';
+            successIcon.textContent = '✓';
+            const successText = document.createElement('span');
+            successText.textContent = message;
+            successDiv.appendChild(successIcon);
+            successDiv.appendChild(successText);
             field.parentNode.insertBefore(successDiv, field.nextSibling);
         }
     }
