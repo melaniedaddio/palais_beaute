@@ -85,7 +85,7 @@ def index(request, institut_code):
                 'remise_pourcent': rdv.remise_pourcent or 0,
                 'statut': rdv.statut,
                 'couleur': rdv.prestation.famille.couleur,
-                'options': [opt.option.nom for opt in rdv.options_selectionnees.all()],
+                'options': [{'id': opt.option.id, 'nom': opt.option.nom, 'quantite': opt.quantite, 'prix': float(opt.prix_unitaire)} for opt in rdv.options_selectionnees.all()],
                 'est_seance_forfait': rdv.est_seance_forfait,
                 'groupe_id': rdv.groupe_id,
                 'groupe_duree_personnalisee': rdv.groupe.duree_personnalisee if rdv.groupe else None,
@@ -149,7 +149,22 @@ def index(request, institut_code):
     ca_forfaits_reel = forfaits_du_jour.aggregate(total=Sum('prix_total'))['total'] or 0
     ca_forfaits_encaisse = forfaits_du_jour.aggregate(total=Sum('montant_paye_initial'))['total'] or 0
 
-    ca_encaisse = ca_paiements_rdv + credits_encaisses + ca_forfaits_encaisse
+    # Ventes de cartes cadeaux du jour (cash réellement reçu)
+    from core.models import CarteCadeau as _CarteCadeau
+    ca_ventes_cartes_jour = _CarteCadeau.objects.filter(
+        institut_achat=institut,
+        date_achat__date=date_selectionnee
+    ).aggregate(total=Sum('montant_initial'))['total'] or 0
+
+    # Utilisation de cartes cadeaux pour des RDV (déjà compté lors de la vente)
+    ca_carte_cadeau_utilisation = Paiement.objects.filter(
+        rendez_vous__institut=institut,
+        rendez_vous__date=date_selectionnee,
+        rendez_vous__statut='valide',
+        mode='carte_cadeau'
+    ).aggregate(total=Sum('montant'))['total'] or 0
+
+    ca_encaisse = ca_paiements_rdv + credits_encaisses + ca_forfaits_encaisse + ca_ventes_cartes_jour
 
     # Convertir rdv_par_employe en JSON pour le template
     rdv_par_employe_json = json.dumps(rdv_par_employe)
@@ -170,6 +185,8 @@ def index(request, institut_code):
         'credits_encaisses': credits_encaisses,
         'ca_forfaits_reel': ca_forfaits_reel,
         'ca_forfaits_encaisse': ca_forfaits_encaisse,
+        'ca_ventes_cartes_jour': ca_ventes_cartes_jour,
+        'ca_carte_cadeau_utilisation': ca_carte_cadeau_utilisation,
         'is_employe': utilisateur.is_employe(),
     }
 
@@ -847,6 +864,10 @@ def api_rdv_modifier(request, institut_code, rdv_id):
 
         rdv.save()
 
+        # Mettre à jour le total du groupe si le RDV en fait partie
+        if rdv.groupe:
+            rdv.groupe.recalculer_totaux()
+
         # Durée personnalisée : modifier heure_fin de CE RDV uniquement, sans toucher au groupe
         duree_personnalisee = request.POST.get('duree_personnalisee')
         if duree_personnalisee:
@@ -1151,7 +1172,7 @@ def api_rdv_client_jour(request, institut_code, rdv_id):
     prix_total_global = 0
 
     for rdv in rdvs_client:
-        options = rdv.options_selectionnees.select_related('option')
+        options = rdv.options_selectionnees.all()
         rdv_data = {
             'id': rdv.id,
             'client': rdv.client.get_full_name(),
@@ -1168,17 +1189,10 @@ def api_rdv_client_jour(request, institut_code, rdv_id):
         rdvs_data.append(rdv_data)
         prix_total_global += rdv.prix_total
 
-    # Si tous les RDV ont un groupe avec un prix personnalisé, l'utiliser comme base
-    groupe_prix_custom = None
-    if rdvs_data:
-        premier_rdv = rdvs_client.first()
-        if premier_rdv and premier_rdv.groupe and premier_rdv.groupe.prix_total:
-            groupe_prix_custom = float(premier_rdv.groupe.prix_total)
-
     return JsonResponse({
         'success': True,
         'rdvs': rdvs_data,
-        'prix_total_global': groupe_prix_custom if groupe_prix_custom else float(prix_total_global),
+        'prix_total_global': float(prix_total_global),
         'client': rdv_actuel.client.get_full_name(),
         'date': rdv_actuel.date.strftime('%d/%m/%Y'),
         'nb_rdvs': len(rdvs_data)
@@ -1495,6 +1509,10 @@ def cloture_caisse(request, institut_code):
         om=models.Sum('total_om_calcule'),
         wave=models.Sum('total_wave_calcule'),
     )
+
+    # CA du jour = argent réellement encaissé (toutes les clôtures + en cours)
+    # Inclut les ventes de cartes cadeaux (cash reçu aujourd'hui)
+    # Exclut l'utilisation de cartes cadeaux (cash déjà compté lors de la vente)
     total_jour = (
         (totaux_clotures['especes'] or 0) + total_especes_encours
         + (totaux_clotures['carte'] or 0) + total_carte_encours
@@ -1822,12 +1840,33 @@ def api_groupe_modifier(request, institut_code, groupe_id):
                     rdv_obj.famille = new_prest.famille
                     prix_base_val = item.get('prix_base')
                     rdv_obj.prix_base = int(Decimal(str(prix_base_val))) if prix_base_val is not None else int(new_prest.prix)
-                    rdv_obj.prix_total = rdv_obj.prix_base + rdv_obj.prix_options
+                # Mettre à jour les options si fournies
+                options_data = item.get('options_data')
+                if options_data is not None:
+                    rdv_obj.options_selectionnees.all().delete()
+                    prix_options = Decimal('0')
+                    if options_data:
+                        option_ids = [opt['id'] for opt in options_data]
+                        options_objs = Option.objects.filter(id__in=option_ids)
+                        quantites_map = {str(opt['id']): int(opt['quantite']) for opt in options_data}
+                        for opt in options_objs:
+                            qte = quantites_map.get(str(opt.id), 1)
+                            RendezVousOption.objects.create(
+                                rendez_vous=rdv_obj, option=opt,
+                                prix_unitaire=opt.prix, quantite=qte,
+                                prix_total=opt.prix * qte
+                            )
+                            prix_options += opt.prix * qte
+                    rdv_obj.prix_options = prix_options
+                rdv_obj.prix_total = rdv_obj.prix_base + rdv_obj.prix_options
                 rdv_obj.save()
             except (RendezVous.DoesNotExist, KeyError, ValueError):
                 pass
 
-        # --- Prix total groupe forcé ---
+        # --- Recalculer le total groupe depuis les RDVs individuels (prix_base + prix_options) ---
+        groupe.recalculer_totaux()
+
+        # --- Override avec le prix total envoyé par le frontend si explicitement fourni ---
         groupe_prix_total = data.get('groupe_prix_total')
         if groupe_prix_total is not None:
             try:

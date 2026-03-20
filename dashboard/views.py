@@ -1190,8 +1190,8 @@ def export_rdv_excel(request):
 
     # Construire le queryset
     rdvs = RendezVous.objects.filter(statut='valide').select_related(
-        'client', 'employe', 'institut', 'prestation'
-    ).prefetch_related('paiements').order_by('-date', '-heure_debut')
+        'client', 'employe', 'institut', 'prestation', 'groupe'
+    ).prefetch_related('paiements', 'options_selectionnees__option').order_by('-date', '-heure_debut')
 
     if date_debut:
         rdvs = rdvs.filter(date__gte=date_debut)
@@ -1212,29 +1212,101 @@ def export_rdv_excel(request):
         ws.cell(row=1, column=col, value=header)
         ws.cell(row=1, column=col).font = openpyxl.styles.Font(bold=True)
 
-    # Données
-    row = 2
-    for rdv in rdvs:
-        paiements = rdv.paiements.all()
-        especes = sum(p.montant for p in paiements if p.mode == 'especes')
-        carte   = sum(p.montant for p in paiements if p.mode == 'carte')
-        cheque  = sum(p.montant for p in paiements if p.mode == 'cheque')
-        om      = sum(p.montant for p in paiements if p.mode == 'om')
-        wave    = sum(p.montant for p in paiements if p.mode == 'wave')
+    # Données RDV — regrouper tous les RDV d'un même client le même jour en une seule ligne
+    from collections import defaultdict
 
-        ws.cell(row=row, column=1,  value=rdv.date.strftime('%d/%m/%Y'))
-        ws.cell(row=row, column=2,  value=rdv.heure_debut.strftime('%H:%M'))
-        ws.cell(row=row, column=3,  value=rdv.institut.nom)
-        ws.cell(row=row, column=4,  value=rdv.client.get_full_name())
-        ws.cell(row=row, column=5,  value=rdv.client.telephone)
-        ws.cell(row=row, column=6,  value=rdv.employe.nom)
-        ws.cell(row=row, column=7,  value=rdv.prestation.nom if rdv.prestation else '')
-        ws.cell(row=row, column=8,  value=int(rdv.prix_total))
+    rdvs_list = list(rdvs)
+    client_day_map = defaultdict(list)
+    for rdv in rdvs_list:
+        client_day_map[(rdv.client_id, rdv.date)].append(rdv)
+
+    all_rows = list(client_day_map.values())
+    all_rows.sort(key=lambda rdv_list: (rdv_list[0].date, rdv_list[0].heure_debut), reverse=True)
+
+    def _paiements_sums(rdv_list):
+        especes = carte = cheque = om = wave = 0
+        for rdv in rdv_list:
+            for p in rdv.paiements.all():
+                if p.mode == 'especes':  especes += int(p.montant)
+                elif p.mode == 'carte':  carte   += int(p.montant)
+                elif p.mode == 'cheque': cheque  += int(p.montant)
+                elif p.mode == 'om':     om      += int(p.montant)
+                elif p.mode == 'wave':   wave    += int(p.montant)
+                # carte_cadeau = utilisation d'une carte déjà encaissée → non comptée
+        return especes, carte, cheque, om, wave
+
+    def _rdv_label(rdv):
+        """Nom de prestation + options sélectionnées."""
+        nom = rdv.prestation.nom if rdv.prestation else ''
+        options = [o.option.nom for o in rdv.options_selectionnees.all() if o.option]
+        if options:
+            nom += ' (' + ', '.join(options) + ')'
+        return nom
+
+    row = 2
+    for rdv_list in all_rows:
+        rdv_list_sorted = sorted(rdv_list, key=lambda r: r.heure_debut)
+        premier = rdv_list_sorted[0]
+        montant_total = sum(int(r.prix_total) for r in rdv_list)
+        especes, carte, cheque, om, wave = _paiements_sums(rdv_list)
+        prestations = ' + '.join(_rdv_label(r) for r in rdv_list_sorted)
+        employes = ' / '.join(dict.fromkeys(r.employe.nom for r in rdv_list_sorted))
+
+        ws.cell(row=row, column=1,  value=premier.date.strftime('%d/%m/%Y'))
+        ws.cell(row=row, column=2,  value=premier.heure_debut.strftime('%H:%M'))
+        ws.cell(row=row, column=3,  value=premier.institut.nom)
+        ws.cell(row=row, column=4,  value=premier.client.get_full_name())
+        ws.cell(row=row, column=5,  value=premier.client.telephone)
+        ws.cell(row=row, column=6,  value=employes)
+        ws.cell(row=row, column=7,  value=prestations)
+        ws.cell(row=row, column=8,  value=montant_total)
         ws.cell(row=row, column=9,  value=especes or None)
         ws.cell(row=row, column=10, value=carte   or None)
         ws.cell(row=row, column=11, value=cheque  or None)
         ws.cell(row=row, column=12, value=om      or None)
         ws.cell(row=row, column=13, value=wave    or None)
+        row += 1
+
+    # Ventes de cartes cadeaux
+    from core.models import CarteCadeau
+    cartes_qs = CarteCadeau.objects.select_related('beneficiaire', 'institut_achat').order_by('-date_achat')
+    if date_debut:
+        cartes_qs = cartes_qs.filter(date_achat__date__gte=date_debut)
+    if date_fin:
+        cartes_qs = cartes_qs.filter(date_achat__date__lte=date_fin)
+    if institut_code:
+        cartes_qs = cartes_qs.filter(institut_achat__code=institut_code)
+
+    for carte_obj in cartes_qs:
+        montant = int(carte_obj.montant_initial)
+        m1 = carte_obj.mode_paiement_achat
+        mt1 = int(carte_obj.montant_paiement_1) if carte_obj.montant_paiement_1 else montant
+        m2 = carte_obj.moyen_paiement_2
+        mt2 = int(carte_obj.montant_paiement_2) if carte_obj.montant_paiement_2 else 0
+
+        especes_cc = (mt1 if m1 == 'especes' else 0) + (mt2 if m2 == 'especes' else 0)
+        carte_cc   = (mt1 if m1 == 'carte'   else 0) + (mt2 if m2 == 'carte'   else 0)
+        cheque_cc  = (mt1 if m1 == 'cheque'  else 0) + (mt2 if m2 == 'cheque'  else 0)
+        om_cc      = (mt1 if m1 == 'om'      else 0) + (mt2 if m2 == 'om'      else 0)
+        wave_cc    = (mt1 if m1 == 'wave'    else 0) + (mt2 if m2 == 'wave'    else 0)
+
+        beneficiaire = carte_obj.beneficiaire.get_full_name() if carte_obj.beneficiaire else (carte_obj.nom_beneficiaire or '—')
+        ws.cell(row=row, column=1,  value=carte_obj.date_achat.strftime('%d/%m/%Y'))
+        ws.cell(row=row, column=2,  value=carte_obj.date_achat.strftime('%H:%M'))
+        ws.cell(row=row, column=3,  value=carte_obj.institut_achat.nom if carte_obj.institut_achat else '')
+        ws.cell(row=row, column=4,  value=beneficiaire)
+        ws.cell(row=row, column=5,  value='')
+        ws.cell(row=row, column=6,  value='')
+        ws.cell(row=row, column=7,  value=f'Vente carte cadeau ({carte_obj.code})')
+        ws.cell(row=row, column=8,  value=montant)
+        ws.cell(row=row, column=9,  value=especes_cc or None)
+        ws.cell(row=row, column=10, value=carte_cc   or None)
+        ws.cell(row=row, column=11, value=cheque_cc  or None)
+        ws.cell(row=row, column=12, value=om_cc      or None)
+        ws.cell(row=row, column=13, value=wave_cc    or None)
+        # Mettre en italique pour distinguer des RDVs
+        for col in range(1, 14):
+            ws.cell(row=row, column=col).font = openpyxl.styles.Font(italic=True, color='7B68EE')
         row += 1
 
     # Ajuster la largeur des colonnes

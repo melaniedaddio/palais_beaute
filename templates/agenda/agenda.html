@@ -1736,6 +1736,12 @@ function afficherRdvSurGrille() {
                 const dureeCombinee = rdv.groupe_duree_personnalisee
                     ? Math.ceil(rdv.groupe_duree_personnalisee / 15)
                     : Math.ceil((Math.max(...rdvsGroupe.map(r => toMins(r.heure_fin))) - toMins(earliestDebut)) / 15);
+                // Combiner les options de tous les RDVs du groupe (sans doublons)
+                const optionsGroupeMap = {};
+                rdvsGroupe.forEach(r => (r.options || []).forEach(o => {
+                    const key = typeof o === 'object' ? o.id : o;
+                    if (!optionsGroupeMap[key]) optionsGroupeMap[key] = o;
+                }));
                 rdv = Object.assign({}, rdv, {
                     duree_creneaux: dureeCombinee,
                     heure_debut: earliestDebut,
@@ -1743,6 +1749,7 @@ function afficherRdvSurGrille() {
                     prix_total: prixGroupeTotal,
                     remise_pourcent: 0, // déjà appliquée dans prixGroupeTotal
                     _nb_prestations: rdvsGroupe.length,
+                    options: Object.values(optionsGroupeMap),
                 });
             }
 
@@ -1812,9 +1819,13 @@ function afficherRdvSurGrille() {
                 const remiseBadge = (rdv.remise_pourcent > 0 && !rdv._nb_prestations)
                     ? `<div style="font-size:10px;color:#e67e22;font-weight:600;">-${rdv.remise_pourcent}%</div>`
                     : '';
+                const optionsBadge = (rdv.options && rdv.options.length > 0)
+                    ? `<div style="font-size:10px;color:#888;font-style:italic;">${rdv.options.map(o => typeof o === 'object' ? o.nom : o).join(', ')}</div>`
+                    : '';
                 card.innerHTML = `
                     <div class="rdv-client">${rdv.client}</div>
                     <div class="rdv-prestation">${rdv.prestation}</div>
+                    ${optionsBadge}
                     ${forfaitBadge}
                     ${groupeBadge}
                     <div class="rdv-prix">${prixAffiche.toLocaleString('fr-FR')} CFA</div>
@@ -1891,9 +1902,16 @@ function ouvrirModalActions(rdv) {
     if (rdv.groupe_id && getRdvsGroupe(rdv.groupe_id).length > 1) {
         const groupe = getRdvsGroupe(rdv.groupe_id);
         labelPrestation = groupe.map(r => r.prestation).join(' + ');
+        const allOpts = [];
+        groupe.forEach(r => (r.options || []).forEach(o => { const n = typeof o === 'object' ? o.nom : o; if (!allOpts.includes(n)) allOpts.push(n); }));
+        if (allOpts.length > 0) labelPrestation += ` <span style="font-size:12px;color:#888;font-style:italic;">(${allOpts.join(', ')})</span>`;
         prixLabel = groupe.reduce((s, r) => s + (r.prix_total || 0), 0).toLocaleString('fr-FR');
     } else {
         labelPrestation = rdv.prestation;
+        if (rdv.options && rdv.options.length > 0) {
+            const optNoms = rdv.options.map(o => typeof o === 'object' ? o.nom : o).join(', ');
+            labelPrestation += ` <span style="font-size:12px;color:#888;font-style:italic;">(${optNoms})</span>`;
+        }
         prixLabel = rdv.prix_total.toLocaleString('fr-FR');
     }
 
@@ -2028,6 +2046,29 @@ function ouvrirModalModifierGroupe(rdv) {
     titre.textContent = `Prestations (${rdvsGroupe.length})`;
     body.appendChild(titre);
 
+    // Recalcule le prix total du groupe en sommant prestations + options
+    function recalculerPrixGroupe() {
+        let total = 0;
+        document.querySelectorAll('[id^="mg-prestation-"]').forEach(sel => {
+            const opt = sel.options[sel.selectedIndex];
+            // Utiliser data-prix (prestation sélectionnée) si disponible, sinon prix_base réel du RDV
+            const prixPrestation = (opt && opt.dataset.prix)
+                ? parseFloat(opt.dataset.prix) || 0
+                : parseFloat(sel.dataset.prixBase) || 0;
+            total += prixPrestation;
+            // Ajouter les options du même RDV
+            const rdvId = sel.id.replace('mg-prestation-', '');
+            if (window.options) {
+                window.options.forEach(o => {
+                    const el = document.getElementById(`mg-opt-qte-${rdvId}-${o.id}`);
+                    if (el) total += (parseInt(el.textContent) || 0) * o.prix;
+                });
+            }
+        });
+        const prixInput = document.getElementById('mg-prix-groupe');
+        if (prixInput) prixInput.value = total > 0 ? Math.round(total) : '';
+    }
+
     // Fonction pour re-peupler le select prestation d'un RDV selon la famille choisie
     function peuplerPrestationsGroupe(rdvId, familleId, selectedPrestId) {
         const sel = document.getElementById('mg-prestation-' + rdvId);
@@ -2082,7 +2123,7 @@ function ouvrirModalModifierGroupe(rdv) {
             if (f.id == r.famille_id) opt.selected = true;
             familleSel.appendChild(opt);
         });
-        familleSel.addEventListener('change', () => peuplerPrestationsGroupe(r.id, familleSel.value, null));
+        familleSel.addEventListener('change', () => { peuplerPrestationsGroupe(r.id, familleSel.value, null); recalculerPrixGroupe(); });
 
         // Sélecteur prestation
         const prestLbl = document.createElement('label');
@@ -2090,6 +2131,7 @@ function ouvrirModalModifierGroupe(rdv) {
         prestLbl.style.cssText = 'font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:3px;';
         const prestSel = document.createElement('select');
         prestSel.id = 'mg-prestation-' + r.id;
+        prestSel.dataset.prixBase = r.prix_base; // prix_base réel du RDV
         prestSel.style.cssText = 'width:100%;padding:5px 8px;font-size:13px;border:1px solid #ddd;border-radius:4px;background:white;margin-bottom:8px;';
         // Peupler directement (pas encore dans le DOM)
         window.prestationsData.filter(p => p.famille_id == r.famille_id).forEach(p => {
@@ -2113,6 +2155,7 @@ function ouvrirModalModifierGroupe(rdv) {
                 if (finH <= 23) finSel.innerHTML = genererOptionsHoraires(`${String(finH).padStart(2,'0')}:${String(finM).padStart(2,'0')}`);
             }
             verifierConflitModifier(r.id, r.employe_id);
+            recalculerPrixGroupe();
         });
 
         // Grille début / fin
@@ -2149,6 +2192,43 @@ function ouvrirModalModifierGroupe(rdv) {
         card.appendChild(prestSel);
         card.appendChild(grid);
         card.appendChild(conflitEl);
+
+        // Section options
+        if (window.options && window.options.length > 0) {
+            const optsLbl = document.createElement('label');
+            optsLbl.textContent = 'Options';
+            optsLbl.style.cssText = 'font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px;margin-top:6px;';
+            const optsWrap = document.createElement('div');
+            optsWrap.style.cssText = 'margin-bottom:4px;';
+            const optExistMap = {};
+            (r.options || []).forEach(o => { optExistMap[o.id] = o.quantite || 1; });
+            window.options.forEach(o => {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0e8d8;';
+                const info = document.createElement('div');
+                info.innerHTML = `<span style="font-size:13px;font-weight:500;color:#333;">${o.nom}</span> <span style="color:#c9a86a;font-size:12px;font-weight:600;">+${o.prix} CFA</span>`;
+                const ctrls = document.createElement('div');
+                ctrls.style.cssText = 'display:flex;align-items:center;gap:8px;';
+                const btnMinus = document.createElement('button');
+                btnMinus.type = 'button'; btnMinus.textContent = '−';
+                btnMinus.style.cssText = 'width:28px;height:28px;border-radius:50%;border:1px solid #ddd;background:white;cursor:pointer;font-size:16px;color:#666;display:flex;align-items:center;justify-content:center;';
+                const qteSpan = document.createElement('span');
+                qteSpan.id = `mg-opt-qte-${r.id}-${o.id}`;
+                qteSpan.style.cssText = 'font-weight:600;font-size:15px;min-width:24px;text-align:center;';
+                qteSpan.textContent = optExistMap[o.id] !== undefined ? optExistMap[o.id] : '0';
+                const btnPlus = document.createElement('button');
+                btnPlus.type = 'button'; btnPlus.textContent = '+';
+                btnPlus.style.cssText = 'width:28px;height:28px;border-radius:50%;border:1px solid #c9a86a;background:#c9a86a;color:white;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;';
+                btnMinus.onclick = () => { const v = parseInt(qteSpan.textContent)||0; qteSpan.textContent = Math.max(0,v-1); recalculerPrixGroupe(); };
+                btnPlus.onclick  = () => { const v = parseInt(qteSpan.textContent)||0; qteSpan.textContent = v+1; recalculerPrixGroupe(); };
+                ctrls.appendChild(btnMinus); ctrls.appendChild(qteSpan); ctrls.appendChild(btnPlus);
+                row.appendChild(info); row.appendChild(ctrls);
+                optsWrap.appendChild(row);
+            });
+            card.appendChild(optsLbl);
+            card.appendChild(optsWrap);
+        }
+
         body.appendChild(card);
 
         // Vérifier les conflits à l'ouverture
@@ -2167,11 +2247,13 @@ function ouvrirModalModifierGroupe(rdv) {
     prixInput.step = '1';
     prixInput.placeholder = 'Laisser vide pour prix individuels';
     const groupePrixTotal = rdv.groupe_prix_total || 0;
-    if (groupePrixTotal > 0) prixInput.value = groupePrixTotal;
     prixInput.style.cssText = 'width:100%;padding:8px 12px;font-size:16px;font-weight:700;color:#c9a86a;border:2px solid #c9a86a;border-radius:8px;box-sizing:border-box;';
     body.appendChild(prixSep);
     body.appendChild(prixLbl);
     body.appendChild(prixInput);
+    // Calcul initial : recalculer d'abord depuis les prestations, puis écraser si un prix groupe existe déjà
+    recalculerPrixGroupe();
+    if (groupePrixTotal > 0) prixInput.value = groupePrixTotal;
 
     // Footer
     const footer = document.createElement('div');
@@ -2255,6 +2337,15 @@ function enregistrerModificationsGroupe(groupeId, callback) {
                 const selOpt = prestSel.options[prestSel.selectedIndex];
                 if (selOpt?.dataset?.prix) item.prix_base = parseFloat(selOpt.dataset.prix);
             }
+            const optionsList = [];
+            if (window.options) {
+                window.options.forEach(o => {
+                    const el = document.getElementById(`mg-opt-qte-${rdvId}-${o.id}`);
+                    const qte = el ? parseInt(el.textContent) || 0 : 0;
+                    if (qte > 0) optionsList.push({ id: o.id, quantite: qte });
+                });
+            }
+            item.options_data = optionsList;
             rdvMisesAJour.push(item);
         }
     });
@@ -2447,9 +2538,61 @@ function ouvrirModalModifierSeul(rdv) {
     prixInput.style.cssText = 'width:100%;padding:6px 8px;font-size:15px;font-weight:700;color:#c9a86a;border:2px solid #c9a86a;border-radius:4px;box-sizing:border-box;';
     prixW.appendChild(mkLabel('Prix total')); prixW.appendChild(prixInput);
 
+    // Recalcul du prix total (prestation + options)
+    function recalculerPrixSeul() {
+        const selOpt = prestSel.options[prestSel.selectedIndex];
+        let total = selOpt && selOpt.dataset.prix ? parseFloat(selOpt.dataset.prix) || 0 : parseFloat(rdv.prix_base) || 0;
+        if (window.options) {
+            window.options.forEach(o => {
+                const el = document.getElementById(`ms-opt-qte-${o.id}`);
+                if (el) total += (parseInt(el.textContent) || 0) * o.prix;
+            });
+        }
+        prixInput.value = Math.round(total);
+    }
+    prestSel.addEventListener('change', recalculerPrixSeul);
+
+    // Section options
+    if (window.options && window.options.length > 0) {
+        const optExistMap = {};
+        (rdv.options || []).forEach(o => { optExistMap[o.id] = o.quantite || 1; });
+        const optsLbl = document.createElement('label');
+        optsLbl.textContent = 'Options';
+        optsLbl.style.cssText = 'font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px;margin-top:6px;';
+        const optsWrap = document.createElement('div');
+        optsWrap.style.cssText = 'margin-bottom:10px;';
+        window.options.forEach(o => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0e8d8;';
+            const info = document.createElement('div');
+            info.innerHTML = `<span style="font-size:13px;font-weight:500;color:#333;">${o.nom}</span> <span style="color:#c9a86a;font-size:12px;font-weight:600;">+${o.prix} CFA</span>`;
+            const ctrls = document.createElement('div');
+            ctrls.style.cssText = 'display:flex;align-items:center;gap:8px;';
+            const btnMinus = document.createElement('button');
+            btnMinus.type = 'button'; btnMinus.textContent = '−';
+            btnMinus.style.cssText = 'width:28px;height:28px;border-radius:50%;border:1px solid #ddd;background:white;cursor:pointer;font-size:16px;color:#666;display:flex;align-items:center;justify-content:center;';
+            const qteSpan = document.createElement('span');
+            qteSpan.id = `ms-opt-qte-${o.id}`;
+            qteSpan.style.cssText = 'font-weight:600;font-size:15px;min-width:24px;text-align:center;';
+            qteSpan.textContent = optExistMap[o.id] !== undefined ? optExistMap[o.id] : '0';
+            const btnPlus = document.createElement('button');
+            btnPlus.type = 'button'; btnPlus.textContent = '+';
+            btnPlus.style.cssText = 'width:28px;height:28px;border-radius:50%;border:1px solid #c9a86a;background:#c9a86a;color:white;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;';
+            btnMinus.onclick = () => { const v = parseInt(qteSpan.textContent)||0; qteSpan.textContent = Math.max(0,v-1); recalculerPrixSeul(); };
+            btnPlus.onclick  = () => { const v = parseInt(qteSpan.textContent)||0; qteSpan.textContent = v+1; recalculerPrixSeul(); };
+            ctrls.appendChild(btnMinus); ctrls.appendChild(qteSpan); ctrls.appendChild(btnPlus);
+            row.appendChild(info); row.appendChild(ctrls);
+            optsWrap.appendChild(row);
+        });
+        prixW._optsLbl = optsLbl;
+        prixW._optsWrap = optsWrap;
+    }
+
     card.appendChild(empW); card.appendChild(dateW);
     card.appendChild(famW); card.appendChild(prestW);
-    card.appendChild(timeGrid); card.appendChild(conflitEl); card.appendChild(prixW);
+    card.appendChild(timeGrid); card.appendChild(conflitEl);
+    if (prixW._optsLbl) { card.appendChild(prixW._optsLbl); card.appendChild(prixW._optsWrap); }
+    card.appendChild(prixW);
     body.appendChild(card);
 
     // Footer
@@ -2468,8 +2611,21 @@ function ouvrirModalModifierSeul(rdv) {
         formData.set('date', document.getElementById('ms-date').value);
         formData.set('heure', document.getElementById('ms-heure-debut').value);
         formData.set('prestation_id', document.getElementById('ms-prestation').value);
+        // Collecter options depuis l'UI
+        const optionsUI = [];
+        if (window.options) {
+            window.options.forEach(o => {
+                const el = document.getElementById(`ms-opt-qte-${o.id}`);
+                const qte = el ? parseInt(el.textContent) || 0 : 0;
+                if (qte > 0) optionsUI.push({ id: o.id, quantite: qte });
+            });
+        }
+        const prixOptions = optionsUI.reduce((sum, o) => {
+            const opt = window.options.find(x => x.id == o.id);
+            return sum + (opt ? opt.prix * o.quantite : 0);
+        }, 0);
         const prixTotal = parseFloat(document.getElementById('ms-prix-total').value) || 0;
-        formData.set('prix_base', Math.max(0, prixTotal - (rdv.prix_options || 0)));
+        formData.set('prix_base', Math.max(0, prixTotal - prixOptions));
         const hd = document.getElementById('ms-heure-debut').value;
         const hf = document.getElementById('ms-heure-fin').value;
         if (hd && hf) {
@@ -2477,9 +2633,7 @@ function ouvrirModalModifierSeul(rdv) {
             const dureePerso = (h2*60+m2)-(h1*60+m1);
             if (dureePerso > 0) formData.set('duree_personnalisee', dureePerso);
         }
-        // Conserver les options existantes
-        const optionsExistantes = (rdv.options || []).map(o => ({id: o.id, quantite: o.quantite}));
-        formData.set('options_data', JSON.stringify(optionsExistantes));
+        formData.set('options_data', JSON.stringify(optionsUI));
         modal.style.display = 'none';
         showPageLoader('Enregistrement...');
         fetch(`/agenda/{{ institut.code }}/api/rdv/${rdv.id}/modifier/`, {
@@ -2740,7 +2894,7 @@ function afficherValidationGroupee(data) {
             </div>
             <div style="font-size: 13px; color: #666;">
                 ${rdv.heure_debut} - ${rdv.heure_fin} • ${rdv.employe}
-                ${rdv.options.length > 0 ? '<br>Options : ' + rdv.options.map(o => o.nom).join(', ') : ''}
+                ${(rdv.options || []).length > 0 ? '<br><span style="color:#c9a86a;font-style:italic;">Options : ' + rdv.options.map(o => o.nom).join(', ') + '</span>' : ''}
             </div>
         </div>`;
     });
@@ -2786,7 +2940,10 @@ function chargerRdvUnique(rdvId) {
 
             document.getElementById('validation-rdv-id').value = rdv.id;
             document.getElementById('validation-client').textContent = rdv.client;
-            document.getElementById('validation-prestation').textContent = rdv.prestation;
+            const optionsLabel = rdv.options && rdv.options.length > 0
+                ? ' <span style="font-size:12px;color:#888;font-style:italic;">(' + rdv.options.map(o => typeof o === 'object' ? o.nom : o).join(', ') + ')</span>'
+                : '';
+            document.getElementById('validation-prestation').innerHTML = rdv.prestation + optionsLabel;
             document.getElementById('validation-date').textContent = rdv.date;
             document.getElementById('validation-heure').textContent = rdv.heure_debut;
             document.getElementById('validation-prix-total').textContent = rdv.prix_total.toLocaleString('fr-FR') + ' CFA';
@@ -3378,6 +3535,10 @@ function calculerStats() {
 
     // Ajouter le CA réel des forfaits vendus ce jour
     ca += {{ ca_forfaits_reel|default:0 }};
+    // Exclure les paiements par carte cadeau (cash déjà reçu lors de la vente)
+    ca -= {{ ca_carte_cadeau_utilisation|default:0 }};
+    // Ajouter les ventes de cartes cadeaux du jour (cash réellement reçu)
+    ca += {{ ca_ventes_cartes_jour|default:0 }};
 
     document.getElementById('stat-total').textContent = total;
     document.getElementById('stat-valides').textContent = valides;
