@@ -170,7 +170,8 @@ def index(request):
     else:
         ca_ventes_produits_total = base_ventes_produits.aggregate(total=Sum('montant_total'))['total'] or 0
 
-    ca_total = ca_paiements_total + ca_cartes_vendues_total + ca_credits_total + ca_forfaits_total + ca_ventes_produits_total
+    # ca_forfaits_total (montant_paye_initial) est déjà compté dans ca_paiements_total via le RDV fictif
+    ca_total = ca_paiements_total + ca_cartes_vendues_total + ca_credits_total + ca_ventes_produits_total
 
     # RDV de la période sélectionnée
     # Pour Express : n'inclure que les jours clôturés
@@ -308,7 +309,8 @@ def index(request):
                 date__date__lte=date_fin
             ).aggregate(total=Sum('montant_total'))['total'] or 0
 
-            ca_institut = ca_paiements + ca_cartes_vendues + ca_credits + ca_forfaits + ca_ventes_produits
+            # ca_forfaits déjà compté dans ca_paiements via le RDV fictif
+            ca_institut = ca_paiements + ca_cartes_vendues + ca_credits + ca_ventes_produits
 
             rdv_count = RendezVous.objects.filter(
                 institut=institut,
@@ -885,7 +887,8 @@ def api_stats_chart(request):
             ca_credits = credits_qs.aggregate(total=Sum('montant'))['total'] or 0
             ca_forfaits = forfaits_qs.aggregate(total=Sum('montant_paye_initial'))['total'] or 0
 
-        return ca_paiements + ca_cartes + ca_credits + ca_forfaits
+        # ca_forfaits déjà compté dans ca_paiements via le RDV fictif
+        return ca_paiements + ca_cartes + ca_credits
 
     # Données CA évolution
     data_ca = []
@@ -1501,7 +1504,8 @@ def dashboard_bilan(request):
         ventes_bilan = ventes_bilan.filter(institut__code=bilan_institut_code)
     bilan_ca_ventes = ventes_bilan.aggregate(s=Sum('montant_total'))['s'] or 0
 
-    bilan_total_recettes = bilan_ca_rdv + bilan_ca_cartes + bilan_ca_credits + bilan_ca_forfaits + bilan_ca_ventes
+    # bilan_ca_forfaits déjà compté dans bilan_ca_rdv via le RDV fictif
+    bilan_total_recettes = bilan_ca_rdv + bilan_ca_cartes + bilan_ca_credits + bilan_ca_ventes
 
     # ── DÉPENSES (Depense + Salaires + Achats stock) ──
     dep_qs = Depense.objects.filter(date__gte=bilan_mois, date__lte=bilan_fin_mois)

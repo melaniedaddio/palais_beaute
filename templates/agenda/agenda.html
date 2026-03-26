@@ -441,7 +441,7 @@
 
                 <!-- Détails du forfait sélectionné -->
                 <div id="forfait-details" style="display: none; background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
                         <div>
                             <span style="color: #666; font-size: 13px;">Nombre de séances</span>
                             <div id="forfait-nb-seances" style="font-weight: 600; font-size: 18px; color: #9b59b6;">-</div>
@@ -450,6 +450,11 @@
                             <span style="color: #666; font-size: 13px;">Prix total</span>
                             <div id="forfait-prix" style="font-weight: 600; font-size: 18px; color: #333;">-</div>
                         </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px; border-top: 1px solid #e0e0e0; padding-top: 10px;">
+                        <label style="margin: 0; font-size: 13px; color: #666; white-space: nowrap;">Remise (%) :</label>
+                        <input type="number" id="forfait-remise" class="form-control" min="0" max="99" value="0" placeholder="0" style="width: 80px;" oninput="appliquerRemiseForfait()">
+                        <div id="forfait-prix-apres-remise" style="font-size: 13px; color: #9b59b6; font-weight: 600;"></div>
                     </div>
                 </div>
 
@@ -468,6 +473,12 @@
                             <strong id="forfait-reste-apres-cartes" style="color: #c9a86a;">0 CFA</strong>
                         </div>
                     </div>
+                </div>
+
+                <!-- Commentaire -->
+                <div class="form-group">
+                    <label>Commentaire</label>
+                    <textarea id="forfait-notes" name="forfait_notes" class="form-control" rows="2" placeholder="Optionnel…" style="resize:vertical;"></textarea>
                 </div>
 
                 <!-- Type de paiement -->
@@ -4890,6 +4901,9 @@ function ouvrirModalForfait() {
     document.getElementById('forfait-client-id').value = '';
     document.getElementById('forfait-client-search').value = '';
     document.getElementById('forfait-details').style.display = 'none';
+    document.getElementById('forfait-remise').value = '0';
+    document.getElementById('forfait-prix-apres-remise').textContent = '';
+    document.getElementById('forfait-notes').value = '';
     document.getElementById('forfait-montant-container').style.display = 'none';
 
     // Effacer les validations précédentes
@@ -4956,15 +4970,37 @@ function updateForfaitPrix() {
         document.getElementById('forfait-nb-seances').textContent = option.dataset.seances + ' séances';
         const prix = parseInt(option.dataset.prix);
         document.getElementById('forfait-prix').textContent = prix.toLocaleString('fr-FR') + ' CFA';
-        document.getElementById('forfait-montant').max = prix;
+
+        document.getElementById('forfait-remise').value = '0';
+        document.getElementById('forfait-prix-apres-remise').textContent = '';
 
         // Stocker le prix pour le double paiement
         forfaitPrixActuel = prix;
+        document.getElementById('forfait-montant').max = prix;
         calculerMontant2Forfait();
     } else {
         document.getElementById('forfait-details').style.display = 'none';
         forfaitPrixActuel = 0;
     }
+}
+
+function appliquerRemiseForfait() {
+    const select = document.getElementById('forfait-prestation');
+    const option = select.options[select.selectedIndex];
+    if (!option || !option.value) return;
+    const prixOriginal = parseInt(option.dataset.prix);
+    const remise = Math.min(99, Math.max(0, parseInt(document.getElementById('forfait-remise').value) || 0));
+    if (remise > 0) {
+        const prixFinal = Math.ceil(prixOriginal * (100 - remise) / 100 / 1000) * 1000;
+        document.getElementById('forfait-prix-apres-remise').innerHTML =
+            `<span style="text-decoration:line-through;color:#aaa;">${prixOriginal.toLocaleString('fr-FR')} CFA</span> → <strong>${prixFinal.toLocaleString('fr-FR')} CFA</strong>`;
+        forfaitPrixActuel = prixFinal;
+    } else {
+        document.getElementById('forfait-prix-apres-remise').textContent = '';
+        forfaitPrixActuel = prixOriginal;
+    }
+    document.getElementById('forfait-montant').max = forfaitPrixActuel;
+    calculerMontant2Forfait();
 }
 
 function toggleForfaitMontant() {
@@ -5208,11 +5244,16 @@ function acheterForfait() {
         }
     }
 
+    const remisePourcent = Math.min(99, Math.max(0, parseInt(document.getElementById('forfait-remise').value) || 0));
+    const forfaitNotes = document.getElementById('forfait-notes').value.trim();
+
     const formData = new FormData();
     formData.append('client_id', clientId);
     formData.append('prestation_id', prestationId);
     formData.append('type_paiement', typePaiement);
     formData.append('montant', montant);
+    formData.append('remise_pourcent', remisePourcent);
+    if (forfaitNotes) formData.append('notes', forfaitNotes);
 
     // Ajouter les cartes cadeaux sélectionnées
     const cartesChecks = document.querySelectorAll('.forfait-carte-cadeau-check:checked');

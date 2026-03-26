@@ -1621,7 +1621,12 @@ class ForfaitClient(models.Model):
     # Prix
     prix_total = models.IntegerField(
         validators=[MinValueValidator(0)],
-        help_text="Prix total du forfait"
+        help_text="Prix total du forfait après remise éventuelle"
+    )
+    remise_pourcent = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Remise appliquée à l'achat (en %)"
     )
     montant_paye_initial = models.IntegerField(
         default=0,
@@ -1633,7 +1638,7 @@ class ForfaitClient(models.Model):
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='actif')
 
     # Dates
-    date_achat = models.DateTimeField(auto_now_add=True)
+    date_achat = models.DateTimeField(default=timezone.now)
     date_derniere_seance = models.DateTimeField(null=True, blank=True)
     date_fin = models.DateTimeField(null=True, blank=True, help_text="Date de fin quand toutes les séances sont utilisées")
 
@@ -1645,6 +1650,22 @@ class ForfaitClient(models.Model):
         related_name='forfaits_vendus'
     )
     notes = models.TextField(blank=True, null=True)
+
+    # Liens vers le RDV fictif d'achat et l'éventuel crédit ouvert à l'achat
+    rdv_achat = models.ForeignKey(
+        'RendezVous',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='forfait_achat_set',
+        help_text="RDV fictif créé lors de l'achat du forfait"
+    )
+    credit_achat = models.ForeignKey(
+        'Credit',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='forfait_achat_set',
+        help_text="Crédit ouvert lors de l'achat du forfait (si paiement partiel)"
+    )
 
     class Meta:
         verbose_name = "Forfait client"

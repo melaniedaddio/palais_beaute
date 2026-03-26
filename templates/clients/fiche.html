@@ -506,7 +506,7 @@
                         <div>
                             <div style="font-weight: 700; color: #9b59b6; font-size: 15px;">{{ forfait.prestation.nom }}</div>
                             <div style="font-size: 12px; color: #aaa; margin-top: 4px;">
-                                {{ forfait.institut.nom }} · Acheté le {{ forfait.date_achat|date:"d/m/Y" }}
+                                {{ forfait.institut.nom }} · Acheté le {{ forfait.date_achat|date:"d/m/Y" }}{% if forfait.remise_pourcent %} · Remise {{ forfait.remise_pourcent }}%{% endif %}
                             </div>
                         </div>
                         {% if forfait.statut == 'actif' %}
@@ -533,6 +533,12 @@
                         </div>
                     </div>
 
+                    {% if forfait.notes %}
+                    <div style="background: white; border-left: 3px solid #9b59b6; padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 13px; color: #555; margin-bottom: 12px; font-style: italic;">
+                        {{ forfait.notes }}
+                    </div>
+                    {% endif %}
+
                     <div style="display: flex; flex-wrap: wrap; gap: 6px;">
                         {% for seance in forfait.seances.all %}
                         <div style="padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500;
@@ -545,8 +551,18 @@
                     </div>
 
                     {% if request.user.utilisateur.is_patron %}
-                    <div style="margin-top: 12px; text-align: right;">
-                        <button onclick="ouvrirModalSupprimerForfait({{ forfait.id }}, '{{ forfait.prestation.nom }}', '{{ forfait.client.get_full_name }}', {{ forfait.seances.count }}, {{ forfait.nombre_seances_utilisees }})"
+                    <div style="margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
+                        <button onclick="ouvrirModalModifierSeances({{ forfait.id }}, {{ forfait.nombre_seances_utilisees }}, {{ forfait.nombre_seances_total }})"
+                                style="padding: 5px 12px; font-size: 12px; background: white; border: 1.5px solid #3498db; color: #3498db; border-radius: 6px; cursor: pointer;">
+                            Modifier séances
+                        </button>
+                        {% if forfait.statut == 'actif' %}
+                        <button onclick="ouvrirModalBasculerForfait({{ forfait.id }}, '{{ forfait.prestation.nom|escapejs }}', {{ forfait.prix_total }}, {{ forfait.nombre_seances_utilisees }}, {{ forfait.nombre_seances_total }}, {{ forfait.credit_achat_id|default:0 }}, {{ forfait.credit_achat.reste_a_payer|default:0 }})"
+                                style="padding: 5px 12px; font-size: 12px; background: white; border: 1.5px solid #9b59b6; color: #9b59b6; border-radius: 6px; cursor: pointer;">
+                            Basculer
+                        </button>
+                        {% endif %}
+                        <button onclick="ouvrirModalSupprimerForfait({{ forfait.id }}, '{{ forfait.prestation.nom|escapejs }}', '{{ forfait.client.get_full_name|escapejs }}')"
                                 style="padding: 5px 12px; font-size: 12px; background: white; border: 1.5px solid #dc3545; color: #dc3545; border-radius: 6px; cursor: pointer;">
                             Supprimer
                         </button>
@@ -559,7 +575,7 @@
 
             <!-- Crédits -->
             {% if credits %}
-            <div class="section-card">
+            <div class="section-card" id="section-credits">
                 <div class="section-header">
                     <h2 class="section-title">Crédits</h2>
                     <span class="badge-count {% if credit_total > 0 %}danger{% endif %}">
@@ -759,29 +775,288 @@
             <h2>Supprimer le forfait</h2>
         </div>
         <div>
-            <p style="margin-bottom: 18px; color: #555;">
-                Voulez-vous supprimer le forfait <span id="forfaitInfoSupprimer" style="font-weight:600;"></span> ?
+            <p style="margin-bottom: 14px; color: #555;">
+                Forfait : <span id="forfaitInfoSupprimer" style="font-weight:600;"></span>
             </p>
 
-            <div style="background: #fff3cd; color: #856404; padding: 14px; border-radius: 8px; margin-bottom: 14px; display: none;" id="alerteSeancesEffectuees">
-                <strong>Attention</strong>
-                <p style="margin: 8px 0 0;">Ce forfait a <strong id="nbSeancesEffectuees"></strong> séance(s) déjà effectuée(s). Impossible de le supprimer.</p>
+            <!-- Chargement -->
+            <div id="sfLoading" style="text-align:center; color:#888; padding: 20px 0;">
+                Chargement des informations…
             </div>
 
-            <div id="confirmationSuppressionForfait" style="display: none;">
-                <div style="background: #f8d7da; color: #721c24; padding: 14px; border-radius: 8px; margin-bottom: 14px;">
-                    <strong>Action irréversible.</strong>
-                    <p style="margin: 8px 0 0;">Le forfait et toutes ses séances seront supprimés définitivement.</p>
+            <!-- Contenu principal (affiché après chargement) -->
+            <div id="sfContenu" style="display:none;">
+
+                <!-- Séances programmées -->
+                <div id="sfAlerteProgrammees" style="display:none; background:#fff3cd; color:#856404; padding:12px 14px; border-radius:8px; margin-bottom:12px;">
+                    <strong>Attention :</strong> <span id="sfNbProgrammees"></span> séance(s) programmée(s) seront détachées de leurs rendez-vous (les RDV restent mais ne sont plus liés au forfait).
+                </div>
+
+                <!-- Caisse annulable -->
+                <div id="sfInfoCaisse" style="display:none; background:#d4edda; color:#155724; padding:12px 14px; border-radius:8px; margin-bottom:12px;">
+                    <strong>Remboursement caisse :</strong> Le paiement de <strong id="sfMontantCaisse"></strong> CFA effectué aujourd'hui sera retiré de la caisse.
+                </div>
+
+                <!-- Caisse non annulable -->
+                <div id="sfInfoCaisseNon" style="display:none; background:#f8d7da; color:#721c24; padding:12px 14px; border-radius:8px; margin-bottom:12px;">
+                    <strong>Caisse clôturée :</strong> Le paiement de ce forfait a déjà été inclus dans une clôture de caisse — il ne peut plus être retiré. Le forfait sera supprimé mais le montant reste dans la caisse.
+                </div>
+
+                <!-- Dette existante -->
+                <div id="sfInfoDette" style="display:none; background:#fff3cd; color:#856404; padding:12px 14px; border-radius:8px; margin-bottom:12px;">
+                    <strong>Dette en cours :</strong> Ce client doit encore <strong id="sfMontantDette"></strong> CFA pour ce forfait.
+                    <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                            <input type="radio" name="sfDetteAction" value="rembourser" checked>
+                            <span>Le client rembourse maintenant <small style="color:#888;">(vous serez redirigé vers la section Crédits)</small></span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                            <input type="radio" name="sfDetteAction" value="garder"> Laisser la dette dans les crédits en cours
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                            <input type="radio" name="sfDetteAction" value="annuler"> Annuler la dette (solder le crédit)
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Confirmation -->
+                <div style="background:#f8d7da; color:#721c24; padding:12px 14px; border-radius:8px; margin-bottom:14px;">
+                    <strong>Action irréversible.</strong> Le forfait et toutes ses séances seront supprimés définitivement.
                 </div>
                 <div class="form-group">
                     <label>Pour confirmer, tapez "SUPPRIMER" :</label>
                     <input type="text" id="confirmationTexteForfait" class="form-control" placeholder="SUPPRIMER">
                 </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" onclick="fermerModalSupprimerForfait()">Annuler</button>
+                    <button type="button" class="btn-submit" style="background:#dc3545;" onclick="confirmerSuppressionForfait()">Supprimer</button>
+                </div>
+            </div>
+
+            <!-- Actions si erreur chargement -->
+            <div id="sfErreur" style="display:none;">
+                <p style="color:#dc3545;">Impossible de charger les informations. Réessayez.</p>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" onclick="fermerModalSupprimerForfait()">Fermer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Régler Crédit Forfait -->
+<div id="modalReglerCredit" class="modal">
+    <div class="modal-content" style="max-width: 480px;">
+        <div class="modal-header">
+            <h2>Rembourser la dette</h2>
+        </div>
+        <div>
+            <p style="margin-bottom:14px; color:#555;">
+                Montant restant : <strong id="rcrMontantRestant" style="color:#dc3545;"></strong> CFA
+            </p>
+
+            <div class="form-group">
+                <label>Type de paiement</label>
+                <select id="rcrTypePaiement" class="form-control" onchange="rcrMajType()">
+                    <option value="complet">Paiement complet</option>
+                    <option value="partiel">Paiement partiel</option>
+                </select>
+            </div>
+
+            <div id="rcrSectionPartiel" style="display:none;" class="form-group">
+                <label>Montant payé maintenant (CFA)</label>
+                <input type="number" id="rcrMontantPartiel" class="form-control" min="1" placeholder="0">
+            </div>
+
+            <div class="form-group">
+                <label>Moyen de paiement</label>
+                <select id="rcrMoyen1" class="form-control">
+                    <option value="especes">Espèces</option>
+                    <option value="carte">Carte bancaire</option>
+                    <option value="cheque">Chèque</option>
+                    <option value="om">Orange Money</option>
+                    <option value="wave">Wave</option>
+                </select>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <div class="form-group" style="flex:1;">
+                    <label>2ème moyen (optionnel)</label>
+                    <select id="rcrMoyen2" class="form-control">
+                        <option value="">—</option>
+                        <option value="especes">Espèces</option>
+                        <option value="carte">Carte bancaire</option>
+                        <option value="cheque">Chèque</option>
+                        <option value="om">Orange Money</option>
+                        <option value="wave">Wave</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Montant 2ème moyen</label>
+                    <input type="number" id="rcrMontant2" class="form-control" min="0" placeholder="0">
+                </div>
             </div>
 
             <div class="modal-actions">
-                <button type="button" class="btn-cancel" onclick="fermerModalSupprimerForfait()">Annuler</button>
-                <button type="button" class="btn-submit" style="background: #dc3545;" id="btnConfirmerSuppressionForfait" onclick="confirmerSuppressionForfait()">Supprimer</button>
+                <button type="button" class="btn-cancel" onclick="fermerModalReglerCredit()">Annuler</button>
+                <button type="button" class="btn-submit" id="rcrBtnConfirmer" onclick="confirmerReglerCredit()">Enregistrer le paiement</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Modifier Séances Forfait -->
+<div id="modalModifierSeances" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h2>Modifier les séances</h2>
+        </div>
+        <div>
+            <p style="color:#555; margin-bottom:16px; font-size:13px;">
+                Saisissez le nombre de séances réellement effectuées. Les séances programmées avec RDV ne seront pas affectées.
+            </p>
+            <div class="form-group">
+                <label>Séances effectuées <span id="msTotal" style="color:#888;"></span></label>
+                <input type="number" id="msNbUtilisees" class="form-control" min="0" value="0">
+                <div id="msInfo" style="font-size:12px; color:#888; margin-top:5px;"></div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="fermerModalModifierSeances()">Annuler</button>
+                <button type="button" class="btn-submit" id="msBtnValider" style="background:#3498db;" onclick="validerModifierSeances()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Basculer Forfait -->
+<div id="modalBasculerForfait" class="modal">
+    <div class="modal-content" style="max-width: 540px;">
+        <div class="modal-header">
+            <h2>Basculer le forfait</h2>
+        </div>
+        <div>
+            <p style="margin-bottom: 14px; color: #555;">
+                Forfait actuel : <span id="bascForfaitNom" style="font-weight:600;"></span>
+                — Prix payé : <span id="bascPrixAncien" style="font-weight:600;"></span>
+            </p>
+
+            <div class="form-group">
+                <label>Nouveau forfait <span style="color:red;">*</span></label>
+                <select id="bascNouvellePrestation" class="form-control" onchange="bascMajDiff()">
+                    <option value="">— Choisir un forfait —</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Démarrer à la séance n°</label>
+                <input type="number" id="bascSeanceDepart" class="form-control" min="1" value="1">
+            </div>
+
+            <div class="form-group">
+                <label>Commentaire</label>
+                <textarea id="bascNotes" class="form-control" rows="2" placeholder="Optionnel…" style="resize:vertical;"></textarea>
+            </div>
+
+            <!-- Info écart de prix -->
+            <div id="bascInfoDiff" style="display:none; background:#f5f0ff; border:1px solid #d0b8f0; border-radius:8px; padding:14px; margin-bottom:14px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                    <span>Nouveau prix :</span> <strong id="bascPrixNouveau"></strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+                    <span>Écart :</span> <strong id="bascDiffMontant"></strong>
+                </div>
+
+                <!-- Si diff > 0 : proposer encaissement -->
+                <div id="bascSectionEncaisser" style="display:none;">
+                    <p style="font-size:13px; color:#555; margin-bottom:10px;">Le nouveau forfait coûte <strong id="bascDiffMontantEncaisser"></strong> CFA de plus. Que faire ?</p>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:6px;">
+                        <input type="radio" name="bascActionDiff" value="encaisser" checked onchange="bascToggleFormPaiement()"> Encaisser la différence
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="radio" name="bascActionDiff" value="ignorer" onchange="bascToggleFormPaiement()"> Ignorer la différence
+                    </label>
+
+                    <div id="bascFormEncaisser" style="margin-top:12px; padding-top:12px; border-top:1px solid #e0d0f0;">
+                        <div class="form-group">
+                            <label>Remise sur la différence (%)</label>
+                            <input type="number" id="bascRemiseDiff" class="form-control" min="0" max="100" value="0" oninput="bascMajDiff()">
+                            <small id="bascRemiseDiffInfo" style="color:#9b59b6; display:none; font-size:12px;"></small>
+                        </div>
+                        <div class="form-group">
+                            <label>Type de paiement</label>
+                            <select id="bascTypePaiement" class="form-control" onchange="bascMajTypePaiement()">
+                                <option value="complet">Paiement complet</option>
+                                <option value="partiel">Paiement partiel</option>
+                                <option value="differe">Paiement différé</option>
+                            </select>
+                        </div>
+                        <div id="bascSectionMontantPartiel" style="display:none;" class="form-group">
+                            <label>Montant payé maintenant (CFA)</label>
+                            <input type="number" id="bascMontantPartiel" class="form-control" min="0" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Moyen de paiement 1</label>
+                            <select id="bascMoyenPaiement1" class="form-control">
+                                <option value="especes">Espèces</option>
+                                <option value="carte">Carte bancaire</option>
+                                <option value="cheque">Chèque</option>
+                                <option value="om">Orange Money</option>
+                                <option value="wave">Wave</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; gap:10px;">
+                            <div class="form-group" style="flex:1;">
+                                <label>2ème moyen (optionnel)</label>
+                                <select id="bascMoyenPaiement2" class="form-control">
+                                    <option value="">—</option>
+                                    <option value="especes">Espèces</option>
+                                    <option value="carte">Carte bancaire</option>
+                                    <option value="cheque">Chèque</option>
+                                    <option value="om">Orange Money</option>
+                                    <option value="wave">Wave</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex:1;">
+                                <label>Montant 2ème moyen</label>
+                                <input type="number" id="bascMontantPaiement2" class="form-control" min="0" placeholder="0">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Si diff < 0 : proposer carte cadeau -->
+                <div id="bascSectionCarteCadeau" style="display:none;">
+                    <p style="font-size:13px; color:#555; margin-bottom:10px;">Le nouveau forfait coûte <strong id="bascDiffMontantCarteCadeau"></strong> CFA de moins. Que faire ?</p>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:6px;">
+                        <input type="radio" name="bascActionDiff" value="carte_cadeau" checked> Créer une carte cadeau de remboursement
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="radio" name="bascActionDiff" value="ignorer"> Ignorer la différence
+                    </label>
+                </div>
+            </div>
+
+            <!-- Dette de l'ancien forfait -->
+            <div id="bascInfoDette" style="display:none; background:#fff3cd; color:#856404; padding:12px 14px; border-radius:8px; margin-bottom:14px;">
+                <strong>Dette en cours sur l'ancien forfait :</strong> Ce client doit encore <strong id="bascMontantDette"></strong> CFA.
+                <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="radio" name="bascDetteAction" value="rembourser" checked>
+                        <span>Le client rembourse maintenant <small style="color:#888;">(vous serez redirigé vers la section Crédits)</small></span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="radio" name="bascDetteAction" value="garder"> Ne rien faire (la dette reste dans les crédits)
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="radio" name="bascDetteAction" value="annuler"> Annuler la dette (solder le crédit)
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="fermerModalBasculerForfait()">Annuler</button>
+                <button type="button" class="btn-submit" id="bascBtnConfirmer" style="background:#9b59b6;" onclick="confirmerBasculerForfait()">Confirmer le basculement</button>
             </div>
         </div>
     </div>
@@ -840,25 +1115,152 @@ async function changerStatut() {
     }
 }
 
+// === Régler crédit forfait ===
+let rcrCreditId = null;
+let rcrMontantTotal = 0;
+
+function ouvrirModalReglerCredit(creditId, montantRestant) {
+    rcrCreditId = creditId;
+    rcrMontantTotal = montantRestant;
+    document.getElementById('rcrMontantRestant').textContent = montantRestant.toLocaleString('fr-FR');
+    document.getElementById('rcrTypePaiement').value = 'complet';
+    document.getElementById('rcrSectionPartiel').style.display = 'none';
+    document.getElementById('rcrMontantPartiel').value = '';
+    document.getElementById('rcrMoyen1').value = 'especes';
+    document.getElementById('rcrMoyen2').value = '';
+    document.getElementById('rcrMontant2').value = '';
+    document.getElementById('modalReglerCredit').classList.add('active');
+}
+
+function fermerModalReglerCredit() {
+    document.getElementById('modalReglerCredit').classList.remove('active');
+    rcrCreditId = null;
+}
+
+function rcrMajType() {
+    const type = document.getElementById('rcrTypePaiement').value;
+    document.getElementById('rcrSectionPartiel').style.display = type === 'partiel' ? 'block' : 'none';
+}
+
+async function confirmerReglerCredit() {
+    if (!rcrCreditId) return;
+    const type = document.getElementById('rcrTypePaiement').value;
+    const moyen1 = document.getElementById('rcrMoyen1').value;
+    const moyen2 = document.getElementById('rcrMoyen2').value;
+    const montant2 = parseInt(document.getElementById('rcrMontant2').value) || 0;
+
+    let montantTotal;
+    if (type === 'partiel') {
+        montantTotal = parseInt(document.getElementById('rcrMontantPartiel').value) || 0;
+        if (montantTotal <= 0) { showError('Veuillez saisir un montant'); return; }
+        if (montantTotal > rcrMontantTotal) { showError('Montant supérieur au reste à payer'); return; }
+    } else {
+        montantTotal = rcrMontantTotal;
+    }
+
+    const btn = document.getElementById('rcrBtnConfirmer');
+    btn.disabled = true; btn.textContent = 'Enregistrement…';
+
+    try {
+        const baseUrl = `/credits/klinic/api/credit/${rcrCreditId}/regler/`;
+
+        if (moyen2 && montant2 > 0) {
+            // Double paiement : 2 appels séquentiels
+            const montant1 = montantTotal - montant2;
+            if (montant1 <= 0) { showError('Le montant du 2ème moyen dépasse le total'); btn.disabled = false; btn.textContent = 'Enregistrer le paiement'; return; }
+
+            const fd1 = new FormData();
+            fd1.append('montant', montant1);
+            fd1.append('mode', moyen1);
+            const r1 = await fetch(baseUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd1 });
+            const d1 = await r1.json();
+            if (!d1.success) { showError(d1.message); btn.disabled = false; btn.textContent = 'Enregistrer le paiement'; return; }
+
+            const fd2 = new FormData();
+            fd2.append('montant', montant2);
+            fd2.append('mode', moyen2);
+            const r2 = await fetch(baseUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd2 });
+            const d2 = await r2.json();
+            if (!d2.success) { showError(d2.message); btn.disabled = false; btn.textContent = 'Enregistrer le paiement'; return; }
+        } else {
+            // Paiement simple
+            const fd = new FormData();
+            fd.append('montant', montantTotal);
+            fd.append('mode', moyen1);
+            const r = await fetch(baseUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd });
+            const d = await r.json();
+            if (!d.success) { showError(d.message); btn.disabled = false; btn.textContent = 'Enregistrer le paiement'; return; }
+        }
+
+        showSuccess('Paiement enregistré avec succès');
+        fermerModalReglerCredit();
+        setTimeout(() => location.reload(), 1200);
+    } catch(e) {
+        showError('Erreur : ' + e.message);
+        btn.disabled = false; btn.textContent = 'Enregistrer le paiement';
+    }
+}
+
+const _modalRcr = document.getElementById('modalReglerCredit');
+if (_modalRcr) _modalRcr.addEventListener('click', function(e) {
+    if (e.target === this) fermerModalReglerCredit();
+});
+
 // === Suppression forfait ===
 let forfaitIdASupprimer = null;
+let sfCreditId = null;
 
-function ouvrirModalSupprimerForfait(forfaitId, prestationNom, clientNom, nbSeances, nbSeancesUtilisees) {
+async function ouvrirModalSupprimerForfait(forfaitId, prestationNom, clientNom) {
     forfaitIdASupprimer = forfaitId;
-    document.getElementById('forfaitInfoSupprimer').textContent = prestationNom + ' pour ' + clientNom;
+    document.getElementById('forfaitInfoSupprimer').textContent = prestationNom + ' de ' + clientNom;
     document.getElementById('confirmationTexteForfait').value = '';
-
-    if (nbSeancesUtilisees > 0) {
-        document.getElementById('nbSeancesEffectuees').textContent = nbSeancesUtilisees;
-        document.getElementById('alerteSeancesEffectuees').style.display = 'block';
-        document.getElementById('confirmationSuppressionForfait').style.display = 'none';
-        document.getElementById('btnConfirmerSuppressionForfait').style.display = 'none';
-    } else {
-        document.getElementById('alerteSeancesEffectuees').style.display = 'none';
-        document.getElementById('confirmationSuppressionForfait').style.display = 'block';
-        document.getElementById('btnConfirmerSuppressionForfait').style.display = 'inline-block';
-    }
+    // Réinitialiser l'affichage
+    document.getElementById('sfLoading').style.display = 'block';
+    document.getElementById('sfContenu').style.display = 'none';
+    document.getElementById('sfErreur').style.display = 'none';
     document.getElementById('modalSupprimerForfait').classList.add('active');
+
+    try {
+        const resp = await fetch(`/agenda/klinic/api/forfaits/${forfaitId}/info-deletion/`);
+        const data = await resp.json();
+        document.getElementById('sfLoading').style.display = 'none';
+        if (!data.success) throw new Error(data.message || 'Erreur');
+
+        // Séances programmées
+        const elProg = document.getElementById('sfAlerteProgrammees');
+        if (data.nb_seances_programmees > 0) {
+            document.getElementById('sfNbProgrammees').textContent = data.nb_seances_programmees;
+            elProg.style.display = 'block';
+        } else { elProg.style.display = 'none'; }
+
+        // Caisse
+        document.getElementById('sfInfoCaisse').style.display = 'none';
+        document.getElementById('sfInfoCaisseNon').style.display = 'none';
+        if (data.caisse_annulable && data.caisse_montant > 0) {
+            document.getElementById('sfMontantCaisse').textContent = data.caisse_montant.toLocaleString('fr-FR');
+            document.getElementById('sfInfoCaisse').style.display = 'block';
+        } else if (!data.caisse_annulable && data.caisse_montant > 0) {
+            document.getElementById('sfInfoCaisseNon').style.display = 'block';
+        }
+
+        // Dette
+        sfCreditId = data.credit_id || 0;
+        const elDette = document.getElementById('sfInfoDette');
+        if (data.dette_montant > 0) {
+            document.getElementById('sfMontantDette').textContent = data.dette_montant.toLocaleString('fr-FR');
+            elDette.style.display = 'block';
+            // reset radio
+            document.querySelector('input[name="sfDetteAction"][value="garder"]').checked = true;
+        } else {
+            elDette.style.display = 'none';
+            document.querySelector('input[name="sfDetteAction"][value="garder"]').checked = true;
+        }
+
+        document.getElementById('sfContenu').style.display = 'block';
+    } catch (e) {
+        document.getElementById('sfLoading').style.display = 'none';
+        document.getElementById('sfErreur').style.display = 'block';
+    }
 }
 
 function fermerModalSupprimerForfait() {
@@ -872,10 +1274,25 @@ async function confirmerSuppressionForfait() {
         showError('Veuillez taper exactement "SUPPRIMER" pour confirmer');
         return;
     }
+    const detteVisible = document.getElementById('sfInfoDette').style.display !== 'none';
+    const detteRadio = detteVisible ? document.querySelector('input[name="sfDetteAction"]:checked') : null;
+    const detteAction = detteRadio ? detteRadio.value : 'garder';
+
+    // Si le patron choisit de faire rembourser maintenant → ouvrir le modal de paiement
+    if (detteAction === 'rembourser') {
+        const montantDette = parseInt(document.getElementById('sfMontantDette').textContent.replace(/\s/g, '')) || 0;
+        fermerModalSupprimerForfait();
+        ouvrirModalReglerCredit(sfCreditId, montantDette);
+        return;
+    }
+
     try {
+        const fd = new FormData();
+        fd.append('abandon_dette', detteAction === 'annuler' ? 'true' : 'false');
         const response = await fetch(`/agenda/klinic/api/forfaits/${forfaitIdASupprimer}/supprimer/`, {
             method: 'POST',
-            headers: { 'X-CSRFToken': CSRF }
+            headers: { 'X-CSRFToken': CSRF },
+            body: fd
         });
         const data = await response.json();
         if (data.success) {
@@ -890,7 +1307,8 @@ async function confirmerSuppressionForfait() {
     }
 }
 
-document.getElementById('modalSupprimerForfait').addEventListener('click', function(e) {
+const _modalSuppForfait = document.getElementById('modalSupprimerForfait');
+if (_modalSuppForfait) _modalSuppForfait.addEventListener('click', function(e) {
     if (e.target === this) fermerModalSupprimerForfait();
 });
 
@@ -1129,7 +1547,7 @@ document.getElementById('modalSupprimerClient').addEventListener('click', functi
                 <select id="rfForfait" class="form-control" onchange="rfMajSeances()">
                     <option value="">-- Choisir un forfait --</option>
                     {% for f in forfaits_disponibles %}
-                    <option value="{{ f.id }}" data-seances="{{ f.nombre_seances }}" data-nom="{{ f.nom }}">
+                    <option value="{{ f.id }}" data-seances="{{ f.nombre_seances }}" data-nom="{{ f.nom }}" data-prix="{{ f.prix }}">
                         {{ f.nom }} — {{ f.nombre_seances }} séances — {{ f.prix|floatformat:0 }} CFA
                     </option>
                     {% endfor %}
@@ -1137,9 +1555,33 @@ document.getElementById('modalSupprimerClient').addEventListener('click', functi
             </div>
 
             <div class="form-group">
+                <label>Remise (%)</label>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="number" id="rfRemise" class="form-control" min="0" max="99" value="0" placeholder="0" style="width:100px;" oninput="rfMajPrix()">
+                    <div id="rfPrixInfo" style="font-size:13px; color:#6a3a9a; font-weight:600;"></div>
+                </div>
+            </div>
+
+            <div class="form-group">
                 <label>Séances déjà utilisées *</label>
                 <input type="number" id="rfNbUtilisees" class="form-control" min="0" value="0" placeholder="0">
                 <div id="rfSeancesInfo" style="font-size:12px; color:#888; margin-top:5px;"></div>
+            </div>
+
+            <div class="form-group">
+                <label>Date d'achat</label>
+                <input type="date" id="rfDateAchat" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label>Montant payé (CFA)</label>
+                <input type="number" id="rfMontantPaye" class="form-control" min="0" placeholder="Laisser vide = forfait soldé" oninput="rfMajDette()">
+                <div id="rfDetteInfo" style="font-size:12px; margin-top:5px;"></div>
+            </div>
+
+            <div class="form-group">
+                <label>Commentaire</label>
+                <textarea id="rfNotes" class="form-control" rows="2" placeholder="Optionnel…" style="resize:vertical;"></textarea>
             </div>
 
             <div class="modal-actions">
@@ -1152,6 +1594,7 @@ document.getElementById('modalSupprimerClient').addEventListener('click', functi
             <div style="font-size:18px; font-weight:700; color:#9b59b6; margin-bottom:16px;">Forfait enregistré !</div>
             <div style="background:#f8f0ff; border-radius:12px; padding:20px; margin-bottom:20px;">
                 <p style="margin:6px 0; font-size:15px; font-weight:700;" id="rfConfirmNom"></p>
+                <p style="margin:6px 0; font-size:14px;" id="rfConfirmPrix"></p>
                 <p style="margin:6px 0; font-size:14px;">Séances utilisées : <strong id="rfConfirmUtilisees"></strong></p>
                 <p style="margin:6px 0; font-size:14px;">Séances restantes : <strong id="rfConfirmRestantes"></strong></p>
             </div>
@@ -1383,12 +1826,29 @@ async function validerRenseignerCarte() {
 {% if request.user.utilisateur.is_patron or request.user.utilisateur.is_manager %}
 {% if forfaits_disponibles %}
 <script>
+function rfMajPrix() {
+    const sel = document.getElementById('rfForfait');
+    const opt = sel.options[sel.selectedIndex];
+    const prix = opt && opt.dataset.prix ? parseInt(opt.dataset.prix) : 0;
+    if (!prix) { document.getElementById('rfPrixInfo').textContent = ''; return; }
+    const remise = Math.min(99, Math.max(0, parseInt(document.getElementById('rfRemise').value) || 0));
+    if (remise > 0) {
+        const prixFinal = Math.ceil(prix * (100 - remise) / 100 / 1000) * 1000;
+        document.getElementById('rfPrixInfo').innerHTML =
+            `<span style="text-decoration:line-through;color:#aaa;">${prix.toLocaleString()} CFA</span> → <strong>${prixFinal.toLocaleString()} CFA</strong>`;
+    } else {
+        document.getElementById('rfPrixInfo').textContent = prix.toLocaleString() + ' CFA';
+    }
+    rfMajDette();
+}
+
 function rfMajSeances() {
     const sel = document.getElementById('rfForfait');
     const opt = sel.options[sel.selectedIndex];
     const nb = opt && opt.dataset.seances ? parseInt(opt.dataset.seances) : 0;
     const input = document.getElementById('rfNbUtilisees');
     input.max = nb;
+    rfMajPrix();
     if (nb > 0) {
         document.getElementById('rfSeancesInfo').textContent = `Total : ${nb} séances`;
     } else {
@@ -1400,12 +1860,41 @@ function ouvrirModalRenseignerForfait() {
     document.getElementById('rfForfait').value = '';
     document.getElementById('rfNbUtilisees').value = '0';
     document.getElementById('rfNbUtilisees').max = '';
+    document.getElementById('rfRemise').value = '0';
     document.getElementById('rfSeancesInfo').textContent = '';
+    document.getElementById('rfPrixInfo').textContent = '';
+    document.getElementById('rfNotes').value = '';
+    document.getElementById('rfMontantPaye').value = '';
+    document.getElementById('rfDetteInfo').textContent = '';
+    // Date d'achat par défaut = aujourd'hui
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('rfDateAchat').value = today;
     document.getElementById('rfFormulaire').style.display = 'block';
     document.getElementById('rfConfirmation').style.display = 'none';
     document.getElementById('rfBtnValider').disabled = false;
     document.getElementById('rfBtnValider').textContent = 'Enregistrer le forfait';
     document.getElementById('modalRenseignerForfait').classList.add('active');
+}
+
+function rfMajDette() {
+    const sel = document.getElementById('rfForfait');
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.dataset.prix) { document.getElementById('rfDetteInfo').textContent = ''; return; }
+    const remise = Math.min(99, Math.max(0, parseInt(document.getElementById('rfRemise').value) || 0));
+    const prixBase = parseInt(opt.dataset.prix);
+    const prixFinal = remise > 0 ? Math.ceil(prixBase * (100 - remise) / 100 / 1000) * 1000 : prixBase;
+    const montantPaye = parseInt(document.getElementById('rfMontantPaye').value);
+    const elInfo = document.getElementById('rfDetteInfo');
+    if (!document.getElementById('rfMontantPaye').value) {
+        elInfo.innerHTML = '<span style="color:#27ae60;">Forfait considéré comme soldé.</span>';
+        return;
+    }
+    if (isNaN(montantPaye) || montantPaye >= prixFinal) {
+        elInfo.innerHTML = '<span style="color:#27ae60;">Forfait soldé.</span>';
+    } else {
+        const dette = prixFinal - montantPaye;
+        elInfo.innerHTML = `<span style="color:#dc3545;">Dette de <strong>${dette.toLocaleString('fr-FR')} CFA</strong> → un crédit en cours sera créé.</span>`;
+    }
 }
 
 function fermerModalRenseignerForfait() {
@@ -1429,10 +1918,19 @@ async function validerRenseignerForfait() {
         return;
     }
 
+    const remisePourcent = Math.min(99, Math.max(0, parseInt(document.getElementById('rfRemise').value) || 0));
+    const notes = document.getElementById('rfNotes').value.trim();
+    const dateAchat = document.getElementById('rfDateAchat').value;
+    const montantPayeVal = document.getElementById('rfMontantPaye').value.trim();
+
     const formData = new FormData();
     formData.append('client_id', '{{ client.id }}');
     formData.append('prestation_id', prestationId);
     formData.append('nb_utilisees', nbUtilisees);
+    formData.append('remise_pourcent', remisePourcent);
+    if (notes) formData.append('notes', notes);
+    if (dateAchat) formData.append('date_achat', dateAchat);
+    if (montantPayeVal !== '') formData.append('montant_paye', montantPayeVal);
 
     const btn = document.getElementById('rfBtnValider');
     btn.disabled = true;
@@ -1449,6 +1947,10 @@ async function validerRenseignerForfait() {
             document.getElementById('rfFormulaire').style.display = 'none';
             document.getElementById('rfConfirmation').style.display = 'block';
             document.getElementById('rfConfirmNom').textContent = data.forfait.prestation;
+            const prixInfo = data.forfait.remise_pourcent > 0
+                ? `Prix : ${data.forfait.prix_total.toLocaleString()} CFA (remise ${data.forfait.remise_pourcent}%)`
+                : `Prix : ${data.forfait.prix_total.toLocaleString()} CFA`;
+            document.getElementById('rfConfirmPrix').textContent = prixInfo;
             document.getElementById('rfConfirmUtilisees').textContent = data.forfait.nb_utilisees + ' / ' + data.forfait.nb_total;
             document.getElementById('rfConfirmRestantes').textContent = data.forfait.nb_restantes;
         } else {
@@ -1462,6 +1964,249 @@ async function validerRenseignerForfait() {
         btn.textContent = 'Enregistrer le forfait';
     }
 }
+
+// === Modifier séances forfait ===
+let msForfaitId = null;
+let msNbTotal = 0;
+
+function ouvrirModalModifierSeances(forfaitId, nbUtilisees, nbTotal) {
+    msForfaitId = forfaitId;
+    msNbTotal = nbTotal;
+    document.getElementById('msNbUtilisees').value = nbUtilisees;
+    document.getElementById('msNbUtilisees').max = nbTotal;
+    document.getElementById('msTotal').textContent = `/ ${nbTotal} au total`;
+    document.getElementById('msInfo').textContent = '';
+    document.getElementById('msBtnValider').disabled = false;
+    document.getElementById('msBtnValider').textContent = 'Enregistrer';
+    document.getElementById('modalModifierSeances').classList.add('active');
+}
+
+function fermerModalModifierSeances() {
+    document.getElementById('modalModifierSeances').classList.remove('active');
+    msForfaitId = null;
+}
+
+async function validerModifierSeances() {
+    const nb = parseInt(document.getElementById('msNbUtilisees').value);
+    if (isNaN(nb) || nb < 0 || nb > msNbTotal) {
+        showError(`Le nombre doit être entre 0 et ${msNbTotal}`);
+        return;
+    }
+    const btn = document.getElementById('msBtnValider');
+    btn.disabled = true; btn.textContent = 'Enregistrement…';
+    try {
+        const fd = new FormData();
+        fd.append('nb_utilisees', nb);
+        const resp = await fetch(`/agenda/klinic/api/forfaits/${msForfaitId}/modifier-seances/`, {
+            method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            fermerModalModifierSeances();
+            setTimeout(() => location.reload(), 1200);
+        } else {
+            showError(data.message);
+            btn.disabled = false; btn.textContent = 'Enregistrer';
+        }
+    } catch(e) {
+        showError('Erreur: ' + e.message);
+        btn.disabled = false; btn.textContent = 'Enregistrer';
+    }
+}
+
+const _modalModifSeances = document.getElementById('modalModifierSeances');
+if (_modalModifSeances) _modalModifSeances.addEventListener('click', function(e) {
+    if (e.target === this) fermerModalModifierSeances();
+});
+
+// === Basculer forfait ===
+let bascForfaitId = null;
+let bascPrixAncien = 0;
+let bascCreditId = 0;
+let bascDetteMontant = 0;
+
+async function ouvrirModalBasculerForfait(forfaitId, prestationNom, prixAncien, nbUtilisees, nbTotal, creditId, detteMontant) {
+    bascForfaitId = forfaitId;
+    bascPrixAncien = prixAncien;
+    bascCreditId = creditId || 0;
+    bascDetteMontant = detteMontant || 0;
+    document.getElementById('bascForfaitNom').textContent = prestationNom;
+    document.getElementById('bascPrixAncien').textContent = prixAncien.toLocaleString('fr-FR') + ' CFA';
+    document.getElementById('bascSeanceDepart').max = nbTotal;
+    document.getElementById('bascSeanceDepart').value = Math.max(1, nbUtilisees + 1);
+    // Reset
+    document.getElementById('bascNouvellePrestation').value = '';
+    document.getElementById('bascRemiseDiff').value = '0';
+    document.getElementById('bascRemiseDiffInfo').style.display = 'none';
+    document.getElementById('bascNotes').value = '';
+    document.getElementById('bascInfoDiff').style.display = 'none';
+    document.getElementById('bascSectionEncaisser').style.display = 'none';
+    document.getElementById('bascSectionCarteCadeau').style.display = 'none';
+    // Dette
+    const elDette = document.getElementById('bascInfoDette');
+    if (detteMontant > 0) {
+        document.getElementById('bascMontantDette').textContent = detteMontant.toLocaleString('fr-FR');
+        elDette.style.display = 'block';
+        document.querySelector('input[name="bascDetteAction"][value="rembourser"]').checked = true;
+    } else {
+        elDette.style.display = 'none';
+    }
+    document.getElementById('modalBasculerForfait').classList.add('active');
+    // Charger les forfaits
+    await bascChargerForfaits();
+}
+
+async function bascChargerForfaits() {
+    try {
+        const resp = await fetch(`/agenda/klinic/api/forfaits/`);
+        const data = await resp.json();
+        const sel = document.getElementById('bascNouvellePrestation');
+        sel.innerHTML = '<option value="">— Choisir un forfait —</option>';
+        (data.forfaits || []).forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f.id;
+            opt.textContent = `${f.nom} (${f.prix.toLocaleString('fr-FR')} CFA — ${f.nombre_seances} séances)`;
+            opt.dataset.prix = f.prix;
+            opt.dataset.seances = f.nombre_seances;
+            sel.appendChild(opt);
+        });
+    } catch(e) { showError('Erreur chargement forfaits'); }
+}
+
+function bascMajDiff() {
+    const sel = document.getElementById('bascNouvellePrestation');
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.dataset.prix) {
+        document.getElementById('bascInfoDiff').style.display = 'none';
+        document.getElementById('bascSectionEncaisser').style.display = 'none';
+        document.getElementById('bascSectionCarteCadeau').style.display = 'none';
+        return;
+    }
+    const prixNouveau = parseInt(opt.dataset.prix);
+    const diff = prixNouveau - bascPrixAncien;
+
+    document.getElementById('bascPrixNouveau').textContent = prixNouveau.toLocaleString('fr-FR') + ' CFA';
+    const elDiff = document.getElementById('bascDiffMontant');
+    if (diff > 0) {
+        elDiff.textContent = '+' + diff.toLocaleString('fr-FR') + ' CFA (nouveau plus cher)';
+        elDiff.style.color = '#dc3545';
+        document.getElementById('bascSectionEncaisser').style.display = 'block';
+        document.getElementById('bascSectionCarteCadeau').style.display = 'none';
+        // Remise sur la différence
+        const remiseDiff = parseInt(document.getElementById('bascRemiseDiff').value) || 0;
+        const diffFinal = remiseDiff > 0 ? Math.round(diff * (100 - remiseDiff) / 100) : diff;
+        document.getElementById('bascDiffMontantEncaisser').textContent = diffFinal.toLocaleString('fr-FR');
+        const infoRemise = document.getElementById('bascRemiseDiffInfo');
+        if (remiseDiff > 0 && diffFinal !== diff) {
+            infoRemise.textContent = `Après remise ${remiseDiff}% : ${diffFinal.toLocaleString('fr-FR')} CFA (au lieu de ${diff.toLocaleString('fr-FR')} CFA)`;
+            infoRemise.style.display = 'block';
+        } else {
+            infoRemise.style.display = 'none';
+        }
+        // Réinitialiser le radio sur "encaisser" et mettre à jour le formulaire
+        document.querySelector('input[name="bascActionDiff"][value="encaisser"]').checked = true;
+        bascToggleFormPaiement();
+    } else if (diff < 0) {
+        elDiff.textContent = diff.toLocaleString('fr-FR') + ' CFA (nouveau moins cher)';
+        elDiff.style.color = '#27ae60';
+        document.getElementById('bascSectionEncaisser').style.display = 'none';
+        document.getElementById('bascSectionCarteCadeau').style.display = 'block';
+        document.getElementById('bascDiffMontantCarteCadeau').textContent = Math.abs(diff).toLocaleString('fr-FR');
+    } else {
+        elDiff.textContent = 'Aucun écart';
+        elDiff.style.color = '#888';
+        document.getElementById('bascSectionEncaisser').style.display = 'none';
+        document.getElementById('bascSectionCarteCadeau').style.display = 'none';
+    }
+    document.getElementById('bascInfoDiff').style.display = 'block';
+}
+
+function bascToggleFormPaiement() {
+    const radio = document.querySelector('input[name="bascActionDiff"]:checked');
+    const show = radio && radio.value === 'encaisser';
+    document.getElementById('bascFormEncaisser').style.display = show ? 'block' : 'none';
+}
+
+function bascMajTypePaiement() {
+    const type = document.getElementById('bascTypePaiement').value;
+    document.getElementById('bascSectionMontantPartiel').style.display = type === 'partiel' ? 'block' : 'none';
+}
+
+function fermerModalBasculerForfait() {
+    document.getElementById('modalBasculerForfait').classList.remove('active');
+    bascForfaitId = null;
+}
+
+async function confirmerBasculerForfait() {
+    const sel = document.getElementById('bascNouvellePrestation');
+    if (!sel.value) { showError('Veuillez sélectionner un forfait'); return; }
+
+    // Gérer la dette d'abord
+    const detteVisible = document.getElementById('bascInfoDette').style.display !== 'none';
+    if (detteVisible) {
+        const detteRadio = document.querySelector('input[name="bascDetteAction"]:checked');
+        const detteAction = detteRadio ? detteRadio.value : 'garder';
+        if (detteAction === 'rembourser') {
+            fermerModalBasculerForfait();
+            ouvrirModalReglerCredit(bascCreditId, bascDetteMontant);
+            return;
+        }
+    }
+
+    const fd = new FormData();
+    fd.append('nouvelle_prestation_id', sel.value);
+    fd.append('seance_depart', document.getElementById('bascSeanceDepart').value);
+    fd.append('notes', document.getElementById('bascNotes').value);
+
+    // Action dette
+    if (detteVisible) {
+        const detteRadio = document.querySelector('input[name="bascDetteAction"]:checked');
+        fd.append('abandon_dette', detteRadio && detteRadio.value === 'annuler' ? 'true' : 'false');
+    } else {
+        fd.append('abandon_dette', 'false');
+    }
+
+    // Action diff
+    const actionDiffChecked = document.querySelector('input[name="bascActionDiff"]:checked');
+    const actionDiff = actionDiffChecked ? actionDiffChecked.value : 'ignorer';
+    fd.append('action_diff', actionDiff);
+
+    if (actionDiff === 'encaisser') {
+        fd.append('remise_diff_pourcent', document.getElementById('bascRemiseDiff').value || '0');
+        fd.append('type_paiement', document.getElementById('bascTypePaiement').value);
+        fd.append('moyen_paiement_1', document.getElementById('bascMoyenPaiement1').value);
+        fd.append('montant_partiel', document.getElementById('bascMontantPartiel').value || '0');
+        const mp2 = document.getElementById('bascMoyenPaiement2').value;
+        const mp2m = document.getElementById('bascMontantPaiement2').value;
+        if (mp2 && mp2m) { fd.append('moyen_paiement_2', mp2); fd.append('montant_paiement_2', mp2m); }
+    }
+
+    const btn = document.getElementById('bascBtnConfirmer');
+    btn.disabled = true; btn.textContent = 'Basculement en cours…';
+    try {
+        const resp = await fetch(`/agenda/klinic/api/forfaits/${bascForfaitId}/basculer/`, {
+            method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess(data.message);
+            fermerModalBasculerForfait();
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showError(data.message);
+            btn.disabled = false; btn.textContent = 'Confirmer le basculement';
+        }
+    } catch(e) {
+        showError('Erreur: ' + e.message);
+        btn.disabled = false; btn.textContent = 'Confirmer le basculement';
+    }
+}
+
+const _modalBascForfait = document.getElementById('modalBasculerForfait');
+if (_modalBascForfait) _modalBascForfait.addEventListener('click', function(e) {
+    if (e.target === this) fermerModalBasculerForfait();
+});
 </script>
 {% endif %}
 {% endif %}

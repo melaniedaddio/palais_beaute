@@ -164,7 +164,8 @@ def index(request, institut_code):
         mode='carte_cadeau'
     ).aggregate(total=Sum('montant'))['total'] or 0
 
-    ca_encaisse = ca_paiements_rdv + credits_encaisses + ca_forfaits_encaisse + ca_ventes_cartes_jour
+    # ca_forfaits_encaisse est déjà compté dans ca_paiements_rdv via le RDV fictif créé lors de la vente
+    ca_encaisse = ca_paiements_rdv + credits_encaisses + ca_ventes_cartes_jour
 
     # Convertir rdv_par_employe en JSON pour le template
     rdv_par_employe_json = json.dumps(rdv_par_employe)
@@ -1999,11 +2000,18 @@ def api_forfait_acheter(request, institut_code):
         except (ValueError, InvalidOperation):
             montant_paiement_2 = Decimal('0')
 
+        remise_pourcent = max(0, min(99, int(request.POST.get('remise_pourcent', 0) or 0)))
+        notes = request.POST.get('notes', '').strip()
+
         # Validation
         client = get_object_or_404(Client, id=client_id)
-        prestation = get_object_or_404(Prestation, id=prestation_id, est_forfait=True)
+        prestation = get_object_or_404(Prestation, id=prestation_id)
 
-        prix_forfait = prestation.prix
+        import math
+        if remise_pourcent > 0:
+            prix_forfait = math.ceil(prestation.prix * (100 - remise_pourcent) / 100 / 1000) * 1000
+        else:
+            prix_forfait = prestation.prix
         utilisateur = request.user.utilisateur
 
         # Créer le forfait client (utiliser comme RDV fictif pour les paiements)
@@ -2020,6 +2028,7 @@ def api_forfait_acheter(request, institut_code):
             prix_base=prix_forfait,
             prix_options=0,
             prix_total=prix_forfait,
+            remise_pourcent=remise_pourcent,
             statut='valide',
             cree_par=utilisateur,
             valide_par=utilisateur,
@@ -2077,8 +2086,11 @@ def api_forfait_acheter(request, institut_code):
             institut=institut,
             nombre_seances_total=prestation.nombre_seances,
             prix_total=prix_forfait,
+            remise_pourcent=remise_pourcent,
             montant_paye_initial=montant_effectif,
             vendu_par=utilisateur,
+            notes=notes or None,
+            rdv_achat=rdv_forfait,
         )
 
         # Créer les séances individuelles
@@ -2114,13 +2126,15 @@ def api_forfait_acheter(request, institut_code):
 
         # 4. Si paiement partiel ou différé, créer un crédit
         if montant_effectif < prix_forfait:
-            Credit.objects.create(
+            credit_obj = Credit.objects.create(
                 client=client,
                 institut=institut,
                 montant_total=prix_forfait,
                 montant_paye=montant_effectif,
                 description=f"Forfait {prestation.nom} - {prestation.nombre_seances} séances"
             )
+            forfait.credit_achat = credit_obj
+            forfait.save(update_fields=['credit_achat'])
 
         return JsonResponse({
             'success': True,
@@ -2388,34 +2402,166 @@ def api_rdv_valider_groupe(request, institut_code):
 
 @login_required
 @role_required(['patron'])
+def api_forfait_info_deletion(request, institut_code, forfait_id):
+    """API GET : informations nécessaires avant suppression d'un forfait"""
+    try:
+        forfait = get_object_or_404(ForfaitClient, id=forfait_id)
+        today = date.today()
+
+        # --- Info caisse ---
+        caisse_annulable = False
+        caisse_montant = 0
+        if forfait.rdv_achat_id:
+            rdv = forfait.rdv_achat
+            paiements_jour = rdv.paiements.filter(date__date=today)
+            montant_paiements = paiements_jour.aggregate(t=Sum('montant'))['t'] or 0
+            if montant_paiements > 0:
+                dernier_paiement = rdv.paiements.order_by('-date').first()
+                cloture_apres = ClotureCaisse.objects.filter(
+                    institut=forfait.institut,
+                    date=today,
+                    cloture=True,
+                    date_cloture__gte=dernier_paiement.date
+                ).exists()
+                if not cloture_apres:
+                    caisse_annulable = True
+                    caisse_montant = montant_paiements
+
+        # --- Info dette ---
+        dette_montant = 0
+        if forfait.credit_achat_id:
+            credit = forfait.credit_achat
+            dette_montant = max(0, credit.reste_a_payer)
+
+        return JsonResponse({
+            'success': True,
+            'caisse_annulable': caisse_annulable,
+            'caisse_montant': caisse_montant,
+            'dette_montant': dette_montant,
+            'credit_id': forfait.credit_achat_id or 0,
+            'nb_seances_programmees': forfait.nombre_seances_programmees,
+            'nb_seances_effectuees': forfait.nombre_seances_utilisees,
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+
+@login_required
+@role_required(['patron'])
+@require_POST
+def api_forfait_modifier_seances(request, institut_code, forfait_id):
+    """
+    API : Modifier manuellement le nombre de séances utilisées d'un forfait.
+    - Recalcule les statuts des SeanceForfait
+    - Met à jour nombre_seances_utilisees et statut du forfait
+    - Ne touche pas aux séances programmées (garde leurs RDV)
+    """
+    try:
+        forfait = get_object_or_404(ForfaitClient, id=forfait_id)
+        nouvelles_utilisees = int(request.POST.get('nb_utilisees', 0))
+
+        if nouvelles_utilisees < 0 or nouvelles_utilisees > forfait.nombre_seances_total:
+            return JsonResponse({
+                'success': False,
+                'message': f'Le nombre de séances doit être entre 0 et {forfait.nombre_seances_total}'
+            }, status=400)
+
+        seances = list(forfait.seances.order_by('numero'))
+
+        for seance in seances:
+            if seance.numero <= nouvelles_utilisees:
+                # Marquer comme effectuée (si pas déjà programmée avec RDV)
+                if seance.statut != 'effectuee':
+                    seance.statut = 'effectuee'
+                    seance.rendez_vous = None
+                    seance.save(update_fields=['statut', 'rendez_vous'])
+            else:
+                # Remettre disponible uniquement si elle était effectuée manuellement
+                # (ne pas toucher aux séances programmées avec RDV)
+                if seance.statut == 'effectuee' and seance.rendez_vous is None:
+                    seance.statut = 'disponible'
+                    seance.save(update_fields=['statut'])
+
+        # Recalculer nombre_seances_programmees (séances avec RDV encore actif)
+        nb_programmees = forfait.seances.filter(statut='programmee', rendez_vous__isnull=False).count()
+
+        forfait.nombre_seances_utilisees = nouvelles_utilisees
+        forfait.nombre_seances_programmees = nb_programmees
+        if nouvelles_utilisees >= forfait.nombre_seances_total:
+            forfait.statut = 'termine'
+            forfait.date_fin = timezone.now()
+        elif forfait.statut == 'termine':
+            forfait.statut = 'actif'
+            forfait.date_fin = None
+        forfait.save(update_fields=['nombre_seances_utilisees', 'nombre_seances_programmees', 'statut', 'date_fin'])
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Séances mises à jour : {nouvelles_utilisees}/{forfait.nombre_seances_total}',
+            'nb_utilisees': nouvelles_utilisees,
+            'nb_restantes': forfait.nombre_seances_total - nouvelles_utilisees,
+        })
+
+    except (ValueError, TypeError):
+        return JsonResponse({'success': False, 'message': 'Nombre de séances invalide'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+
+@login_required
+@role_required(['patron'])
 @require_POST
 def api_forfait_supprimer(request, institut_code, forfait_id):
     """API pour supprimer un forfait (patron uniquement)"""
     try:
         forfait = get_object_or_404(ForfaitClient, id=forfait_id)
+        today = date.today()
+        abandon_dette = request.POST.get('abandon_dette', 'false').lower() == 'true'
 
-        # Vérifier s'il y a des séances effectuées
-        nb_seances_effectuees = forfait.seances.filter(statut='effectuee').count()
+        # 1. Supprimer les RDV d'aujourd'hui et futurs non validés, détacher les passés ou validés
+        seances_programmees = forfait.seances.filter(statut='programmee', rendez_vous__isnull=False)
+        for seance in seances_programmees:
+            rdv = seance.rendez_vous
+            if rdv.date >= today and rdv.statut not in ('valide', 'absent'):
+                rdv.delete()
+            else:
+                rdv.est_seance_forfait = False
+                rdv.forfait = None
+                rdv.numero_seance = None
+                rdv.save(update_fields=['est_seance_forfait', 'forfait', 'numero_seance'])
 
-        if nb_seances_effectuees > 0:
-            return JsonResponse({
-                'success': False,
-                'message': f'Impossible de supprimer ce forfait : {nb_seances_effectuees} séance(s) déjà effectuée(s). Vous pouvez l\'annuler à la place.'
-            }, status=400)
+        # 2. Annuler la caisse si possible (paiements du jour sans clôture après)
+        if forfait.rdv_achat_id:
+            rdv = forfait.rdv_achat
+            paiements_jour = rdv.paiements.filter(date__date=today)
+            montant_paiements = paiements_jour.aggregate(t=Sum('montant'))['t'] or 0
+            if montant_paiements > 0:
+                dernier_paiement = rdv.paiements.order_by('-date').first()
+                cloture_apres = ClotureCaisse.objects.filter(
+                    institut=forfait.institut,
+                    date=today,
+                    cloture=True,
+                    date_cloture__gte=dernier_paiement.date
+                ).exists()
+                if not cloture_apres:
+                    # Supprimer les paiements et annuler le RDV fictif
+                    paiements_jour.delete()
+                    rdv.statut = 'annule'
+                    rdv.save(update_fields=['statut'])
 
-        # Vérifier s'il y a des séances programmées avec RDV
-        nb_seances_programmees = forfait.seances.filter(statut='programmee', rendez_vous__isnull=False).count()
-
-        if nb_seances_programmees > 0:
-            return JsonResponse({
-                'success': False,
-                'message': f'Impossible de supprimer ce forfait : {nb_seances_programmees} séance(s) programmée(s) avec rendez-vous. Annulez les RDV d\'abord.'
-            }, status=400)
+        # 3. Gérer la dette (crédit ouvert)
+        if forfait.credit_achat_id:
+            credit = forfait.credit_achat
+            if abandon_dette:
+                # Solder le crédit (montant_paye = montant_total → reste = 0, solde = True via save())
+                credit.montant_paye = credit.montant_total
+                credit.save()
+            # Sinon : laisser le crédit en cours (dette reste dans crédits)
 
         prestation_nom = forfait.prestation.nom
         client_nom = forfait.client.get_full_name()
 
-        # Supprimer le forfait (les séances seront supprimées en cascade)
+        # 4. Supprimer le forfait (séances en cascade)
         forfait.delete()
 
         return JsonResponse({
@@ -2428,6 +2574,224 @@ def api_forfait_supprimer(request, institut_code, forfait_id):
             'success': False,
             'message': str(e)
         }, status=400)
+
+
+@login_required
+@role_required(['patron'])
+@institut_required
+@require_POST
+def api_basculer_forfait(request, institut_code, forfait_id):
+    """
+    API : Basculer un forfait actif vers un nouveau forfait.
+    - Marque l'ancien forfait comme 'annule'
+    - Crée un nouveau ForfaitClient pour le client
+    - Transfère les RDV programmés vers le nouveau forfait
+    - Gère l'écart de prix : encaissement (nouveau > ancien) ou carte cadeau (nouveau < ancien)
+    - Transfère l'éventuelle dette de l'ancien forfait vers le nouveau
+    """
+    try:
+        institut = get_object_or_404(Institut, code=institut_code)
+        ancien_forfait = get_object_or_404(ForfaitClient, id=forfait_id, statut='actif')
+        utilisateur = request.user.utilisateur
+
+        # --- Paramètres ---
+        nouvelle_prestation_id = request.POST.get('nouvelle_prestation_id')
+        seance_depart = int(request.POST.get('seance_depart', 1))
+        action_diff = request.POST.get('action_diff', 'ignorer')  # 'encaisser', 'carte_cadeau', 'ignorer'
+        remise_nouveau = int(request.POST.get('remise_pourcent', 0) or 0)
+        notes_nouveau = request.POST.get('notes', '') or None
+
+        abandon_dette = request.POST.get('abandon_dette', 'false').lower() == 'true'
+
+        # Paiement diff (si action_diff == 'encaisser')
+        type_paiement = request.POST.get('type_paiement', 'complet')
+        moyen_paiement_1 = request.POST.get('moyen_paiement_1', 'especes')
+        moyen_paiement_2_val = request.POST.get('moyen_paiement_2', '')
+        montant_paiement_2_val = int(request.POST.get('montant_paiement_2', 0) or 0)
+        utilise_double = bool(moyen_paiement_2_val and montant_paiement_2_val > 0)
+
+        if not nouvelle_prestation_id:
+            return JsonResponse({'success': False, 'message': 'Veuillez sélectionner un forfait'}, status=400)
+
+        nouvelle_prestation = get_object_or_404(Prestation, id=nouvelle_prestation_id)
+
+        remise_diff_pourcent = max(0, min(100, int(request.POST.get('remise_diff_pourcent', 0) or 0)))
+
+        # Prix du nouveau forfait = prix catalogue (pas de remise globale)
+        prix_nouveau = nouvelle_prestation.prix
+        prix_ancien_paye = ancien_forfait.prix_total  # Ce qui a été défini comme prix total (après remise)
+        diff = prix_nouveau - prix_ancien_paye  # positif = nouveau plus cher, négatif = moins cher
+        # Remise appliquée sur la différence uniquement (seulement quand encaissement)
+        diff_apres_remise = round(diff * (100 - remise_diff_pourcent) / 100) if remise_diff_pourcent > 0 else diff
+
+        # --- Créer le nouveau ForfaitClient ---
+        # Nombre de séances à partir de seance_depart
+        seances_restantes = max(1, nouvelle_prestation.nombre_seances - (seance_depart - 1))
+
+        # Calculer montant payé initial du nouveau forfait
+        # Si la dette ancienne est transférée, montant_paye_initial = 0 (ou paiement diff encaissé)
+        montant_paye_nouveau = 0
+
+        nouveau_forfait = ForfaitClient.objects.create(
+            client=ancien_forfait.client,
+            prestation=nouvelle_prestation,
+            institut=institut,
+            nombre_seances_total=nouvelle_prestation.nombre_seances,
+            prix_total=prix_nouveau,
+            remise_pourcent=0,
+            montant_paye_initial=0,  # sera mis à jour ci-dessous
+            vendu_par=utilisateur,
+            notes=notes_nouveau,
+        )
+
+        # Créer les séances du nouveau forfait
+        for i in range(1, nouvelle_prestation.nombre_seances + 1):
+            SeanceForfait.objects.create(
+                forfait=nouveau_forfait,
+                numero=i,
+                statut='disponible'
+            )
+
+        # --- Transférer les RDV programmés ---
+        seances_programmees = ancien_forfait.seances.filter(statut='programmee', rendez_vous__isnull=False).order_by('numero')
+        numero_nouvelle_seance = seance_depart
+        for ancienne_seance in seances_programmees:
+            if numero_nouvelle_seance > nouveau_forfait.nombre_seances_total:
+                # Plus de place dans le nouveau forfait → détacher sans transférer
+                rdv = ancienne_seance.rendez_vous
+                rdv.est_seance_forfait = False
+                rdv.forfait = None
+                rdv.numero_seance = None
+                rdv.save(update_fields=['est_seance_forfait', 'forfait', 'numero_seance'])
+            else:
+                # Transférer vers la séance correspondante du nouveau forfait
+                nouvelle_seance = nouveau_forfait.seances.get(numero=numero_nouvelle_seance)
+                rdv = ancienne_seance.rendez_vous
+                # Libérer l'ancienne séance EN PREMIER pour lever la contrainte UNIQUE
+                ancienne_seance.rendez_vous = None
+                ancienne_seance.statut = 'disponible'
+                ancienne_seance.save(update_fields=['rendez_vous', 'statut'])
+                # Puis assigner le RDV à la nouvelle séance
+                rdv.forfait = nouveau_forfait
+                rdv.numero_seance = numero_nouvelle_seance
+                # Mettre à jour l'intitulé si le RDV n'est pas encore validé
+                if rdv.statut not in ('valide', 'absent'):
+                    rdv.prestation = nouvelle_prestation
+                    rdv.famille = nouvelle_prestation.famille
+                    rdv.save(update_fields=['forfait', 'numero_seance', 'prestation', 'famille'])
+                else:
+                    rdv.save(update_fields=['forfait', 'numero_seance'])
+                nouvelle_seance.rendez_vous = rdv
+                nouvelle_seance.statut = 'programmee'
+                nouvelle_seance.save()
+                nouveau_forfait.nombre_seances_programmees += 1
+                numero_nouvelle_seance += 1
+        nouveau_forfait.save(update_fields=['nombre_seances_programmees'])
+
+        # --- Gérer dette ancienne selon choix du patron ---
+        montant_dette_transfere = 0
+        if ancien_forfait.credit_achat_id:
+            ancien_credit = ancien_forfait.credit_achat
+            montant_dette_en_cours = max(0, ancien_credit.reste_a_payer)
+            if montant_dette_en_cours > 0:
+                if abandon_dette:
+                    # Annuler la dette : solder l'ancien crédit
+                    ancien_credit.montant_paye = ancien_credit.montant_total
+                    ancien_credit.save()  # solde = True via save()
+                # else : garder l'ancien crédit tel quel (reste visible dans crédits en cours)
+
+        # --- Gérer l'écart de prix ---
+        rdv_achat_nouveau = None
+        credit_nouveau = None
+
+        if action_diff == 'encaisser' and diff > 0:
+            # Créer un RDV fictif pour encaissement de la différence (après remise éventuelle)
+            rdv_achat_nouveau = RendezVous.objects.create(
+                client=ancien_forfait.client,
+                institut=institut,
+                employe=institut.employes.first(),
+                prestation=nouvelle_prestation,
+                famille=nouvelle_prestation.famille,
+                date=date.today(),
+                heure_debut=datetime.now().time(),
+                heure_fin=datetime.now().time(),
+                prix_base=diff_apres_remise,
+                prix_options=0,
+                prix_total=diff_apres_remise,
+                remise_pourcent=remise_diff_pourcent,
+                statut='valide',
+                cree_par=utilisateur,
+                valide_par=utilisateur,
+                est_seance_forfait=False,
+            )
+
+            montant_a_payer = diff_apres_remise + montant_dette_transfere
+            montant_effectif = 0
+
+            if type_paiement == 'differe':
+                montant_effectif = 0
+            elif type_paiement == 'partiel':
+                montant_partiel = int(request.POST.get('montant_partiel', 0) or 0)
+                montant_effectif = min(montant_partiel, montant_a_payer)
+            else:  # complet
+                montant_effectif = montant_a_payer
+
+            if montant_effectif > 0:
+                montant_restant = montant_effectif
+                if utilise_double and montant_paiement_2_val > 0:
+                    montant_1 = montant_restant - montant_paiement_2_val
+                    if montant_1 > 0:
+                        Paiement.objects.create(rendez_vous=rdv_achat_nouveau, mode=moyen_paiement_1, montant=montant_1)
+                    Paiement.objects.create(rendez_vous=rdv_achat_nouveau, mode=moyen_paiement_2_val, montant=montant_paiement_2_val)
+                else:
+                    Paiement.objects.create(rendez_vous=rdv_achat_nouveau, mode=moyen_paiement_1, montant=montant_restant)
+
+            montant_paye_nouveau = montant_effectif
+
+            if montant_effectif < montant_a_payer:
+                credit_nouveau = Credit.objects.create(
+                    client=ancien_forfait.client,
+                    institut=institut,
+                    montant_total=montant_a_payer,
+                    montant_paye=montant_effectif,
+                    description=f"Basculement vers {nouvelle_prestation.nom}"
+                )
+
+        elif action_diff == 'carte_cadeau' and diff < 0:
+            montant_carte = abs(diff)
+            CarteCadeau.objects.create(
+                acheteur=ancien_forfait.client,
+                beneficiaire=ancien_forfait.client,
+                montant_initial=montant_carte,
+                solde=montant_carte,
+                institut_achat=institut,
+                mode_paiement_achat='especes',
+                vendue_par=utilisateur,
+            )
+            montant_paye_nouveau = 0
+        else:
+            # Ignorer la différence — dette transférée si existait
+            montant_paye_nouveau = 0
+
+        # Mettre à jour montant_paye_initial et liens du nouveau forfait
+        nouveau_forfait.montant_paye_initial = montant_paye_nouveau
+        if rdv_achat_nouveau:
+            nouveau_forfait.rdv_achat = rdv_achat_nouveau
+        if credit_nouveau:
+            nouveau_forfait.credit_achat = credit_nouveau
+        nouveau_forfait.save(update_fields=['montant_paye_initial', 'rdv_achat', 'credit_achat'])
+
+        # --- Annuler l'ancien forfait ---
+        ancien_forfait.statut = 'annule'
+        ancien_forfait.save(update_fields=['statut'])
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Forfait basculé vers {nouvelle_prestation.nom} avec succès',
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
 
 @login_required

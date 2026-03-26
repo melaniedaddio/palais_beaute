@@ -37,5 +37,8 @@ urlpatterns = [
     path('<str:institut_code>/api/forfaits/', views.api_forfaits_disponibles, name='api_forfaits_disponibles'),
     path('<str:institut_code>/api/forfaits/client/<int:client_id>/', views.api_forfaits_client, name='api_forfaits_client'),
     path('<str:institut_code>/api/forfaits/acheter/', views.api_forfait_acheter, name='api_forfait_acheter'),
+    path('<str:institut_code>/api/forfaits/<int:forfait_id>/info-deletion/', views.api_forfait_info_deletion, name='api_forfait_info_deletion'),
+    path('<str:institut_code>/api/forfaits/<int:forfait_id>/modifier-seances/', views.api_forfait_modifier_seances, name='api_forfait_modifier_seances'),
     path('<str:institut_code>/api/forfaits/<int:forfait_id>/supprimer/', views.api_forfait_supprimer, name='api_forfait_supprimer'),
+    path('<str:institut_code>/api/forfaits/<int:forfait_id>/basculer/', views.api_basculer_forfait, name='api_basculer_forfait'),
 ]

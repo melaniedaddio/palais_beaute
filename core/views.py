@@ -291,8 +291,9 @@ def client_detail(request, pk):
 
     instituts = Institut.objects.all().order_by('nom')
 
+    from django.db.models import Q
     forfaits_disponibles = list(
-        Prestation.objects.filter(est_forfait=True, actif=True)
+        Prestation.objects.filter(Q(est_forfait=True) | Q(type_prestation='forfait'), actif=True)
         .select_related('famille')
         .order_by('famille__nom', 'nom')
         .values('id', 'nom', 'prix', 'nombre_seances', 'famille__nom')
@@ -1301,19 +1302,47 @@ def api_renseigner_forfait(request):
         client_id = request.POST.get('client_id')
         prestation_id = request.POST.get('prestation_id')
         nb_utilisees = int(request.POST.get('nb_utilisees', 0))
+        remise_pourcent = max(0, min(99, int(request.POST.get('remise_pourcent', 0) or 0)))
+        notes = request.POST.get('notes', '').strip()
+        date_achat_str = request.POST.get('date_achat', '').strip()
+        montant_paye_str = request.POST.get('montant_paye', '').strip()
 
         if not client_id or not prestation_id:
             return JsonResponse({'success': False, 'message': 'Données manquantes'})
 
         client = Client.objects.get(id=client_id)
-        prestation = Prestation.objects.get(id=prestation_id, est_forfait=True)
+        prestation = Prestation.objects.get(id=prestation_id)
         nb_total = prestation.nombre_seances
 
         if nb_utilisees < 0 or nb_utilisees > nb_total:
             return JsonResponse({'success': False, 'message': f'Le nombre de séances utilisées doit être entre 0 et {nb_total}'})
 
+        import math
+        if remise_pourcent > 0:
+            prix_total = math.ceil(prestation.prix * (100 - remise_pourcent) / 100 / 1000) * 1000
+        else:
+            prix_total = prestation.prix
+
         # Les forfaits sont toujours liés à La Klinic
         institut = Institut.objects.get(code='klinic')
+
+        # Traitement de la date d'achat personnalisée
+        from django.utils import timezone as tz
+        from datetime import datetime
+        if date_achat_str:
+            try:
+                date_achat = tz.make_aware(datetime.strptime(date_achat_str, '%Y-%m-%d'))
+            except ValueError:
+                date_achat = tz.now()
+        else:
+            date_achat = tz.now()
+
+        # Montant payé (optionnel — si inférieur au prix total, créer un crédit)
+        if montant_paye_str:
+            montant_paye = max(0, int(montant_paye_str))
+            montant_paye = min(montant_paye, prix_total)  # ne peut pas dépasser le prix total
+        else:
+            montant_paye = prix_total  # par défaut : soldé
 
         from django.db import transaction
         with transaction.atomic():
@@ -1324,10 +1353,13 @@ def api_renseigner_forfait(request):
                 institut=institut,
                 nombre_seances_total=nb_total,
                 nombre_seances_utilisees=nb_utilisees,
-                prix_total=prestation.prix,
-                montant_paye_initial=0,
+                prix_total=prix_total,
+                remise_pourcent=remise_pourcent,
+                montant_paye_initial=montant_paye,
                 statut=statut,
                 vendu_par=utilisateur,
+                notes=notes or None,
+                date_achat=date_achat,
             )
 
             for i in range(1, nb_total + 1):
@@ -1336,6 +1368,18 @@ def api_renseigner_forfait(request):
                     numero=i,
                     statut='effectuee' if i <= nb_utilisees else 'disponible',
                 )
+
+            # Si paiement partiel → créer un crédit
+            if montant_paye < prix_total:
+                credit = Credit.objects.create(
+                    client=client,
+                    institut=institut,
+                    montant_total=prix_total,
+                    montant_paye=montant_paye,
+                    description=f"Forfait {prestation.nom} - {nb_total} séances (renseigné)"
+                )
+                forfait.credit_achat = credit
+                forfait.save(update_fields=['credit_achat'])
 
         return JsonResponse({
             'success': True,
@@ -1346,6 +1390,10 @@ def api_renseigner_forfait(request):
                 'nb_total': nb_total,
                 'nb_utilisees': nb_utilisees,
                 'nb_restantes': nb_total - nb_utilisees,
+                'prix_total': prix_total,
+                'remise_pourcent': remise_pourcent,
+                'montant_paye': montant_paye,
+                'dette': prix_total - montant_paye,
             }
         })
 
