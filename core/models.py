@@ -2065,6 +2065,8 @@ class CarteCadeau(models.Model):
         related_name='cartes_vendues',
     )
 
+    notes = models.TextField(blank=True, null=True)
+
     class Meta:
         verbose_name = "Carte cadeau"
         verbose_name_plural = "Cartes cadeaux"

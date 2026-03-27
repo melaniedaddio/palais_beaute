@@ -632,24 +632,29 @@
                 {% if cartes_achetees %}
                 <div style="font-size: 12px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">Achetées</div>
                 {% for carte in cartes_achetees %}
-                <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 14px; background:#fafafa; border-radius:10px; margin-bottom:8px;">
-                    <div>
-                        <div style="font-size:13px; font-weight:600; color:#1a1a1a;">{{ carte.code }}</div>
-                        <div style="font-size:12px; color:#aaa; margin-top:3px;">
-                            Pour {{ carte.beneficiaire.get_full_name }} · {{ carte.date_achat|date:"d/m/Y" }}
+                <div style="padding:12px 14px; background:#fafafa; border-radius:10px; margin-bottom:8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-size:13px; font-weight:600; color:#1a1a1a;">{{ carte.code }}</div>
+                            <div style="font-size:12px; color:#aaa; margin-top:3px;">
+                                Pour {{ carte.beneficiaire.get_full_name }} · {{ carte.date_achat|date:"d/m/Y" }}
+                            </div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:14px; font-weight:700; color:{% if carte.statut == 'active' %}#2e7d32{% elif carte.statut == 'soldee' %}#aaa{% else %}#dc3545{% endif %};">
+                                {{ carte.solde|floatformat:0 }} / {{ carte.montant_initial|floatformat:0 }} CFA
+                            </div>
+                            <div style="font-size:11px; margin-top:2px;">
+                                {% if carte.statut == 'active' %}<span style="color:#2e7d32; font-weight:600;">Active</span>
+                                {% elif carte.statut == 'soldee' %}<span style="color:#aaa;">Soldée</span>
+                                {% elif carte.statut == 'expiree' %}<span style="color:#dc3545;">Expirée</span>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
-                    <div style="text-align:right;">
-                        <div style="font-size:14px; font-weight:700; color:{% if carte.statut == 'active' %}#2e7d32{% elif carte.statut == 'soldee' %}#aaa{% else %}#dc3545{% endif %};">
-                            {{ carte.solde|floatformat:0 }} / {{ carte.montant_initial|floatformat:0 }} CFA
-                        </div>
-                        <div style="font-size:11px; margin-top:2px;">
-                            {% if carte.statut == 'active' %}<span style="color:#2e7d32; font-weight:600;">Active</span>
-                            {% elif carte.statut == 'soldee' %}<span style="color:#aaa;">Soldée</span>
-                            {% elif carte.statut == 'expiree' %}<span style="color:#dc3545;">Expirée</span>
-                            {% endif %}
-                        </div>
-                    </div>
+                    {% if carte.notes %}
+                    <div style="margin-top:8px; background:white; border-left:3px solid #f39c12; padding:6px 10px; border-radius:0 6px 6px 0; font-size:12px; color:#555; font-style:italic;">{{ carte.notes }}</div>
+                    {% endif %}
                 </div>
                 {% endfor %}
                 {% endif %}
@@ -657,24 +662,29 @@
                 {% if cartes_recues %}
                 <div style="font-size: 12px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; margin: 14px 0 10px;">Reçues</div>
                 {% for carte in cartes_recues %}
-                <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 14px; background:#fafafa; border-radius:10px; margin-bottom:8px;">
-                    <div>
-                        <div style="font-size:13px; font-weight:600; color:#1a1a1a;">{{ carte.code }}</div>
-                        <div style="font-size:12px; color:#aaa; margin-top:3px;">
-                            De {{ carte.acheteur.get_full_name }} · {{ carte.date_achat|date:"d/m/Y" }}
+                <div style="padding:12px 14px; background:#fafafa; border-radius:10px; margin-bottom:8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-size:13px; font-weight:600; color:#1a1a1a;">{{ carte.code }}</div>
+                            <div style="font-size:12px; color:#aaa; margin-top:3px;">
+                                De {{ carte.acheteur.get_full_name }} · {{ carte.date_achat|date:"d/m/Y" }}
+                            </div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:14px; font-weight:700; color:{% if carte.statut == 'active' %}#2e7d32{% elif carte.statut == 'soldee' %}#aaa{% else %}#dc3545{% endif %};">
+                                {{ carte.solde|floatformat:0 }} / {{ carte.montant_initial|floatformat:0 }} CFA
+                            </div>
+                            <div style="font-size:11px; margin-top:2px;">
+                                {% if carte.statut == 'active' %}<span style="color:#2e7d32; font-weight:600;">Active</span>
+                                {% elif carte.statut == 'soldee' %}<span style="color:#aaa;">Soldée</span>
+                                {% elif carte.statut == 'expiree' %}<span style="color:#dc3545;">Expirée</span>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
-                    <div style="text-align:right;">
-                        <div style="font-size:14px; font-weight:700; color:{% if carte.statut == 'active' %}#2e7d32{% elif carte.statut == 'soldee' %}#aaa{% else %}#dc3545{% endif %};">
-                            {{ carte.solde|floatformat:0 }} / {{ carte.montant_initial|floatformat:0 }} CFA
-                        </div>
-                        <div style="font-size:11px; margin-top:2px;">
-                            {% if carte.statut == 'active' %}<span style="color:#2e7d32; font-weight:600;">Active</span>
-                            {% elif carte.statut == 'soldee' %}<span style="color:#aaa;">Soldée</span>
-                            {% elif carte.statut == 'expiree' %}<span style="color:#dc3545;">Expirée</span>
-                            {% endif %}
-                        </div>
-                    </div>
+                    {% if carte.notes %}
+                    <div style="margin-top:8px; background:white; border-left:3px solid #f39c12; padding:6px 10px; border-radius:0 6px 6px 0; font-size:12px; color:#555; font-style:italic;">{{ carte.notes }}</div>
+                    {% endif %}
                 </div>
                 {% endfor %}
                 {% endif %}
@@ -1458,6 +1468,11 @@ document.getElementById('modalSupprimerClient').addEventListener('click', functi
             </div>
             {% endif %}
 
+            <div class="form-group">
+                <label>Commentaire</label>
+                <textarea id="vcNotes" class="form-control" rows="2" placeholder="Optionnel…" style="resize:vertical;"></textarea>
+            </div>
+
             <div class="modal-actions">
                 <button type="button" class="btn-cancel" onclick="fermerModalVenteCarte()">Annuler</button>
                 <button type="button" class="btn-submit" id="vcBtnValider" onclick="validerVenteCarte()">Valider la vente</button>
@@ -1503,6 +1518,11 @@ document.getElementById('modalSupprimerClient').addEventListener('click', functi
             <div class="form-group">
                 <label>Date d'achat</label>
                 <input type="date" id="rcDateAchat" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label>Commentaire</label>
+                <textarea id="rcNotes" class="form-control" rows="2" placeholder="Optionnel…" style="resize:vertical;"></textarea>
             </div>
 
             <div class="modal-actions">
@@ -1621,6 +1641,7 @@ function ouvrirModalVenteCarte() {
     document.getElementById('vcMontant1Group').style.display = 'none';
     document.getElementById('vcSection2').style.display = 'none';
     document.querySelector('input[name="vcMode1"][value="especes"]').checked = true;
+    document.getElementById('vcNotes').value = '';
     document.getElementById('vcFormulaire').style.display = 'block';
     document.getElementById('vcConfirmation').style.display = 'none';
     document.getElementById('modalVenteCarte').classList.add('active');
@@ -1727,6 +1748,9 @@ async function validerVenteCarte() {
     formData.append('institut_id', institutVal);
     {% endif %}
 
+    const vcNotes = document.getElementById('vcNotes').value.trim();
+    if (vcNotes) formData.append('notes', vcNotes);
+
     const btn = document.getElementById('vcBtnValider');
     btn.disabled = true;
     btn.textContent = 'Création en cours...';
@@ -1764,6 +1788,7 @@ function ouvrirModalRenseignerCarte() {
     document.getElementById('rcSolde').value = '';
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('rcDateAchat').value = today;
+    document.getElementById('rcNotes').value = '';
     document.getElementById('rcFormulaire').style.display = 'block';
     document.getElementById('rcConfirmation').style.display = 'none';
     document.getElementById('rcBtnValider').disabled = false;
@@ -1791,6 +1816,8 @@ async function validerRenseignerCarte() {
     formData.append('montant_initial', solde);
     formData.append('solde', solde);
     if (dateAchat) formData.append('date_achat', dateAchat);
+    const rcNotes = document.getElementById('rcNotes').value.trim();
+    if (rcNotes) formData.append('notes', rcNotes);
 
     const btn = document.getElementById('rcBtnValider');
     btn.disabled = true;

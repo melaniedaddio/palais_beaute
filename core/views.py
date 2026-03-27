@@ -1003,6 +1003,8 @@ def api_vendre_carte_cadeau(request):
         else:
             institut = utilisateur.institut
 
+        notes = request.POST.get('notes', '').strip() or None
+
         # Créer la carte cadeau avec les infos de paiement complètes
         carte_kwargs = dict(
             acheteur=acheteur,
@@ -1012,6 +1014,7 @@ def api_vendre_carte_cadeau(request):
             institut_achat=institut,
             mode_paiement_achat=moyen_paiement_1,
             vendue_par=utilisateur,
+            notes=notes,
         )
 
         if utilise_double_paiement and montant_paiement_2 > 0:
@@ -1247,6 +1250,8 @@ def api_renseigner_carte_cadeau(request):
         else:
             institut = utilisateur.institut
 
+        notes = request.POST.get('notes', '').strip() or None
+
         carte = CarteCadeau.objects.create(
             acheteur=acheteur,
             beneficiaire=beneficiaire,
@@ -1256,6 +1261,7 @@ def api_renseigner_carte_cadeau(request):
             mode_paiement_achat='especes',
             vendue_par=utilisateur,
             montant_paiement_1=montant_initial,
+            notes=notes,
         )
 
         # Mettre à jour la date d'achat si fournie (contourne auto_now_add)
