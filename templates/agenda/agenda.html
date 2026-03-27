@@ -50,6 +50,8 @@
     <a href="{% url 'agenda:index' institut_code='klinic' %}?date={{ date_selectionnee|date:'Y-m-d' }}" class="page-tab {% if institut.code == 'klinic' %}active{% endif %}">La Klinic</a>
     {% if request.user.utilisateur.is_patron %}
     <a href="{% url 'express:index' %}?date={{ date_selectionnee|date:'Y-m-d' }}" class="page-tab">Express</a>
+    {% endif %}
+    {% if request.user.utilisateur.is_patron or request.user.utilisateur.is_manager %}
     <a href="{% url 'gestion:ventes_caisse' %}" class="page-tab">Ventes produits</a>
     {% endif %}
 </div>

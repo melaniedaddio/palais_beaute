@@ -1262,6 +1262,7 @@ def api_renseigner_carte_cadeau(request):
             vendue_par=utilisateur,
             montant_paiement_1=montant_initial,
             notes=notes,
+            hors_caisse=True,
         )
 
         # Mettre à jour la date d'achat si fournie (contourne auto_now_add)

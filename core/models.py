@@ -2067,6 +2067,11 @@ class CarteCadeau(models.Model):
 
     notes = models.TextField(blank=True, null=True)
 
+    hors_caisse = models.BooleanField(
+        default=False,
+        help_text="Carte renseignée manuellement (non vendue en caisse) — exclue du CA"
+    )
+
     class Meta:
         verbose_name = "Carte cadeau"
         verbose_name_plural = "Cartes cadeaux"

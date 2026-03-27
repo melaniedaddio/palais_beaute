@@ -105,7 +105,8 @@ def index(request):
     base_cartes = CarteCadeau.objects.filter(
         date_achat__date__gte=date_debut,
         date_achat__date__lte=date_fin,
-        statut__in=['active', 'soldee']
+        statut__in=['active', 'soldee'],
+        hors_caisse=False,
     )
     if express:
         ca_cartes_non_express = base_cartes.exclude(
@@ -238,7 +239,8 @@ def index(request):
                 ca_cartes_vendues = CarteCadeau.objects.filter(
                     institut_achat=institut,
                     date_achat__date__in=dates_cloturees_express,
-                    statut__in=['active', 'soldee']
+                    statut__in=['active', 'soldee'],
+                    hors_caisse=False,
                 ).aggregate(total=Sum('montant_initial'))['total'] or 0
 
                 # Crédits encaissés (dates clôturées)
@@ -285,7 +287,8 @@ def index(request):
                 institut_achat=institut,
                 date_achat__date__gte=date_debut,
                 date_achat__date__lte=date_fin,
-                statut__in=['active', 'soldee']
+                statut__in=['active', 'soldee'],
+                hors_caisse=False,
             ).aggregate(total=Sum('montant_initial'))['total'] or 0
 
             # Crédits encaissés dans cet institut
@@ -844,7 +847,8 @@ def api_stats_chart(request):
         cartes_qs = CarteCadeau.objects.filter(
             statut__in=['active', 'soldee'],
             date_achat__date__gte=d_debut,
-            date_achat__date__lte=d_fin
+            date_achat__date__lte=d_fin,
+            hors_caisse=False,
         )
         credits_qs = PaiementCredit.objects.filter(
             date__date__gte=d_debut,
@@ -1471,7 +1475,8 @@ def dashboard_bilan(request):
     cartes_bilan = CarteCadeau.objects.filter(
         date_achat__date__gte=bilan_mois,
         date_achat__date__lte=bilan_fin_mois,
-        statut__in=['active', 'soldee']
+        statut__in=['active', 'soldee'],
+        hors_caisse=False,
     )
     if bilan_institut_code != 'tous':
         cartes_bilan = cartes_bilan.filter(institut_achat__code=bilan_institut_code)
@@ -1552,7 +1557,7 @@ def dashboard_bilan(request):
             rec_qs = rec_qs.filter(rendez_vous__institut__code=bilan_institut_code)
         rec = rec_qs.aggregate(s=Sum('montant'))['s'] or 0
 
-        cc_qs = CarteCadeau.objects.filter(date_achat__date__gte=m_debut, date_achat__date__lte=m_fin, statut__in=['active', 'soldee'])
+        cc_qs = CarteCadeau.objects.filter(date_achat__date__gte=m_debut, date_achat__date__lte=m_fin, statut__in=['active', 'soldee'], hors_caisse=False)
         if bilan_institut_code != 'tous':
             cc_qs = cc_qs.filter(institut_achat__code=bilan_institut_code)
         rec += cc_qs.aggregate(s=Sum('montant_initial'))['s'] or 0
