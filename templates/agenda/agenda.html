@@ -43,17 +43,22 @@
     </div>
 </div>
 
-{% if request.user.utilisateur.is_patron or is_employe %}
-<!-- Sélecteur d'agenda -->
+{% if request.user.utilisateur.role == 'patron' or is_employe %}
+<!-- Sélecteur d'agenda (patron / employé) -->
 <div class="page-tabs">
     <a href="{% url 'agenda:index' institut_code='palais' %}?date={{ date_selectionnee|date:'Y-m-d' }}" class="page-tab {% if institut.code == 'palais' %}active{% endif %}">Le Palais</a>
     <a href="{% url 'agenda:index' institut_code='klinic' %}?date={{ date_selectionnee|date:'Y-m-d' }}" class="page-tab {% if institut.code == 'klinic' %}active{% endif %}">La Klinic</a>
-    {% if request.user.utilisateur.is_patron %}
+    {% if request.user.utilisateur.role == 'patron' %}
     <a href="{% url 'express:index' %}?date={{ date_selectionnee|date:'Y-m-d' }}" class="page-tab">Express</a>
-    {% endif %}
-    {% if request.user.utilisateur.is_patron or request.user.utilisateur.is_manager %}
     <a href="{% url 'gestion:ventes_caisse' %}" class="page-tab">Ventes produits</a>
     {% endif %}
+</div>
+{% endif %}
+{% if request.user.utilisateur.role == 'manager' %}
+<!-- Onglets manager -->
+<div class="page-tabs">
+    <a href="{% url 'agenda:index' institut_code=institut.code %}?date={{ date_selectionnee|date:'Y-m-d' }}" class="page-tab active">Agenda</a>
+    <a href="{% url 'gestion:ventes_caisse' %}" class="page-tab">Ventes produits</a>
 </div>
 {% endif %}
 

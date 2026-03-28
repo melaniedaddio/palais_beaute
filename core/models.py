@@ -2260,6 +2260,7 @@ class VenteProduit(models.Model):
     mode_paiement = models.CharField(max_length=20, choices=MODE_CHOICES)
     mode_paiement_2 = models.CharField(max_length=20, choices=MODE_CHOICES, blank=True, null=True)
     montant_paiement_1 = models.IntegerField(default=0)
+    remise_pourcent = models.IntegerField(default=0)
     carte_cadeau_utilisee = models.ForeignKey('CarteCadeau', on_delete=models.SET_NULL, null=True, blank=True, related_name='utilisations_ventes')
     montant_carte_utilise = models.IntegerField(default=0)
     effectue_par = models.ForeignKey('Utilisateur', on_delete=models.SET_NULL, null=True)

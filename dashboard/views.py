@@ -9,7 +9,7 @@ from core.decorators import role_required
 from core.models import (
     Institut, Client, RendezVous, Paiement, Credit, PaiementCredit,
     ClotureCaisse, Employe, CarteCadeau, UtilisationCarteCadeau, ForfaitClient,
-    Depense, Produit, VenteProduit, CalculSalaire, MouvementStock,
+    Depense, Produit, VenteProduit, LigneVenteProduit, CalculSalaire, MouvementStock,
 )
 import json
 
@@ -1035,14 +1035,12 @@ def api_stats_institut(request):
                 'ca': int(ca)
             })
 
-    # Top prestations
+    # Top prestations (RDV)
     prestations_query = RendezVous.objects.filter(
         institut=institut,
         statut='valide',
-        prestation__isnull=False  # Exclure les RDV sans prestation
+        prestation__isnull=False
     )
-
-    # Pour Express : filtrer par dates clôturées
     if institut.code == 'express':
         prestations_query = prestations_query.filter(date__in=dates_cloturees)
     else:
@@ -1050,22 +1048,36 @@ def api_stats_institut(request):
             date__gte=date_debut,
             date__lte=date_fin
         )
-
-    prestations_stats = prestations_query.values(
-        'prestation__nom'
-    ).annotate(
+    prestations_stats = prestations_query.values('prestation__nom').annotate(
         nb_rdv=Count('id'),
         ca_total=Sum('prix_total')
-    ).order_by('-ca_total')[:10]  # Top 10 prestations
+    ).order_by('-ca_total')[:10]
 
-    prestations_data = [
-        {
-            'nom': p['prestation__nom'] or 'Sans nom',
-            'nb_rdv': p['nb_rdv'],
-            'ca': float(p['ca_total']) if p['ca_total'] else 0
-        }
-        for p in prestations_stats
-    ]
+    ca_map = {}
+    for p in prestations_stats:
+        nom = p['prestation__nom'] or 'Sans nom'
+        ca_map[nom] = ca_map.get(nom, 0) + (float(p['ca_total']) if p['ca_total'] else 0)
+
+    # Ajouter les ventes produits au Top prestations
+    lignes_query = LigneVenteProduit.objects.filter(vente__institut=institut)
+    if institut.code == 'express':
+        lignes_query = lignes_query.filter(vente__date__date__in=dates_cloturees)
+    else:
+        lignes_query = lignes_query.filter(
+            vente__date__date__gte=date_debut,
+            vente__date__date__lte=date_fin
+        )
+    produits_stats = lignes_query.values('produit__nom').annotate(
+        ca_total=Sum('sous_total')
+    )
+    for p in produits_stats:
+        nom = p['produit__nom'] or 'Produit'
+        ca_map[nom] = ca_map.get(nom, 0) + (float(p['ca_total']) if p['ca_total'] else 0)
+
+    prestations_data = sorted(
+        [{'nom': nom, 'ca': ca} for nom, ca in ca_map.items()],
+        key=lambda x: -x['ca']
+    )[:10]
 
     # CA par moyen de paiement
     paiements_query = Paiement.objects.filter(
@@ -1124,10 +1136,11 @@ def api_stats_institut(request):
             mode = p['mode']
             ca_par_mode[mode] = ca_par_mode.get(mode, 0) + float(p['ca_total'])
 
-    # Ajouter les paiements des cartes cadeaux vendues
+    # Ajouter les paiements des cartes cadeaux vendues (hors cartes renseignées manuellement)
     cartes_query = CarteCadeau.objects.filter(
         institut_achat=institut,
-        statut__in=['active', 'soldee']
+        statut__in=['active', 'soldee'],
+        hors_caisse=False,
     )
     if institut.code == 'express':
         cartes_query = cartes_query.filter(date_achat__date__in=dates_cloturees)
@@ -1314,6 +1327,64 @@ def export_rdv_excel(request):
         # Mettre en italique pour distinguer des RDVs
         for col in range(1, 14):
             ws.cell(row=row, column=col).font = openpyxl.styles.Font(italic=True, color='7B68EE')
+        row += 1
+
+    # Ventes produits
+    ventes_qs = VenteProduit.objects.select_related(
+        'client', 'institut', 'effectue_par__user'
+    ).prefetch_related('lignes__produit').order_by('-date')
+    if date_debut:
+        ventes_qs = ventes_qs.filter(date__date__gte=date_debut)
+    if date_fin:
+        ventes_qs = ventes_qs.filter(date__date__lte=date_fin)
+    if institut_code:
+        ventes_qs = ventes_qs.filter(institut__code=institut_code)
+
+    for vente in ventes_qs:
+        # Détail des produits
+        produits_str = ' + '.join(
+            f"{l.produit.nom}{' ×'+str(l.quantite) if l.quantite > 1 else ''}"
+            for l in vente.lignes.all()
+        )
+        remise_info = f' (remise {vente.remise_pourcent}%)' if vente.remise_pourcent > 0 else ''
+        description = f'Vente produits : {produits_str}{remise_info}'
+
+        # Ventilation paiement (hors carte cadeau déjà encaissée)
+        reste = vente.montant_total - (vente.montant_carte_utilise or 0)
+        mode1 = vente.mode_paiement
+        mode2 = vente.mode_paiement_2
+        if mode2 and vente.montant_paiement_1:
+            mt1 = int(vente.montant_paiement_1)
+            mt2 = max(0, reste - mt1)
+        else:
+            mt1 = reste
+            mt2 = 0
+
+        especes_vp = (mt1 if mode1 == 'especes' else 0) + (mt2 if mode2 == 'especes' else 0)
+        carte_vp   = (mt1 if mode1 == 'carte'   else 0) + (mt2 if mode2 == 'carte'   else 0)
+        cheque_vp  = (mt1 if mode1 == 'cheque'  else 0) + (mt2 if mode2 == 'cheque'  else 0)
+        om_vp      = (mt1 if mode1 == 'om'      else 0) + (mt2 if mode2 == 'om'      else 0)
+        wave_vp    = (mt1 if mode1 == 'wave'    else 0) + (mt2 if mode2 == 'wave'    else 0)
+
+        employe_nom = vente.effectue_par.user.get_full_name() if vente.effectue_par else ''
+        client_nom  = vente.client.get_full_name() if vente.client else '—'
+        client_tel  = vente.client.telephone if vente.client else ''
+
+        ws.cell(row=row, column=1,  value=vente.date.strftime('%d/%m/%Y'))
+        ws.cell(row=row, column=2,  value=vente.date.strftime('%H:%M'))
+        ws.cell(row=row, column=3,  value=vente.institut.nom if vente.institut else '')
+        ws.cell(row=row, column=4,  value=client_nom)
+        ws.cell(row=row, column=5,  value=client_tel)
+        ws.cell(row=row, column=6,  value=employe_nom)
+        ws.cell(row=row, column=7,  value=description)
+        ws.cell(row=row, column=8,  value=vente.montant_total)
+        ws.cell(row=row, column=9,  value=especes_vp or None)
+        ws.cell(row=row, column=10, value=carte_vp   or None)
+        ws.cell(row=row, column=11, value=cheque_vp  or None)
+        ws.cell(row=row, column=12, value=om_vp      or None)
+        ws.cell(row=row, column=13, value=wave_vp    or None)
+        for col in range(1, 14):
+            ws.cell(row=row, column=col).font = openpyxl.styles.Font(italic=True, color='27AE60')
         row += 1
 
     # Ajuster la largeur des colonnes

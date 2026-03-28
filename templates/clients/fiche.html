@@ -716,6 +716,11 @@
                             <div class="rdv-detail">
                                 {{ rdv.prestation_label }} · {{ rdv.employe_label }}
                             </div>
+                            {% if rdv.modes_paiement_label and rdv.statut != 'planifie' %}
+                            <div style="margin-top:3px;">
+                                <span style="display:inline-block;padding:2px 8px;background:#f0ece5;color:#888;border-radius:8px;font-size:11px;font-weight:600;">{{ rdv.modes_paiement_label }}</span>
+                            </div>
+                            {% endif %}
                         </div>
                         <div class="rdv-amount">
                             {% if rdv.statut == 'planifie' %}

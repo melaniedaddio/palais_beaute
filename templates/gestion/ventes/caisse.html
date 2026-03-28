@@ -135,11 +135,17 @@
     </div>
 </div>
 
-{% if request.user.utilisateur.is_patron %}
+{% if request.user.utilisateur.role == 'patron' %}
 <div class="page-tabs">
     <a href="{% url 'agenda:index' institut_code='palais' %}" class="page-tab">Le Palais</a>
     <a href="{% url 'agenda:index' institut_code='klinic' %}" class="page-tab">La Klinic</a>
     <a href="{% url 'express:index' %}" class="page-tab">Express</a>
+    <a href="{% url 'gestion:ventes_caisse' %}" class="page-tab active">Ventes produits</a>
+</div>
+{% endif %}
+{% if request.user.utilisateur.role == 'manager' %}
+<div class="page-tabs">
+    <a href="{% url 'agenda:index' institut_code=institut.code %}" class="page-tab">Agenda</a>
     <a href="{% url 'gestion:ventes_caisse' %}" class="page-tab active">Ventes produits</a>
 </div>
 {% endif %}
@@ -181,6 +187,23 @@
         <!-- ── Colonne gauche : Nouvelle vente ── -->
         <div class="card" style="padding:22px;">
             <h3 style="font-size:13px;font-weight:700;color:var(--text-dark);margin:0 0 18px;text-transform:uppercase;letter-spacing:.5px;">Nouvelle vente</h3>
+
+            <!-- Salon -->
+            <div class="form-group">
+                <label>SALON</label>
+                {% if can_edit %}
+                <select id="selectSalon" style="width:100%;padding:9px 14px;border:2px solid var(--border);border-radius:10px;font-size:14px;background:var(--bg-light);">
+                    {% for inst in instituts %}
+                    <option value="{{ inst.id }}" {% if inst.id == institut.id %}selected{% endif %}>{{ inst.nom }}</option>
+                    {% endfor %}
+                </select>
+                {% else %}
+                <select id="selectSalon" style="display:none;">
+                    <option value="{{ institut.id }}" selected>{{ institut.nom }}</option>
+                </select>
+                <div style="padding:9px 14px;border:2px solid var(--border);border-radius:10px;font-size:14px;background:var(--bg-section);color:var(--text-dark);font-weight:600;">{{ institut.nom }}</div>
+                {% endif %}
+            </div>
 
             <!-- Client -->
             <div class="form-group">
@@ -268,11 +291,21 @@
                 <h3 style="font-size:13px;font-weight:700;color:var(--text-dark);margin:0 0 18px;text-transform:uppercase;letter-spacing:.5px;">Paiement</h3>
 
                 <!-- Total -->
-                <div style="background: var(--bg-light); padding: 15px; border-radius: 12px; margin-bottom: 16px; border: 1px solid var(--border);">
+                <div style="background: var(--bg-light); padding: 15px; border-radius: 12px; margin-bottom: 12px; border: 1px solid var(--border);">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span style="font-size: 14px; font-weight: 600; color:var(--text-dark);">TOTAL</span>
                         <span id="totalVal2" style="font-size: 24px; font-weight: 700; color: var(--secondary);">0 CFA</span>
                     </div>
+                </div>
+
+                <!-- Remise -->
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+                    <label style="font-size:13px;color:#666;margin:0;font-weight:600;">Remise :</label>
+                    <input type="number" id="remiseInput" min="0" max="99" step="1" placeholder="0"
+                           style="width:60px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;text-align:center;font-family:inherit;"
+                           oninput="appliquerRemise()">
+                    <span style="font-size:13px;color:#666;">%</span>
+                    <span id="prixApresRemise" style="display:none;font-size:15px;font-weight:700;color:#27ae60;margin-left:4px;"></span>
                 </div>
 
                 <!-- Mode de paiement -->
@@ -398,6 +431,26 @@ const INSTITUT_ID = {{ institut.id }};
 
 let panier = {};
 let totalPanier = 0;
+let remisePct = 0;
+
+function getTotalEffectif() {
+    if (remisePct > 0) return Math.round(totalPanier * (100 - remisePct) / 100);
+    return totalPanier;
+}
+
+function appliquerRemise() {
+    const val = parseInt(document.getElementById('remiseInput').value) || 0;
+    remisePct = Math.min(99, Math.max(0, val));
+    const display = document.getElementById('prixApresRemise');
+    if (remisePct > 0 && totalPanier > 0) {
+        display.style.display = 'inline';
+        display.textContent = '→ ' + getTotalEffectif().toLocaleString('fr-FR') + ' CFA';
+    } else {
+        display.style.display = 'none';
+    }
+    document.getElementById('totalVal2').textContent = getTotalEffectif().toLocaleString('fr-FR') + ' CFA';
+    recalculerPaiement();
+}
 
 /* ══════════════════════════
    PANIER
@@ -472,7 +525,13 @@ function renderPanier() {
     });
 
     totalVal.textContent = totalPanier.toLocaleString('fr-FR') + ' CFA';
-    document.getElementById('totalVal2').textContent = totalPanier.toLocaleString('fr-FR') + ' CFA';
+    document.getElementById('totalVal2').textContent = getTotalEffectif().toLocaleString('fr-FR') + ' CFA';
+    // Mettre à jour l'affichage remise si active
+    if (remisePct > 0) {
+        const display = document.getElementById('prixApresRemise');
+        display.style.display = 'inline';
+        display.textContent = '→ ' + getTotalEffectif().toLocaleString('fr-FR') + ' CFA';
+    }
     btn.disabled = !document.getElementById('clientId').value;
     recalculerPaiement();
 }
@@ -638,7 +697,7 @@ function getMontantCarte() {
 }
 
 function getReste() {
-    return Math.max(0, totalPanier - getMontantCarte());
+    return Math.max(0, getTotalEffectif() - getMontantCarte());
 }
 
 function recalculerPaiement() {
@@ -742,13 +801,14 @@ async function finaliserVente() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
             body: JSON.stringify({
-                institut_id: INSTITUT_ID,
+                institut_id: parseInt(document.getElementById('selectSalon').value),
                 client_id: clientId,
                 mode_paiement: mode1,
                 mode_paiement_2: mode2,
                 montant_paiement_1: montant1,
                 carte_id: carteId,
                 montant_carte: montantCarte,
+                remise_pourcent: remisePct,
                 items: items.map(i => ({ produit_id: i.id, quantite: i.qty })),
             }),
         });
@@ -766,6 +826,9 @@ async function finaliserVente() {
             document.getElementById('carteDetail').style.display = 'none';
             document.getElementById('doublePaiement').checked = false;
             toggleDoublePaiement();
+            document.getElementById('remiseInput').value = '';
+            remisePct = 0;
+            document.getElementById('prixApresRemise').style.display = 'none';
             setTimeout(() => location.reload(), 1400);
         } else {
             showError(data.error);

@@ -251,6 +251,12 @@ def client_detail(request, pk):
     else:
         groupes_dict = {}
 
+    MODE_LABELS = {
+        'especes': 'Espèces', 'carte': 'Carte', 'cheque': 'Chèque',
+        'om': 'Orange Money', 'wave': 'Wave', 'carte_cadeau': 'Carte cadeau',
+        'forfait': 'Forfait', 'offert': 'Offert',
+    }
+
     seen_groupes = set()
     rendez_vous = []
     for rdv in rdv_raw:
@@ -262,10 +268,15 @@ def client_detail(request, pk):
             rdv.prestation_label = ' + '.join(m.prestation.nom for m in membres)
             rdv.employe_label = membres[0].employe.prenom or membres[0].employe.nom
             rdv.montant_total = sum(sum(p.montant for p in m.paiements.all()) for m in membres)
+            modes = list(dict.fromkeys(
+                p.mode for m in membres for p in m.paiements.all() if p.montant > 0
+            ))
         else:
             rdv.prestation_label = rdv.prestation.nom
             rdv.employe_label = rdv.employe.prenom or rdv.employe.nom
             rdv.montant_total = sum(p.montant for p in rdv.paiements.all())
+            modes = list(dict.fromkeys(p.mode for p in rdv.paiements.all() if p.montant > 0))
+        rdv.modes_paiement_label = ' + '.join(MODE_LABELS.get(m, m) for m in modes) if modes else ''
         rendez_vous.append(rdv)
 
     # Crédits du client

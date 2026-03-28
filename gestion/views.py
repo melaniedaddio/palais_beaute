@@ -2805,6 +2805,9 @@ def api_vendre(request):
         client = get_object_or_404(Client, id=client_id)
 
         institut = get_object_or_404(Institut, id=data['institut_id'])
+        # Sécurité : un manager ne peut vendre que dans son propre salon
+        if utilisateur.role == 'manager' and utilisateur.institut and utilisateur.institut != institut:
+            return JsonResponse({'success': False, 'error': 'Accès refusé : salon non autorisé.'}, status=403)
 
         # Paiement
         mode_paiement   = data.get('mode_paiement', 'especes')
@@ -2861,6 +2864,13 @@ def api_vendre(request):
             )
 
         vente.calculer_total()
+
+        # Appliquer la remise
+        remise_pourcent = max(0, min(99, int(data.get('remise_pourcent', 0) or 0)))
+        if remise_pourcent > 0:
+            vente.montant_total = round(vente.montant_total * (100 - remise_pourcent) / 100)
+        vente.remise_pourcent = remise_pourcent
+        vente.save(update_fields=['montant_total', 'remise_pourcent'])
 
         # Déduire la carte cadeau
         if carte and montant_carte > 0:
