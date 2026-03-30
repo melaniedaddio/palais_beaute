@@ -285,7 +285,7 @@ def client_detail(request, pk):
     # Forfaits du client (tous, actifs en premier)
     forfaits = ForfaitClient.objects.filter(
         client=client
-    ).select_related('prestation', 'institut').prefetch_related('seances').order_by(
+    ).select_related('prestation', 'institut').prefetch_related('seances__rendez_vous').order_by(
         '-statut',  # actif en premier
         '-date_achat'
     )

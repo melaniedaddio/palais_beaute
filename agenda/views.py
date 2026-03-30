@@ -1071,6 +1071,9 @@ def api_rdv_absent(request, institut_code, rdv_id):
     try:
         rdv.statut = 'absent'
         rdv.save()
+        # Libérer la séance forfait si elle existe
+        if hasattr(rdv, 'seance_forfait') and rdv.seance_forfait:
+            rdv.seance_forfait.annuler()
         return JsonResponse({
             'success': True,
             'message': 'Rendez-vous marqué comme absent'
@@ -1131,8 +1134,11 @@ def api_rdv_annule_client(request, institut_code, rdv_id):
             rdvs_groupe = RendezVous.objects.filter(
                 groupe_id=rdv.groupe_id,
                 institut=institut,
-            ).exclude(statut__in=['absent', 'annule_client'])
+            ).exclude(statut__in=['absent', 'annule_client']).prefetch_related('seance_forfait')
             nb = rdvs_groupe.count()
+            for r in rdvs_groupe:
+                if hasattr(r, 'seance_forfait') and r.seance_forfait:
+                    r.seance_forfait.annuler()
             rdvs_groupe.update(statut='annule_client')
             return JsonResponse({
                 'success': True,
@@ -1141,6 +1147,9 @@ def api_rdv_annule_client(request, institut_code, rdv_id):
         else:
             rdv.statut = 'annule_client'
             rdv.save()
+            # Libérer la séance forfait si elle existe
+            if hasattr(rdv, 'seance_forfait') and rdv.seance_forfait:
+                rdv.seance_forfait.annuler()
             return JsonResponse({
                 'success': True,
                 'message': 'Rendez-vous annulé'

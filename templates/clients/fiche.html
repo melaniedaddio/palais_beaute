@@ -545,7 +545,7 @@
                                     {% if seance.statut == 'effectuee' %}background: #d4edda; color: #155724;
                                     {% elif seance.statut == 'programmee' %}background: #cce5ff; color: #004085;
                                     {% else %}background: #f0f0f0; color: #888; border: 1px solid #ddd;{% endif %}">
-                            Séance {{ seance.numero }}{% if seance.statut == 'effectuee' %} ✓{% elif seance.statut == 'programmee' %} 📅{% endif %}
+                            Séance {{ seance.numero }}{% if seance.statut == 'effectuee' %} ✓{% elif seance.statut == 'programmee' %} 📅{% if seance.rendez_vous %} {{ seance.rendez_vous.date|date:"d/m" }} {{ seance.rendez_vous.heure_debut|time:"H:i" }}{% endif %}{% endif %}
                         </div>
                         {% endfor %}
                     </div>
