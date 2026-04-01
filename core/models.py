@@ -1958,6 +1958,50 @@ class ClotureCaisse(models.Model):
         self.total_om_calcule += ventes_cartes_om
         self.total_wave_calcule += ventes_cartes_wave
 
+        # Ventes produits du jour
+        ventes_produits = VenteProduit.objects.filter(
+            institut=self.institut,
+            date__date=self.date,
+        )
+        for vente in ventes_produits:
+            if vente.mode_paiement in ('carte_cadeau', 'differe'):
+                continue
+            cash_total = vente.montant_total - vente.montant_carte_utilise
+            if vente.mode_paiement_2:
+                amount1 = vente.montant_paiement_1
+                amount2 = max(0, cash_total - amount1)
+                if vente.mode_paiement == 'especes':
+                    self.total_especes_calcule += amount1
+                elif vente.mode_paiement == 'carte':
+                    self.total_carte_calcule += amount1
+                elif vente.mode_paiement == 'cheque':
+                    self.total_cheque_calcule += amount1
+                elif vente.mode_paiement == 'om':
+                    self.total_om_calcule += amount1
+                elif vente.mode_paiement == 'wave':
+                    self.total_wave_calcule += amount1
+                if vente.mode_paiement_2 == 'especes':
+                    self.total_especes_calcule += amount2
+                elif vente.mode_paiement_2 == 'carte':
+                    self.total_carte_calcule += amount2
+                elif vente.mode_paiement_2 == 'cheque':
+                    self.total_cheque_calcule += amount2
+                elif vente.mode_paiement_2 == 'om':
+                    self.total_om_calcule += amount2
+                elif vente.mode_paiement_2 == 'wave':
+                    self.total_wave_calcule += amount2
+            else:
+                if vente.mode_paiement == 'especes':
+                    self.total_especes_calcule += cash_total
+                elif vente.mode_paiement == 'carte':
+                    self.total_carte_calcule += cash_total
+                elif vente.mode_paiement == 'cheque':
+                    self.total_cheque_calcule += cash_total
+                elif vente.mode_paiement == 'om':
+                    self.total_om_calcule += cash_total
+                elif vente.mode_paiement == 'wave':
+                    self.total_wave_calcule += cash_total
+
         # total_calcule = argent réellement encaissé (sans carte_cadeau car déjà compté à la vente)
         self.total_calcule = (
             self.total_especes_calcule
@@ -2251,6 +2295,7 @@ class VenteProduit(models.Model):
         ('om', 'Orange Money'),
         ('carte', 'Carte bancaire'),
         ('carte_cadeau', 'Carte cadeau'),
+        ('differe', 'Paiement différé'),
     ]
 
     date = models.DateTimeField(auto_now_add=True)

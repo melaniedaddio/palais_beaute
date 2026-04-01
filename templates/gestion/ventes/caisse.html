@@ -317,12 +317,13 @@
                     </label>
 
                     <label id="labelModePaiement">MOYEN DE PAIEMENT</label>
-                    <select id="mode1" class="form-control" style="margin-bottom:10px;">
+                    <select id="mode1" class="form-control" style="margin-bottom:10px;" onchange="onMode1Change()">
                         <option value="especes">Espèces</option>
                         <option value="wave">Wave</option>
                         <option value="om">Orange Money</option>
                         <option value="carte">Carte bancaire</option>
                         <option value="cheque">Chèque</option>
+                        <option value="differe">Paiement différé</option>
                     </select>
 
                     <div class="montant-1-group" id="montant1Group" style="display:none;">
@@ -724,6 +725,18 @@ function recalculerPaiement() {
     }
 
     if (document.getElementById('doublePaiement').checked) calculerMontant2();
+}
+
+function onMode1Change() {
+    const mode1 = document.getElementById('mode1').value;
+    const doublePaiement = document.getElementById('doublePaiement');
+    if (mode1 === 'differe') {
+        doublePaiement.checked = false;
+        doublePaiement.disabled = true;
+        toggleDoublePaiement();
+    } else {
+        doublePaiement.disabled = false;
+    }
 }
 
 function toggleDoublePaiement() {

@@ -12,7 +12,8 @@ from core.decorators import role_required
 from core.models import (
     Institut, Employe, Client, Prestation, FamillePrestation,
     RendezVous, VenteExpressPrestation, Paiement, Credit, ClotureCaisse,
-    PaiementCredit, CarteCadeau, UtilisationCarteCadeau, Depense, MouvementStock
+    PaiementCredit, CarteCadeau, UtilisationCarteCadeau, Depense, MouvementStock,
+    VenteProduit
 )
 
 
@@ -116,7 +117,18 @@ def index(request):
         date__date=date_selectionnee
     ).aggregate(total=Sum('montant'))['total'] or 0
 
-    ca_encaisse = ca_paiements_rdv + credits_encaisses
+    # Ventes produits du jour (cash encaissé, hors carte_cadeau et différé)
+    ventes_produits_jour = VenteProduit.objects.filter(
+        institut=institut,
+        date__date=date_selectionnee,
+    ).exclude(mode_paiement='differe')
+    ca_ventes_produits_jour = 0
+    for vente in ventes_produits_jour:
+        if vente.mode_paiement == 'carte_cadeau':
+            continue  # déjà compté à la vente de la carte
+        ca_ventes_produits_jour += vente.montant_total - vente.montant_carte_utilise
+
+    ca_encaisse = ca_paiements_rdv + credits_encaisses + ca_ventes_produits_jour
 
     context = {
         'institut': institut,
@@ -124,12 +136,13 @@ def index(request):
         'employes': employes,
         'familles': familles,
         'ventes': ventes_list,
-        'total_jour': totaux['total'] or 0,
+        'total_jour': (totaux['total'] or 0) + ca_ventes_produits_jour,
         'total_especes': paiements_especes,
         'total_carte': paiements_carte,
         'ca_encaisse': ca_encaisse,
         'credits_encaisses': credits_encaisses,
         'caisse_cloturee': caisse_cloturee,
+        'ca_ventes_produits_jour': ca_ventes_produits_jour,
     }
 
     return render(request, 'express/express.html', context)
@@ -435,12 +448,40 @@ def cloture_caisse(request):
         total=models.Sum('montant')
     )['total'] or 0
 
+    # Ventes produits depuis la dernière clôture
+    ventes_produits_qs = VenteProduit.objects.filter(
+        institut=institut,
+        date__date=date_selectionnee,
+        date__gte=heure_debut
+    )
+    nb_ventes_produits = ventes_produits_qs.count()
+    vp = {'especes': 0, 'carte': 0, 'cheque': 0, 'om': 0, 'wave': 0}
+    ventes_produits_cc = 0
+    ventes_produits_differe = 0
+    for vente in ventes_produits_qs:
+        if vente.mode_paiement == 'carte_cadeau':
+            ventes_produits_cc += vente.montant_carte_utilise or vente.montant_total
+        elif vente.mode_paiement == 'differe':
+            ventes_produits_differe += vente.montant_total
+        else:
+            cash = vente.montant_total - vente.montant_carte_utilise
+            if vente.mode_paiement_2:
+                a1 = vente.montant_paiement_1
+                a2 = max(0, cash - a1)
+                if vente.mode_paiement in vp:
+                    vp[vente.mode_paiement] += a1
+                if vente.mode_paiement_2 in vp:
+                    vp[vente.mode_paiement_2] += a2
+            else:
+                if vente.mode_paiement in vp:
+                    vp[vente.mode_paiement] += cash
+
     # Totaux en attente de clôture
-    total_especes_encours = total_especes_ventes + total_especes_credit + ventes_cartes_especes
-    total_carte_encours = total_carte_ventes + total_carte_credit + ventes_cartes_cb
-    total_cheque_encours = total_cheque_ventes + total_cheque_credit + ventes_cartes_cheque
-    total_om_encours = total_om_ventes + total_om_credit + ventes_cartes_om
-    total_wave_encours = total_wave_ventes + total_wave_credit + ventes_cartes_wave
+    total_especes_encours = total_especes_ventes + total_especes_credit + ventes_cartes_especes + vp['especes']
+    total_carte_encours = total_carte_ventes + total_carte_credit + ventes_cartes_cb + vp['carte']
+    total_cheque_encours = total_cheque_ventes + total_cheque_credit + ventes_cartes_cheque + vp['cheque']
+    total_om_encours = total_om_ventes + total_om_credit + ventes_cartes_om + vp['om']
+    total_wave_encours = total_wave_ventes + total_wave_credit + ventes_cartes_wave + vp['wave']
     total_encours = total_especes_encours + total_carte_encours + total_cheque_encours + total_om_encours + total_wave_encours + total_carte_cadeau_prestations
 
     # Calculer le total cumulé du jour (toutes les clôtures + en cours)
@@ -527,6 +568,15 @@ def cloture_caisse(request):
         'ventes_cartes_wave': ventes_cartes_wave,
         'depenses_especes': depenses_especes,
         'total_sorties_stock': total_sorties_stock,
+        # Ventes produits
+        'nb_ventes_produits': nb_ventes_produits,
+        'ventes_produits_especes': vp['especes'],
+        'ventes_produits_carte': vp['carte'],
+        'ventes_produits_cheque': vp['cheque'],
+        'ventes_produits_om': vp['om'],
+        'ventes_produits_wave': vp['wave'],
+        'ventes_produits_cc': ventes_produits_cc,
+        'ventes_produits_differe': ventes_produits_differe,
     }
 
     return render(request, 'express/cloture.html', context)
@@ -701,11 +751,33 @@ def api_cloturer_caisse(request):
             if carte.moyen_paiement_2 and carte.montant_paiement_2:
                 ventes_cartes_par_mode[carte.moyen_paiement_2] += carte.montant_paiement_2
 
-        total_especes = total_especes_ventes + total_especes_credit + ventes_cartes_par_mode['especes']
-        total_carte = total_carte_ventes + total_carte_credit + ventes_cartes_par_mode['carte']
-        total_cheque = total_cheque_ventes + total_cheque_credit + ventes_cartes_par_mode['cheque']
-        total_om = total_om_ventes + total_om_credit + ventes_cartes_par_mode['om']
-        total_wave = total_wave_ventes + total_wave_credit + ventes_cartes_par_mode['wave']
+        # Ventes produits depuis la dernière clôture
+        ventes_produits_qs = VenteProduit.objects.filter(
+            institut=institut,
+            date__date=date_cloture,
+            date__gte=heure_debut
+        )
+        vp = {'especes': 0, 'carte': 0, 'cheque': 0, 'om': 0, 'wave': 0}
+        for vente in ventes_produits_qs:
+            if vente.mode_paiement in ('carte_cadeau', 'differe'):
+                continue
+            cash = vente.montant_total - vente.montant_carte_utilise
+            if vente.mode_paiement_2:
+                a1 = vente.montant_paiement_1
+                a2 = max(0, cash - a1)
+                if vente.mode_paiement in vp:
+                    vp[vente.mode_paiement] += a1
+                if vente.mode_paiement_2 in vp:
+                    vp[vente.mode_paiement_2] += a2
+            else:
+                if vente.mode_paiement in vp:
+                    vp[vente.mode_paiement] += cash
+
+        total_especes = total_especes_ventes + total_especes_credit + ventes_cartes_par_mode['especes'] + vp['especes']
+        total_carte = total_carte_ventes + total_carte_credit + ventes_cartes_par_mode['carte'] + vp['carte']
+        total_cheque = total_cheque_ventes + total_cheque_credit + ventes_cartes_par_mode['cheque'] + vp['cheque']
+        total_om = total_om_ventes + total_om_credit + ventes_cartes_par_mode['om'] + vp['om']
+        total_wave = total_wave_ventes + total_wave_credit + ventes_cartes_par_mode['wave'] + vp['wave']
 
         # Validation du retrait (fond minimum 30 000 CFA)
         fond_caisse_min = 30000

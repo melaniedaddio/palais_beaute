@@ -3557,6 +3557,8 @@ function calculerStats() {
     ca -= {{ ca_carte_cadeau_utilisation|default:0 }};
     // Ajouter les ventes de cartes cadeaux du jour (cash réellement reçu)
     ca += {{ ca_ventes_cartes_jour|default:0 }};
+    // Ajouter les ventes produits du jour (cash encaissé)
+    ca += {{ ca_ventes_produits_jour|default:0 }};
 
     document.getElementById('stat-total').textContent = total;
     document.getElementById('stat-valides').textContent = valides;

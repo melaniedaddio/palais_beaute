@@ -150,26 +150,11 @@ def index(request):
         date_achat__date__lte=date_fin
     ).aggregate(total=Sum('montant_paye_initial'))['total'] or 0
 
-    # Ventes de produits dans la période
-    base_ventes_produits = VenteProduit.objects.filter(
+    # Ventes de produits dans la période (toujours incluses, sans filtre clôture)
+    ca_ventes_produits_total = VenteProduit.objects.filter(
         date__date__gte=date_debut,
         date__date__lte=date_fin
-    )
-    if express and not dates_cloturees_express:
-        # Express sans clôture : exclure ses ventes
-        ca_ventes_produits_total = base_ventes_produits.exclude(
-            institut=express
-        ).aggregate(total=Sum('montant_total'))['total'] or 0
-    elif express and dates_cloturees_express:
-        ca_ventes_produits_total = (
-            base_ventes_produits.exclude(institut=express).aggregate(total=Sum('montant_total'))['total'] or 0
-        ) + (
-            base_ventes_produits.filter(
-                institut=express, date__date__in=dates_cloturees_express
-            ).aggregate(total=Sum('montant_total'))['total'] or 0
-        )
-    else:
-        ca_ventes_produits_total = base_ventes_produits.aggregate(total=Sum('montant_total'))['total'] or 0
+    ).aggregate(total=Sum('montant_total'))['total'] or 0
 
     # ca_forfaits_total (montant_paye_initial) est déjà compté dans ca_paiements_total via le RDV fictif
     ca_total = ca_paiements_total + ca_cartes_vendues_total + ca_credits_total + ca_ventes_produits_total
@@ -251,10 +236,11 @@ def index(request):
 
                 ca_forfaits = 0  # Pas de forfaits pour Express
 
-                # Ventes produits (dates clôturées seulement)
+                # Ventes produits : toujours sur toute la période (pas de filtre clôture)
                 ca_ventes_produits = VenteProduit.objects.filter(
                     institut=institut,
-                    date__date__in=dates_cloturees_express
+                    date__date__gte=date_debut,
+                    date__date__lte=date_fin,
                 ).aggregate(total=Sum('montant_total'))['total'] or 0
 
                 ca_institut = ca_paiements + ca_cartes_vendues + ca_credits + ca_ventes_produits
@@ -266,13 +252,17 @@ def index(request):
                     statut='valide'
                 ).count()
             else:
-                # Pas de dates clôturées : CA et RDV à 0
+                # Pas de dates clôturées : RDV/paiements à 0, mais ventes produits toujours visibles
                 ca_paiements = 0
                 ca_cartes_vendues = 0
                 ca_credits = 0
                 ca_forfaits = 0
-                ca_ventes_produits = 0
-                ca_institut = 0
+                ca_ventes_produits = VenteProduit.objects.filter(
+                    institut=institut,
+                    date__date__gte=date_debut,
+                    date__date__lte=date_fin,
+                ).aggregate(total=Sum('montant_total'))['total'] or 0
+                ca_institut = ca_ventes_produits
                 rdv_count = 0
         else:
             # Autres instituts : comportement normal
@@ -543,15 +533,10 @@ def index(request):
             ca_par_mode[carte.moyen_paiement_2] = ca_par_mode.get(carte.moyen_paiement_2, 0) + float(carte.montant_paiement_2)
 
     # Ajouter les ventes de produits au graphique CA par moyen de paiement
-    ventes_produits_chart = base_ventes_produits
-    if express:
-        if dates_cloturees_express:
-            ventes_produits_chart = base_ventes_produits.filter(
-                Q(~Q(institut=express)) |
-                Q(institut=express, date__date__in=dates_cloturees_express)
-            )
-        else:
-            ventes_produits_chart = base_ventes_produits.exclude(institut=express)
+    ventes_produits_chart = VenteProduit.objects.filter(
+        date__date__gte=date_debut,
+        date__date__lte=date_fin
+    )
 
     for vente in ventes_produits_chart:
         montant_cash = vente.montant_total - vente.montant_carte_utilise

@@ -216,6 +216,27 @@
                         <td>—</td>
                     </tr>
                     {% endif %}
+                    {% if nb_ventes_produits > 0 %}
+                    <tr style="color:#e67e22;">
+                        <td>Ventes produits ({{ nb_ventes_produits }})</td>
+                        <td>{{ ventes_produits_especes|floatformat:0 }} CFA</td>
+                        <td>{{ ventes_produits_carte|floatformat:0 }} CFA</td>
+                        <td>{{ ventes_produits_cheque|floatformat:0 }} CFA</td>
+                        <td>{{ ventes_produits_om|floatformat:0 }} CFA</td>
+                        <td>{{ ventes_produits_wave|floatformat:0 }} CFA</td>
+                        {% if ventes_produits_cc > 0 %}
+                        <td>{{ ventes_produits_cc|floatformat:0 }} CFA</td>
+                        {% else %}
+                        <td>—</td>
+                        {% endif %}
+                    </tr>
+                    {% if ventes_produits_differe > 0 %}
+                    <tr style="color:#8e44ad;">
+                        <td><em>dont différé (non encaissé)</em></td>
+                        <td colspan="6" style="text-align:center;font-style:italic;">{{ ventes_produits_differe|floatformat:0 }} CFA — à encaisser ultérieurement</td>
+                    </tr>
+                    {% endif %}
+                    {% endif %}
                     {% if institut.code == 'klinic' and nb_forfaits_vendus > 0 %}
                     <tr>
                         <td style="color:#9b59b6;">Ventes forfaits ({{ nb_forfaits_vendus }})</td>
