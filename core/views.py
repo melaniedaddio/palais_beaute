@@ -9,7 +9,7 @@ from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.utils import timezone
-from .models import Utilisateur, Client, Employe, CategorieEmploye, Institut, CarteCadeau, UtilisationCarteCadeau, ForfaitClient, SeanceForfait, RendezVous, Credit, Prestation, Paiement
+from .models import Utilisateur, Client, Employe, CategorieEmploye, Institut, CarteCadeau, UtilisationCarteCadeau, ForfaitClient, SeanceForfait, RendezVous, Credit, Prestation, Paiement, VenteProduit
 from .decorators import role_required
 import re
 
@@ -310,6 +310,11 @@ def client_detail(request, pk):
         .values('id', 'nom', 'prix', 'nombre_seances', 'famille__nom')
     )
 
+    # Ventes produits du client
+    ventes_produits = VenteProduit.objects.filter(
+        client=client
+    ).prefetch_related('lignes__produit').order_by('-date')
+
     return render(request, 'clients/fiche.html', {
         'client': client,
         'rendez_vous': rendez_vous,
@@ -322,6 +327,7 @@ def client_detail(request, pk):
         'total_depense': client.get_total_depense(),
         'nombre_visites': client.get_nombre_visites(),
         'credit_total': client.get_credit_total(),
+        'ventes_produits': ventes_produits,
     })
 
 

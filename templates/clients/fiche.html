@@ -545,7 +545,7 @@
                                     {% if seance.statut == 'effectuee' %}background: #d4edda; color: #155724;
                                     {% elif seance.statut == 'programmee' %}background: #cce5ff; color: #004085;
                                     {% else %}background: #f0f0f0; color: #888; border: 1px solid #ddd;{% endif %}">
-                            Séance {{ seance.numero }}{% if seance.statut == 'effectuee' %} ✓{% elif seance.statut == 'programmee' %} 📅{% if seance.rendez_vous %} {{ seance.rendez_vous.date|date:"d/m" }} {{ seance.rendez_vous.heure_debut|time:"H:i" }}{% endif %}{% endif %}
+                            Séance {{ seance.numero }}{% if seance.statut == 'effectuee' %} ✓{% if seance.rendez_vous %} {{ seance.rendez_vous.date|date:"d/m/Y" }}{% endif %}{% elif seance.statut == 'programmee' %} 📅{% if seance.rendez_vous %} {{ seance.rendez_vous.date|date:"d/m/Y" }} {{ seance.rendez_vous.heure_debut|time:"H:i" }}{% endif %}{% endif %}
                         </div>
                         {% endfor %}
                     </div>
@@ -693,6 +693,44 @@
                 <div class="empty-state">Aucune carte cadeau</div>
                 {% endif %}
             </div>
+
+            <!-- Ventes produits -->
+            {% if ventes_produits %}
+            <div class="section-card">
+                <div class="section-header">
+                    <h2 class="section-title">Ventes produits</h2>
+                    <span class="badge-count">{{ ventes_produits.count }}</span>
+                </div>
+                <div class="rdv-list">
+                    {% for vente in ventes_produits %}
+                    <div class="rdv-item">
+                        <div>
+                            <div class="rdv-date">
+                                {{ vente.date|date:"d/m/Y" }} à {{ vente.date|time:"H:i" }}
+                                <span class="rdv-institut">{{ vente.institut.nom }}</span>
+                            </div>
+                            <div class="rdv-detail">
+                                {% for ligne in vente.lignes.all %}{{ ligne.produit.nom }}{% if ligne.quantite > 1 %} ×{{ ligne.quantite }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}
+                            </div>
+                            <div style="margin-top:3px;">
+                                <span style="display:inline-block;padding:2px 8px;background:#f0ece5;color:#888;border-radius:8px;font-size:11px;font-weight:600;">
+                                    {% if vente.mode_paiement == 'especes' %}Espèces
+                                    {% elif vente.mode_paiement == 'carte' %}Carte
+                                    {% elif vente.mode_paiement == 'wave' %}Wave
+                                    {% elif vente.mode_paiement == 'om' %}Orange Money
+                                    {% elif vente.mode_paiement == 'carte_cadeau' %}Carte cadeau
+                                    {% elif vente.mode_paiement == 'differe' %}Différé
+                                    {% else %}{{ vente.mode_paiement }}{% endif %}
+                                    {% if vente.mode_paiement_2 %} + {% if vente.mode_paiement_2 == 'especes' %}Espèces{% elif vente.mode_paiement_2 == 'carte' %}Carte{% elif vente.mode_paiement_2 == 'wave' %}Wave{% elif vente.mode_paiement_2 == 'om' %}OM{% else %}{{ vente.mode_paiement_2 }}{% endif %}{% endif %}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="rdv-amount">{{ vente.montant_total|floatformat:0 }} CFA</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Historique RDV -->
             <div class="section-card">

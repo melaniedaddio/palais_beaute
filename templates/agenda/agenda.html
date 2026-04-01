@@ -5537,26 +5537,50 @@ function verifierForfaitAjout() {
         return;
     }
 
-    const forfaitActif = clientForfaitsData.find(f => f.prestation_id == selectedId && f.seances_restantes > 0);
-    if (forfaitActif) {
-        const nextSeance = forfaitActif.seances_disponibles[0];
-        if (nextSeance !== undefined) {
-            badge.innerHTML = `
-                <div style="background:linear-gradient(135deg,#e8d5f5,#d4b8e8);border:2px solid #9b59b6;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
-                    <div>
-                        <strong style="color:#6c3483;font-size:13px;">📦 Forfait disponible</strong>
-                        <div style="font-size:12px;color:#6c3483;">${forfaitActif.prestation_nom} — Séance ${nextSeance}/${forfaitActif.nombre_seances_total}</div>
+    const forfaitsActifs = clientForfaitsData.filter(f => f.prestation_id == selectedId && f.seances_restantes > 0);
+    if (forfaitsActifs.length > 0) {
+        if (forfaitsActifs.length === 1) {
+            const forfaitActif = forfaitsActifs[0];
+            const nextSeance = forfaitActif.seances_disponibles[0];
+            if (nextSeance !== undefined) {
+                badge.innerHTML = `
+                    <div style="background:linear-gradient(135deg,#e8d5f5,#d4b8e8);border:2px solid #9b59b6;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <strong style="color:#6c3483;font-size:13px;">📦 Forfait disponible</strong>
+                            <div style="font-size:12px;color:#6c3483;">${forfaitActif.prestation_nom} — Séance ${nextSeance}/${forfaitActif.nombre_seances_total}</div>
+                        </div>
+                        <button type="button" class="btn"
+                                onclick="utiliserSeanceAjout(${forfaitActif.id},${nextSeance},'${forfaitActif.prestation_nom.replace(/'/g,"\\'").replace(/"/g,'\\"')}',${forfaitActif.nombre_seances_total})"
+                                style="padding:5px 10px;background:#9b59b6;color:white;font-size:11px;border:none;border-radius:4px;cursor:pointer;">
+                            Utiliser séance ${nextSeance}
+                        </button>
+                    </div>`;
+            } else {
+                badge.innerHTML = `
+                    <div style="background:#f8d7da;border:1px solid #f5c6cb;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#721c24;">
+                        ⚠️ Toutes les séances de ce forfait sont déjà programmées
+                    </div>`;
+            }
+        } else {
+            // Plusieurs forfaits du même nom → laisser choisir
+            let rows = forfaitsActifs.map(f => {
+                const nextS = f.seances_disponibles[0];
+                if (nextS === undefined) return '';
+                return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #d7b8ea;">
+                    <div style="font-size:12px;color:#6c3483;">
+                        Acheté le ${f.date_achat} — ${f.seances_restantes} séance(s) restante(s)
                     </div>
                     <button type="button" class="btn"
-                            onclick="utiliserSeanceAjout(${forfaitActif.id},${nextSeance},'${forfaitActif.prestation_nom.replace(/'/g,"\\'").replace(/"/g,'\\"')}',${forfaitActif.nombre_seances_total})"
-                            style="padding:5px 10px;background:#9b59b6;color:white;font-size:11px;border:none;border-radius:4px;cursor:pointer;">
-                        Utiliser séance ${nextSeance}
+                            onclick="utiliserSeanceAjout(${f.id},${nextS},'${f.prestation_nom.replace(/'/g,"\\'").replace(/"/g,'\\"')}',${f.nombre_seances_total})"
+                            style="padding:4px 10px;background:#9b59b6;color:white;font-size:11px;border:none;border-radius:4px;cursor:pointer;">
+                        Séance ${nextS}/${f.nombre_seances_total}
                     </button>
                 </div>`;
-        } else {
+            }).join('');
             badge.innerHTML = `
-                <div style="background:#f8d7da;border:1px solid #f5c6cb;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#721c24;">
-                    ⚠️ Toutes les séances de ce forfait sont déjà programmées
+                <div style="background:linear-gradient(135deg,#e8d5f5,#d4b8e8);border:2px solid #9b59b6;border-radius:8px;padding:8px 12px;margin-bottom:10px;">
+                    <strong style="color:#6c3483;font-size:13px;">📦 ${forfaitsActifs.length} forfaits disponibles — choisissez lequel utiliser</strong>
+                    <div style="margin-top:6px;">${rows}</div>
                 </div>`;
         }
     } else {
@@ -5652,8 +5676,8 @@ function mettreAJourBoutonsForFaitReservation(blocIndex) {
                 </div>`;
             return;
         }
-        const forfaitActif = resForfaitsData.find(f => f.prestation_id == selectedId && f.seances_restantes > 0);
-        if (!forfaitActif) {
+        const forfaitsActifs = resForfaitsData.filter(f => f.prestation_id == selectedId && f.seances_restantes > 0);
+        if (forfaitsActifs.length === 0) {
             badge.innerHTML = `
                 <div style="background:linear-gradient(135deg,#fff3cd,#ffeeba);border:2px solid #ffc107;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
                     <div>
@@ -5666,13 +5690,12 @@ function mettreAJourBoutonsForFaitReservation(blocIndex) {
                         Vendre ce forfait
                     </button>
                 </div>`;
-        } else {
-            // Forfait trouvé → trouver la prochaine séance disponible (pas déjà prise par un autre bloc)
+        } else if (forfaitsActifs.length === 1) {
+            const forfaitActif = forfaitsActifs[0];
             const usedSeances = resBlocs
                 .filter(b => b.index !== blocIndex && b.seanceForfaitId && b.seanceForfaitId.startsWith(`${forfaitActif.id}_`))
                 .map(b => parseInt(b.seanceForfaitId.split('_')[1]));
             const nextSeance = forfaitActif.seances_disponibles.find(s => !usedSeances.includes(s));
-
             if (nextSeance !== undefined) {
                 badge.innerHTML = `
                     <div style="background:linear-gradient(135deg,#e8d5f5,#d4b8e8);border:2px solid #9b59b6;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
@@ -5692,6 +5715,30 @@ function mettreAJourBoutonsForFaitReservation(blocIndex) {
                         ⚠️ Toutes les séances de ce forfait sont déjà programmées
                     </div>`;
             }
+        } else {
+            // Plusieurs forfaits du même nom → laisser choisir
+            let rows = forfaitsActifs.map(f => {
+                const usedS = resBlocs
+                    .filter(b => b.index !== blocIndex && b.seanceForfaitId && b.seanceForfaitId.startsWith(`${f.id}_`))
+                    .map(b => parseInt(b.seanceForfaitId.split('_')[1]));
+                const nextS = f.seances_disponibles.find(s => !usedS.includes(s));
+                if (nextS === undefined) return '';
+                return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #d7b8ea;">
+                    <div style="font-size:12px;color:#6c3483;">
+                        Acheté le ${f.date_achat} — ${f.seances_restantes} séance(s) restante(s)
+                    </div>
+                    <button type="button" class="btn"
+                            onclick="utiliserSeanceForfaitReservation(${blocIndex},${f.id},${nextS},'${f.prestation_nom.replace(/'/g,"\\'").replace(/"/g,'\\"')}',${f.nombre_seances_total})"
+                            style="padding:4px 10px;background:#9b59b6;color:white;font-size:11px;border:none;border-radius:4px;cursor:pointer;">
+                        Séance ${nextS}/${f.nombre_seances_total}
+                    </button>
+                </div>`;
+            }).join('');
+            badge.innerHTML = `
+                <div style="background:linear-gradient(135deg,#e8d5f5,#d4b8e8);border:2px solid #9b59b6;border-radius:8px;padding:8px 12px;margin-bottom:10px;">
+                    <strong style="color:#6c3483;font-size:13px;">📦 ${forfaitsActifs.length} forfaits disponibles — choisissez lequel utiliser</strong>
+                    <div style="margin-top:6px;">${rows}</div>
+                </div>`;
         }
     } else {
         badge.innerHTML = '';
