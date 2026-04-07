@@ -1542,7 +1542,7 @@ class PaiementCredit(models.Model):
         validators=[MinValueValidator(0)]
     )
     mode = models.CharField(max_length=20, choices=MODE_CHOICES)
-    date = models.DateTimeField(auto_now_add=True)
+    date = models.DateTimeField(default=timezone.now)
     enregistre_par = models.ForeignKey(
         'Utilisateur',
         on_delete=models.SET_NULL,

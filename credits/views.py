@@ -3,12 +3,13 @@ from core.decorators import login_required_json as login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.db.models import Sum, Q
-from datetime import datetime, date
+from datetime import datetime, date, time
 from decimal import Decimal
 import json
 
 from core.decorators import institut_required
-from core.models import Institut, Client, Credit, Paiement, PaiementCredit, CarteCadeau, UtilisationCarteCadeau
+from django.utils import timezone
+from core.models import Institut, Client, Credit, Paiement, PaiementCredit, CarteCadeau, UtilisationCarteCadeau, ClotureCaisse
 
 
 @login_required
@@ -119,6 +120,21 @@ def regler_credit(request, institut_code, credit_id):
         mode_paiement = request.POST.get('mode', 'especes')
         carte_cadeau_id = request.POST.get('carte_cadeau_id')
 
+        # Date du paiement
+        date_str = request.POST.get('date_paiement', '')
+        if date_str:
+            try:
+                date_paiement = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return JsonResponse({'success': False, 'message': 'Date invalide'}, status=400)
+        else:
+            date_paiement = date.today()
+
+        if date_paiement > date.today():
+            return JsonResponse({'success': False, 'message': 'La date ne peut pas être dans le futur'}, status=400)
+
+        date_paiement_dt = timezone.make_aware(datetime.combine(date_paiement, time(12, 0, 0)))
+
         # Validation
         if montant <= 0:
             return JsonResponse({
@@ -178,6 +194,7 @@ def regler_credit(request, institut_code, credit_id):
             credit=credit,
             montant=int(montant),
             mode=mode_paiement,
+            date=date_paiement_dt,
             enregistre_par=request.user.utilisateur,
             utilisation_carte_cadeau=utilisation
         )

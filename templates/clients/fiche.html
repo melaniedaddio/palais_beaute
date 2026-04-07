@@ -910,6 +910,10 @@
             </p>
 
             <div class="form-group">
+                <label>Date du paiement</label>
+                <input type="date" id="rcrDatePaiement" class="form-control">
+            </div>
+            <div class="form-group">
                 <label>Type de paiement</label>
                 <select id="rcrTypePaiement" class="form-control" onchange="rcrMajType()">
                     <option value="complet">Paiement complet</option>
@@ -1176,6 +1180,11 @@ function ouvrirModalReglerCredit(creditId, montantRestant) {
     rcrCreditId = creditId;
     rcrMontantTotal = montantRestant;
     document.getElementById('rcrMontantRestant').textContent = montantRestant.toLocaleString('fr-FR');
+    // Pré-remplir avec la date du jour
+    const now = new Date();
+    const today = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    document.getElementById('rcrDatePaiement').value = today;
+    document.getElementById('rcrDatePaiement').max = today;
     document.getElementById('rcrTypePaiement').value = 'complet';
     document.getElementById('rcrSectionPartiel').style.display = 'none';
     document.getElementById('rcrMontantPartiel').value = '';
@@ -1201,6 +1210,9 @@ async function confirmerReglerCredit() {
     const moyen1 = document.getElementById('rcrMoyen1').value;
     const moyen2 = document.getElementById('rcrMoyen2').value;
     const montant2 = parseInt(document.getElementById('rcrMontant2').value) || 0;
+    const datePaiement = document.getElementById('rcrDatePaiement').value;
+
+    if (!datePaiement) { showError('Veuillez saisir une date'); return; }
 
     let montantTotal;
     if (type === 'partiel') {
@@ -1225,6 +1237,7 @@ async function confirmerReglerCredit() {
             const fd1 = new FormData();
             fd1.append('montant', montant1);
             fd1.append('mode', moyen1);
+            fd1.append('date_paiement', datePaiement);
             const r1 = await fetch(baseUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd1 });
             const d1 = await r1.json();
             if (!d1.success) { showError(d1.message); btn.disabled = false; btn.textContent = 'Enregistrer le paiement'; return; }
@@ -1232,6 +1245,7 @@ async function confirmerReglerCredit() {
             const fd2 = new FormData();
             fd2.append('montant', montant2);
             fd2.append('mode', moyen2);
+            fd2.append('date_paiement', datePaiement);
             const r2 = await fetch(baseUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd2 });
             const d2 = await r2.json();
             if (!d2.success) { showError(d2.message); btn.disabled = false; btn.textContent = 'Enregistrer le paiement'; return; }
@@ -1240,6 +1254,7 @@ async function confirmerReglerCredit() {
             const fd = new FormData();
             fd.append('montant', montantTotal);
             fd.append('mode', moyen1);
+            fd.append('date_paiement', datePaiement);
             const r = await fetch(baseUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd });
             const d = await r.json();
             if (!d.success) { showError(d.message); btn.disabled = false; btn.textContent = 'Enregistrer le paiement'; return; }

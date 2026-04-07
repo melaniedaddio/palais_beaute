@@ -204,6 +204,10 @@
             {% csrf_token %}
             <input type="hidden" id="credit-id" name="credit_id">
             <div class="form-group">
+                <label for="date-paiement">Date du paiement</label>
+                <input type="date" class="form-control" id="date-paiement" name="date_paiement" required>
+            </div>
+            <div class="form-group">
                 <label for="montant">Montant à régler (CFA)</label>
                 <input type="number" class="form-control" id="montant" name="montant" min="1" required>
             </div>
@@ -246,6 +250,11 @@ function ouvrirModalReglement(creditId, resteAPayer, description) {
     document.getElementById('credit-id').value = creditId;
     document.getElementById('modal-credit-description').textContent = description;
     document.getElementById('modal-reste-a-payer').textContent = resteAPayer.toLocaleString('fr-FR');
+    // Pré-remplir avec la date du jour
+    const now = new Date();
+    const today = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    document.getElementById('date-paiement').value = today;
+    document.getElementById('date-paiement').max = today;
     document.getElementById('montant').value = resteAPayer;
     document.getElementById('montant').max = resteAPayer;
     document.getElementById('mode').value = 'especes';
@@ -342,10 +351,13 @@ document.getElementById('formReglement').addEventListener('submit', async functi
         if (!carteCadeauId) { showWarning('Veuillez sélectionner une carte cadeau'); return; }
         if (carteCadeauSelectionnee && parseFloat(montant) > carteCadeauSelectionnee.solde) { showWarning('Le montant dépasse le solde de la carte cadeau'); return; }
     }
+    const datePaiement = document.getElementById('date-paiement').value;
+    if (!datePaiement) { showWarning('Veuillez saisir une date'); return; }
     const formData = new FormData();
     formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
     formData.append('montant', montant);
     formData.append('mode', mode);
+    formData.append('date_paiement', datePaiement);
     if (mode === 'carte_cadeau' && carteCadeauId) formData.append('carte_cadeau_id', carteCadeauId);
     const submitBtn = this.querySelector('button[type="submit"]');
     showLoader(submitBtn, 'Enregistrement...');
