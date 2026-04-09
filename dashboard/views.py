@@ -662,7 +662,7 @@ def index(request):
     bilan_paiements_qs = Paiement.objects.filter(
         date__date__gte=bilan_mois,
         date__date__lte=bilan_fin_mois,
-    ).exclude(mode__in=['forfait', 'offert'])
+    ).exclude(mode__in=['carte_cadeau', 'forfait', 'offert'])
     if bilan_institut_code != 'tous':
         bilan_paiements_qs = bilan_paiements_qs.filter(
             rendez_vous__employe__institut__code=bilan_institut_code
@@ -673,6 +673,24 @@ def index(request):
     for p in bilan_paiements_qs.values('mode').annotate(total=Sum('montant')).order_by('-total'):
         bilan_recettes_par_mode[p['mode']] = p['total']
 
+    bilan_cartes_qs = CarteCadeau.objects.filter(
+        date_achat__date__gte=bilan_mois,
+        date_achat__date__lte=bilan_fin_mois,
+        statut__in=['active', 'soldee'],
+        hors_caisse=False,
+    )
+    if bilan_institut_code != 'tous':
+        bilan_cartes_qs = bilan_cartes_qs.filter(institut_achat__code=bilan_institut_code)
+    bilan_ca_cartes = bilan_cartes_qs.aggregate(s=Sum('montant_initial'))['s'] or 0
+
+    bilan_credits_qs = PaiementCredit.objects.filter(
+        date__date__gte=bilan_mois,
+        date__date__lte=bilan_fin_mois,
+    ).exclude(mode='carte_cadeau')
+    if bilan_institut_code != 'tous':
+        bilan_credits_qs = bilan_credits_qs.filter(credit__institut__code=bilan_institut_code)
+    bilan_ca_credits = bilan_credits_qs.aggregate(s=Sum('montant'))['s'] or 0
+
     bilan_ventes_qs = VenteProduit.objects.filter(
         date__date__gte=bilan_mois,
         date__date__lte=bilan_fin_mois,
@@ -681,7 +699,7 @@ def index(request):
         bilan_ventes_qs = bilan_ventes_qs.filter(institut__code=bilan_institut_code)
     bilan_ca_ventes = bilan_ventes_qs.aggregate(s=Sum('montant_total'))['s'] or 0
 
-    bilan_total_recettes = bilan_ca_rdv + bilan_ca_ventes
+    bilan_total_recettes = bilan_ca_rdv + bilan_ca_cartes + bilan_ca_credits + bilan_ca_ventes
 
     bilan_dep_qs = Depense.objects.filter(date__gte=bilan_mois, date__lte=bilan_fin_mois)
     if bilan_institut_code != 'tous':
@@ -714,10 +732,20 @@ def index(request):
 
         rec_qs = Paiement.objects.filter(
             date__date__gte=m_debut, date__date__lte=m_fin,
-        ).exclude(mode__in=['forfait', 'offert'])
+        ).exclude(mode__in=['carte_cadeau', 'forfait', 'offert'])
         if bilan_institut_code != 'tous':
             rec_qs = rec_qs.filter(rendez_vous__employe__institut__code=bilan_institut_code)
         rec = rec_qs.aggregate(s=Sum('montant'))['s'] or 0
+
+        cc_qs = CarteCadeau.objects.filter(date_achat__date__gte=m_debut, date_achat__date__lte=m_fin, statut__in=['active', 'soldee'], hors_caisse=False)
+        if bilan_institut_code != 'tous':
+            cc_qs = cc_qs.filter(institut_achat__code=bilan_institut_code)
+        rec += cc_qs.aggregate(s=Sum('montant_initial'))['s'] or 0
+
+        cr_qs = PaiementCredit.objects.filter(date__date__gte=m_debut, date__date__lte=m_fin).exclude(mode='carte_cadeau')
+        if bilan_institut_code != 'tous':
+            cr_qs = cr_qs.filter(credit__institut__code=bilan_institut_code)
+        rec += cr_qs.aggregate(s=Sum('montant'))['s'] or 0
 
         vp_qs = VenteProduit.objects.filter(date__date__gte=m_debut, date__date__lte=m_fin)
         if bilan_institut_code != 'tous':
@@ -839,15 +867,15 @@ def api_stats_chart(request):
             date__date__gte=d_debut,
             date__date__lte=d_fin
         )
-        forfaits_qs = ForfaitClient.objects.filter(
-            date_achat__date__gte=d_debut,
-            date_achat__date__lte=d_fin
+        ventes_qs = VenteProduit.objects.filter(
+            date__date__gte=d_debut,
+            date__date__lte=d_fin
         )
 
         if institut_filter:
             cartes_qs = cartes_qs.filter(institut_achat=institut_filter)
             credits_qs = credits_qs.filter(credit__institut=institut_filter)
-            forfaits_qs = forfaits_qs.filter(institut=institut_filter)
+            ventes_qs = ventes_qs.filter(institut=institut_filter)
 
             if institut_filter.code == 'express':
                 if dates_cloturees_express:
@@ -856,11 +884,9 @@ def api_stats_chart(request):
                 else:
                     ca_cartes = 0
                     ca_credits = 0
-                ca_forfaits = 0  # Pas de forfaits pour Express
             else:
                 ca_cartes = cartes_qs.aggregate(total=Sum('montant_initial'))['total'] or 0
                 ca_credits = credits_qs.aggregate(total=Sum('montant'))['total'] or 0
-                ca_forfaits = forfaits_qs.aggregate(total=Sum('montant_paye_initial'))['total'] or 0
         elif express:
             if dates_cloturees_express:
                 ca_cartes = (cartes_qs.exclude(institut_achat=express).aggregate(total=Sum('montant_initial'))['total'] or 0) + \
@@ -870,14 +896,14 @@ def api_stats_chart(request):
             else:
                 ca_cartes = cartes_qs.exclude(institut_achat=express).aggregate(total=Sum('montant_initial'))['total'] or 0
                 ca_credits = credits_qs.exclude(credit__institut=express).aggregate(total=Sum('montant'))['total'] or 0
-            ca_forfaits = forfaits_qs.aggregate(total=Sum('montant_paye_initial'))['total'] or 0
         else:
             ca_cartes = cartes_qs.aggregate(total=Sum('montant_initial'))['total'] or 0
             ca_credits = credits_qs.aggregate(total=Sum('montant'))['total'] or 0
-            ca_forfaits = forfaits_qs.aggregate(total=Sum('montant_paye_initial'))['total'] or 0
+
+        ca_ventes = ventes_qs.aggregate(total=Sum('montant_total'))['total'] or 0
 
         # ca_forfaits déjà compté dans ca_paiements via le RDV fictif
-        return ca_paiements + ca_cartes + ca_credits
+        return ca_paiements + ca_cartes + ca_credits + ca_ventes
 
     # Données CA évolution
     data_ca = []
@@ -1195,7 +1221,7 @@ def export_rdv_excel(request):
 
     # Construire le queryset
     rdvs = RendezVous.objects.filter(statut='valide').select_related(
-        'client', 'employe', 'institut', 'prestation', 'groupe'
+        'client', 'employe', 'institut', 'prestation', 'groupe', 'forfait'
     ).prefetch_related('paiements', 'options_selectionnees__option').order_by('-date', '-heure_debut')
 
     if date_debut:
@@ -1228,6 +1254,17 @@ def export_rdv_excel(request):
     all_rows = list(client_day_map.values())
     all_rows.sort(key=lambda rdv_list: (rdv_list[0].date, rdv_list[0].heure_debut), reverse=True)
 
+    import math as _math
+
+    def _montant_effectif(rdv):
+        """Prix total après application de la remise. Retourne 0 pour les RDV offerts ou séances forfait."""
+        modes = {p.mode for p in rdv.paiements.all()}
+        if 'offert' in modes or 'forfait' in modes:
+            return 0
+        if rdv.remise_pourcent and rdv.remise_pourcent > 0:
+            return _math.ceil(rdv.prix_total * (100 - rdv.remise_pourcent) / 100 / 1000) * 1000
+        return int(rdv.prix_total)
+
     def _paiements_sums(rdv_list):
         especes = carte = cheque = om = wave = 0
         for rdv in rdv_list:
@@ -1241,18 +1278,20 @@ def export_rdv_excel(request):
         return especes, carte, cheque, om, wave
 
     def _rdv_label(rdv):
-        """Nom de prestation + options sélectionnées."""
+        """Nom de prestation + options sélectionnées. Préfixe séance forfait si applicable."""
         nom = rdv.prestation.nom if rdv.prestation else ''
         options = [o.option.nom for o in rdv.options_selectionnees.all() if o.option]
         if options:
             nom += ' (' + ', '.join(options) + ')'
+        if rdv.est_seance_forfait and rdv.numero_seance and rdv.forfait:
+            nom = f'Séance {rdv.numero_seance}/{rdv.forfait.nombre_seances_total} forfait — {nom}'
         return nom
 
     row = 2
     for rdv_list in all_rows:
         rdv_list_sorted = sorted(rdv_list, key=lambda r: r.heure_debut)
         premier = rdv_list_sorted[0]
-        montant_total = sum(int(r.prix_total) for r in rdv_list)
+        montant_total = sum(_montant_effectif(r) for r in rdv_list)
         especes, carte, cheque, om, wave = _paiements_sums(rdv_list)
         prestations = ' + '.join(_rdv_label(r) for r in rdv_list_sorted)
         employes = ' / '.join(dict.fromkeys(r.employe.nom for r in rdv_list_sorted))
@@ -1370,6 +1409,48 @@ def export_rdv_excel(request):
         ws.cell(row=row, column=13, value=wave_vp    or None)
         for col in range(1, 14):
             ws.cell(row=row, column=col).font = openpyxl.styles.Font(italic=True, color='27AE60')
+        row += 1
+
+    # Paiements de crédits réglés sur la période
+    credits_qs = PaiementCredit.objects.select_related(
+        'credit__client', 'credit__institut', 'enregistre_par__user'
+    ).order_by('-date')
+    if date_debut:
+        credits_qs = credits_qs.filter(date__date__gte=date_debut)
+    if date_fin:
+        credits_qs = credits_qs.filter(date__date__lte=date_fin)
+    if institut_code:
+        credits_qs = credits_qs.filter(credit__institut__code=institut_code)
+    # Exclure les paiements par carte cadeau (déjà encaissée à la vente)
+    credits_qs = credits_qs.exclude(mode='carte_cadeau')
+
+    for pc in credits_qs:
+        especes_cr = int(pc.montant) if pc.mode == 'especes' else 0
+        carte_cr   = int(pc.montant) if pc.mode == 'carte'   else 0
+        cheque_cr  = int(pc.montant) if pc.mode == 'cheque'  else 0
+        om_cr      = int(pc.montant) if pc.mode == 'om'      else 0
+        wave_cr    = int(pc.montant) if pc.mode == 'wave'    else 0
+
+        client_nom = pc.credit.client.get_full_name() if pc.credit.client else '—'
+        client_tel = pc.credit.client.telephone if pc.credit.client else ''
+        institut_nom = pc.credit.institut.nom if pc.credit.institut else ''
+        description = f'Règlement crédit : {pc.credit.description}'
+
+        ws.cell(row=row, column=1,  value=pc.date.strftime('%d/%m/%Y'))
+        ws.cell(row=row, column=2,  value=pc.date.strftime('%H:%M'))
+        ws.cell(row=row, column=3,  value=institut_nom)
+        ws.cell(row=row, column=4,  value=client_nom)
+        ws.cell(row=row, column=5,  value=client_tel)
+        ws.cell(row=row, column=6,  value='')
+        ws.cell(row=row, column=7,  value=description)
+        ws.cell(row=row, column=8,  value=int(pc.montant))
+        ws.cell(row=row, column=9,  value=especes_cr or None)
+        ws.cell(row=row, column=10, value=carte_cr   or None)
+        ws.cell(row=row, column=11, value=cheque_cr  or None)
+        ws.cell(row=row, column=12, value=om_cr      or None)
+        ws.cell(row=row, column=13, value=wave_cr    or None)
+        for col in range(1, 14):
+            ws.cell(row=row, column=col).font = openpyxl.styles.Font(italic=True, color='E67E22')
         row += 1
 
     # Ajuster la largeur des colonnes
@@ -1622,11 +1703,6 @@ def dashboard_bilan(request):
         if bilan_institut_code != 'tous':
             cr_qs = cr_qs.filter(credit__institut__code=bilan_institut_code)
         rec += cr_qs.aggregate(s=Sum('montant'))['s'] or 0
-
-        ff_qs = ForfaitClient.objects.filter(date_achat__date__gte=m_debut, date_achat__date__lte=m_fin)
-        if bilan_institut_code != 'tous':
-            ff_qs = ff_qs.filter(institut__code=bilan_institut_code)
-        rec += ff_qs.aggregate(s=Sum('montant_paye_initial'))['s'] or 0
 
         vp_qs = VenteProduit.objects.filter(date__date__gte=m_debut, date__date__lte=m_fin)
         if bilan_institut_code != 'tous':
