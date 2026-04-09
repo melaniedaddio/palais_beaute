@@ -2,7 +2,7 @@ import random
 import string
 from datetime import timedelta
 
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password, check_password
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -1788,12 +1788,36 @@ class SeanceForfait(models.Model):
         self.forfait.utiliser_seance()
 
     def annuler(self):
-        """Annule la programmation de la séance"""
-        self.rendez_vous = None
-        self.statut = 'disponible'
-        self.date_programmation = None
-        self.save()
-        self.forfait.deprogrammer_seance()
+        """Annule la programmation de la séance et renuméote les séances suivantes."""
+        with transaction.atomic():
+            forfait = self.forfait
+            cancelled_numero = self.numero
+
+            # Libérer la séance avec un numéro temporaire pour éviter les conflits de contrainte unique
+            self.rendez_vous = None
+            self.statut = 'disponible'
+            self.date_programmation = None
+            self.numero = 99999
+            self.save()
+            forfait.deprogrammer_seance()
+
+            # Décaler d'un rang toutes les séances 'programmee' qui suivaient la séance annulée
+            seances_suivantes = forfait.seances.filter(
+                statut='programmee',
+                numero__gt=cancelled_numero
+            ).order_by('numero')
+
+            for s in seances_suivantes:
+                s.numero -= 1
+                s.save()
+                if s.rendez_vous_id:
+                    s.rendez_vous.numero_seance = s.numero
+                    s.rendez_vous.save(update_fields=['numero_seance'])
+
+            # La séance annulée prend le numéro juste après la dernière séance programmée/effectuée
+            nb_actives = forfait.seances.filter(statut__in=['programmee', 'effectuee']).count()
+            self.numero = nb_actives + 1
+            self.save(update_fields=['numero'])
 
 
 class ClotureCaisse(models.Model):
