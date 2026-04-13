@@ -1527,6 +1527,11 @@ document.getElementById('modalSupprimerClient').addEventListener('click', functi
             {% endif %}
 
             <div class="form-group">
+                <label for="vcDateAchat">Date de la vente</label>
+                <input type="date" id="vcDateAchat" class="form-control" style="width:100%;">
+            </div>
+
+            <div class="form-group">
                 <label>Commentaire</label>
                 <textarea id="vcNotes" class="form-control" rows="2" placeholder="Optionnel…" style="resize:vertical;"></textarea>
             </div>
@@ -1702,6 +1707,11 @@ function ouvrirModalVenteCarte() {
     document.getElementById('vcNotes').value = '';
     document.getElementById('vcFormulaire').style.display = 'block';
     document.getElementById('vcConfirmation').style.display = 'none';
+    // Date de vente : défaut = aujourd'hui, max = aujourd'hui
+    const now = new Date();
+    const today = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    document.getElementById('vcDateAchat').value = today;
+    document.getElementById('vcDateAchat').max = today;
     document.getElementById('modalVenteCarte').classList.add('active');
 }
 
@@ -1808,6 +1818,10 @@ async function validerVenteCarte() {
 
     const vcNotes = document.getElementById('vcNotes').value.trim();
     if (vcNotes) formData.append('notes', vcNotes);
+
+    const dateAchat = document.getElementById('vcDateAchat').value;
+    if (!dateAchat) { showError('Veuillez saisir une date de vente'); return; }
+    formData.append('date_achat', dateAchat);
 
     const btn = document.getElementById('vcBtnValider');
     btn.disabled = true;

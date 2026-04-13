@@ -392,10 +392,11 @@ def cloture_caisse(request):
     )['total'] or 0
 
     # Ventes de cartes cadeaux depuis la dernière clôture
+    # Filtre sur date_creation (timestamp réel) pour gérer les cartes rétroactives
     ventes_cartes = CarteCadeau.objects.filter(
         institut_achat=institut,
         date_achat__date=date_selectionnee,
-        date_achat__gte=heure_debut,
+        date_creation__gte=heure_debut,
     )
     nb_cartes_vendues = ventes_cartes.count()
     ventes_cartes_especes = 0
@@ -741,7 +742,7 @@ def api_cloturer_caisse(request):
         ventes_cartes = CarteCadeau.objects.filter(
             institut_achat=institut,
             date_achat__date=date_cloture,
-            date_achat__gte=heure_debut,
+            date_creation__gte=heure_debut,
         )
         ventes_cartes_par_mode = {'especes': 0, 'carte': 0, 'cheque': 0, 'om': 0, 'wave': 0}
         for carte in ventes_cartes:
