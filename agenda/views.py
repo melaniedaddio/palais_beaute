@@ -2494,13 +2494,12 @@ def api_forfait_info_deletion(request, institut_code, forfait_id):
         caisse_montant = 0
         if forfait.rdv_achat_id:
             rdv = forfait.rdv_achat
-            paiements_jour = rdv.paiements.filter(date__date=today)
-            montant_paiements = paiements_jour.aggregate(t=Sum('montant'))['t'] or 0
+            tous_paiements = rdv.paiements.all()
+            montant_paiements = tous_paiements.aggregate(t=Sum('montant'))['t'] or 0
             if montant_paiements > 0:
                 dernier_paiement = rdv.paiements.order_by('-date').first()
                 cloture_apres = ClotureCaisse.objects.filter(
                     institut=forfait.institut,
-                    date=today,
                     cloture=True,
                     date_cloture__gte=dernier_paiement.date
                 ).exists()
@@ -2611,22 +2610,21 @@ def api_forfait_supprimer(request, institut_code, forfait_id):
                 rdv.numero_seance = None
                 rdv.save(update_fields=['est_seance_forfait', 'forfait', 'numero_seance'])
 
-        # 2. Annuler la caisse si possible (paiements du jour sans clôture après)
+        # 2. Annuler la caisse si possible (tous paiements sans clôture après)
         if forfait.rdv_achat_id:
             rdv = forfait.rdv_achat
-            paiements_jour = rdv.paiements.filter(date__date=today)
-            montant_paiements = paiements_jour.aggregate(t=Sum('montant'))['t'] or 0
+            tous_paiements = rdv.paiements.all()
+            montant_paiements = tous_paiements.aggregate(t=Sum('montant'))['t'] or 0
             if montant_paiements > 0:
                 dernier_paiement = rdv.paiements.order_by('-date').first()
                 cloture_apres = ClotureCaisse.objects.filter(
                     institut=forfait.institut,
-                    date=today,
                     cloture=True,
                     date_cloture__gte=dernier_paiement.date
                 ).exists()
                 if not cloture_apres:
                     # Supprimer les paiements et annuler le RDV fictif
-                    paiements_jour.delete()
+                    tous_paiements.delete()
                     rdv.statut = 'annule'
                     rdv.save(update_fields=['statut'])
 
