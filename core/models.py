@@ -2095,7 +2095,8 @@ class CarteCadeau(models.Model):
 
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='active')
 
-    date_achat = models.DateTimeField(auto_now_add=True)
+    date_achat = models.DateTimeField(default=timezone.now)
+    date_creation = models.DateTimeField(auto_now_add=True, null=True, help_text="Timestamp réel de création (pour le filtrage clôture)")
     date_expiration = models.DateTimeField(null=True, blank=True, help_text="Date d'expiration (6 mois après l'achat)")
     date_derniere_utilisation = models.DateTimeField(null=True, blank=True)
 

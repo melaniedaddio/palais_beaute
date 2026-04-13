@@ -971,7 +971,8 @@ def api_vendre_carte_cadeau(request):
     """API pour créer une nouvelle carte cadeau."""
     try:
         from decimal import Decimal, InvalidOperation
-        from datetime import date, datetime
+        from datetime import date, datetime, time
+        from django.utils import timezone as tz
 
         acheteur_id = request.POST.get('acheteur_id')
         beneficiaire_id = request.POST.get('beneficiaire_id')
@@ -1022,6 +1023,26 @@ def api_vendre_carte_cadeau(request):
 
         notes = request.POST.get('notes', '').strip() or None
 
+        # Date de la vente (caisse)
+        date_achat_str = request.POST.get('date_achat', '').strip()
+        if date_achat_str:
+            try:
+                date_achat_d = datetime.strptime(date_achat_str, '%Y-%m-%d').date()
+            except ValueError:
+                return JsonResponse({'success': False, 'message': 'Date invalide'}, status=400)
+        else:
+            date_achat_d = date.today()
+
+        if date_achat_d > date.today():
+            return JsonResponse({'success': False, 'message': 'La date ne peut pas être dans le futur'}, status=400)
+
+        if date_achat_d < date.today():
+            # Date passée : mettre à 23:59:59 pour apparaître après toute clôture déjà faite ce jour-là
+            date_achat_dt = tz.make_aware(datetime.combine(date_achat_d, time(23, 59, 59)))
+        else:
+            # Aujourd'hui : heure actuelle
+            date_achat_dt = tz.now().replace(second=0, microsecond=0)
+
         # Créer la carte cadeau avec les infos de paiement complètes
         carte_kwargs = dict(
             acheteur=acheteur,
@@ -1032,6 +1053,7 @@ def api_vendre_carte_cadeau(request):
             mode_paiement_achat=moyen_paiement_1,
             vendue_par=utilisateur,
             notes=notes,
+            date_achat=date_achat_dt,
         )
 
         if utilise_double_paiement and montant_paiement_2 > 0:

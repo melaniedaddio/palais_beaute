@@ -544,6 +544,11 @@
             </div>
             {% endif %}
 
+            <div class="form-group">
+                <label for="dateAchatCarte">Date de la vente</label>
+                <input type="date" id="dateAchatCarte" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px;">
+            </div>
+
             <button class="btn btn-secondary" style="width: 100%;" onclick="validerVente()">
                 Valider la vente
             </button>
@@ -754,6 +759,11 @@ function ouvrirModalVente() {
     document.getElementById('montantCarte').value = '';
     document.getElementById('memePersonne').checked = false;
     toggleBeneficiaire();
+    // Date de vente : défaut = aujourd'hui, max = aujourd'hui
+    const now = new Date();
+    const today = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    document.getElementById('dateAchatCarte').value = today;
+    document.getElementById('dateAchatCarte').max = today;
 }
 
 function fermerModalVente() {
@@ -855,6 +865,14 @@ async function validerVente() {
         }
         formData.append('institut_id', institutSelect.value);
     }
+
+    // Date de vente
+    const dateAchat = document.getElementById('dateAchatCarte').value;
+    if (!dateAchat) {
+        showWarning('Veuillez saisir une date de vente');
+        return;
+    }
+    formData.append('date_achat', dateAchat);
 
     // Désactiver le bouton pour éviter les double-clics
     const btnValider = document.querySelector('#venteFormulaire .btn-secondary');
