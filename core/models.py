@@ -1535,6 +1535,7 @@ class PaiementCredit(models.Model):
         ('om', 'Orange Money'),
         ('wave', 'Wave'),
         ('carte_cadeau', 'Carte cadeau'),
+        ('offert', 'Offert'),
     ]
 
     credit = models.ForeignKey(Credit, on_delete=models.CASCADE, related_name='paiements')
@@ -1788,35 +1789,49 @@ class SeanceForfait(models.Model):
         self.forfait.utiliser_seance()
 
     def annuler(self):
-        """Annule la programmation de la séance et renuméote les séances suivantes."""
+        """Annule la programmation de la séance et renuméote les séances actives."""
         with transaction.atomic():
             forfait = self.forfait
-            cancelled_numero = self.numero
+            cancelled_pk = self.pk
+            was_effectuee = self.statut == 'effectuee'
 
-            # Libérer la séance avec un numéro temporaire pour éviter les conflits de contrainte unique
+            # Mettre un numéro temporaire hors-plage pour libérer la place
             self.rendez_vous = None
             self.statut = 'disponible'
             self.date_programmation = None
+            self.date_realisation = None
             self.numero = 99999
             self.save()
             forfait.deprogrammer_seance()
 
-            # Décaler d'un rang toutes les séances 'programmee' qui suivaient la séance annulée
-            seances_suivantes = forfait.seances.filter(
-                statut='programmee',
-                numero__gt=cancelled_numero
-            ).order_by('numero')
+            # Si la séance était déjà effectuée, décrémenter aussi nombre_seances_utilisees
+            if was_effectuee and forfait.nombre_seances_utilisees > 0:
+                forfait.nombre_seances_utilisees -= 1
+                if forfait.statut == 'termine':
+                    forfait.statut = 'actif'
+                    forfait.date_fin = None
+                forfait.save()
 
-            for s in seances_suivantes:
-                s.numero -= 1
-                s.save()
-                if s.rendez_vous_id:
-                    s.rendez_vous.numero_seance = s.numero
-                    s.rendez_vous.save(update_fields=['numero_seance'])
+            # Renuméroter toutes les séances actives (effectuée + programmée) de façon
+            # consécutive depuis 1, dans leur ordre actuel. On traite en ordre croissant
+            # ce qui garantit qu'on ne crée pas de doublon (on ne fait que diminuer les numéros,
+            # et la séance annulée est déjà à 99999 donc hors-conflit).
+            actives = list(
+                forfait.seances
+                .exclude(pk=cancelled_pk)
+                .filter(statut__in=['programmee', 'effectuee'])
+                .order_by('numero')
+            )
+            for i, s in enumerate(actives, start=1):
+                if s.numero != i:
+                    s.numero = i
+                    s.save()
+                    if s.rendez_vous_id:
+                        s.rendez_vous.numero_seance = i
+                        s.rendez_vous.save(update_fields=['numero_seance'])
 
-            # La séance annulée prend le numéro juste après la dernière séance programmée/effectuée
-            nb_actives = forfait.seances.filter(statut__in=['programmee', 'effectuee']).count()
-            self.numero = nb_actives + 1
+            # La séance annulée prend le numéro juste après la dernière active
+            self.numero = len(actives) + 1
             self.save(update_fields=['numero'])
 
 

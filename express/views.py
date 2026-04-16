@@ -115,7 +115,7 @@ def index(request):
     credits_encaisses = PaiementCredit.objects.filter(
         credit__institut=institut,
         date__date=date_selectionnee
-    ).aggregate(total=Sum('montant'))['total'] or 0
+    ).exclude(mode__in=['carte_cadeau', 'offert']).aggregate(total=Sum('montant'))['total'] or 0
 
     # Ventes produits du jour (cash encaissé, hors carte_cadeau et différé)
     ventes_produits_jour = VenteProduit.objects.filter(

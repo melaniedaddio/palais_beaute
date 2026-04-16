@@ -495,7 +495,7 @@ def index(request):
     base_credits_paiements = PaiementCredit.objects.filter(
         date__date__gte=date_debut,
         date__date__lte=date_fin
-    ).exclude(mode='carte_cadeau')
+    ).exclude(mode__in=['carte_cadeau', 'offert'])
     if express:
         if dates_cloturees_express:
             credits_paiements_query = base_credits_paiements.filter(
@@ -686,7 +686,7 @@ def index(request):
     bilan_credits_qs = PaiementCredit.objects.filter(
         date__date__gte=bilan_mois,
         date__date__lte=bilan_fin_mois,
-    ).exclude(mode='carte_cadeau')
+    ).exclude(mode__in=['carte_cadeau', 'offert'])
     if bilan_institut_code != 'tous':
         bilan_credits_qs = bilan_credits_qs.filter(credit__institut__code=bilan_institut_code)
     bilan_ca_credits = bilan_credits_qs.aggregate(s=Sum('montant'))['s'] or 0
@@ -742,7 +742,7 @@ def index(request):
             cc_qs = cc_qs.filter(institut_achat__code=bilan_institut_code)
         rec += cc_qs.aggregate(s=Sum('montant_initial'))['s'] or 0
 
-        cr_qs = PaiementCredit.objects.filter(date__date__gte=m_debut, date__date__lte=m_fin).exclude(mode='carte_cadeau')
+        cr_qs = PaiementCredit.objects.filter(date__date__gte=m_debut, date__date__lte=m_fin).exclude(mode__in=['carte_cadeau', 'offert'])
         if bilan_institut_code != 'tous':
             cr_qs = cr_qs.filter(credit__institut__code=bilan_institut_code)
         rec += cr_qs.aggregate(s=Sum('montant'))['s'] or 0
@@ -1131,7 +1131,7 @@ def api_stats_institut(request):
     # Ajouter les paiements de crédits pour cet institut
     credits_paiements_qs = PaiementCredit.objects.filter(
         credit__institut=institut
-    ).exclude(mode='carte_cadeau')
+    ).exclude(mode__in=['carte_cadeau', 'offert'])
     if institut.code == 'express':
         credits_paiements_qs = credits_paiements_qs.filter(date__date__in=dates_cloturees)
     else:
@@ -1421,8 +1421,8 @@ def export_rdv_excel(request):
         credits_qs = credits_qs.filter(date__date__lte=date_fin)
     if institut_code:
         credits_qs = credits_qs.filter(credit__institut__code=institut_code)
-    # Exclure les paiements par carte cadeau (déjà encaissée à la vente)
-    credits_qs = credits_qs.exclude(mode='carte_cadeau')
+    # Exclure les paiements par carte cadeau (déjà encaissée à la vente) et offerts
+    credits_qs = credits_qs.exclude(mode__in=['carte_cadeau', 'offert'])
 
     for pc in credits_qs:
         especes_cr = int(pc.montant) if pc.mode == 'especes' else 0
