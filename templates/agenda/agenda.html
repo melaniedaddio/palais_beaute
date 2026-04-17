@@ -1292,6 +1292,7 @@ window.clotureDatetimes = {{ clotures_timestamps_json|safe }}.map(s => new Date(
 document.addEventListener('DOMContentLoaded', function() {
     chargerPrestationsData();
     afficherRdvSurGrille();
+    ajusterOverlaps();
     calculerStats();
 
     // Activer la validation en temps réel pour le formulaire RDV
@@ -1806,6 +1807,10 @@ function afficherRdvSurGrille() {
                     card.style.opacity = '0.65';
                 }
                 card.style.height = (rdv.duree_creneaux * 40 - 4) + 'px';
+                const _rdvDh = parseInt(rdv.heure_debut.substring(0, 2)), _rdvDm = parseInt(rdv.heure_debut.substring(3, 5));
+                card.dataset.debutMins = _rdvDh * 60 + _rdvDm;
+                card.dataset.finMins   = _rdvDh * 60 + _rdvDm + rdv.duree_creneaux * 15;
+                card.dataset.employeId = employeId;
                 card.onclick = function(e) {
                     e.stopPropagation();
                     afficherDetailsRdv(rdv.id);
@@ -1855,6 +1860,60 @@ function afficherRdvSurGrille() {
                 cell.style.cursor = 'default';
             }
         });
+    });
+}
+
+// Ajuster l'affichage côte à côte pour les RDV qui se chevauchent (style Teams)
+function ajusterOverlaps() {
+    Object.keys(window.rdvData).forEach(employeId => {
+        const cards = Array.from(document.querySelectorAll(`.rdv-card[data-employe-id="${employeId}"]`));
+        if (cards.length <= 1) return;
+
+        // Construire liste {card, debut, fin}
+        const vis = cards.map(c => ({
+            card: c,
+            debut: parseInt(c.dataset.debutMins),
+            fin:   parseInt(c.dataset.finMins),
+            lane:  0,
+        })).sort((a, b) => a.debut - b.debut);
+
+        // Attribution de couloir (lane) gloutonne
+        const laneEnds = [];
+        vis.forEach(r => {
+            let lane = laneEnds.findIndex(end => end <= r.debut);
+            if (lane === -1) lane = laneEnds.length;
+            r.lane = lane;
+            laneEnds[lane] = r.fin;
+        });
+
+        // Composantes connexes (chevauchements transitifs)
+        const n = vis.length;
+        const adj = Array.from({length: n}, () => []);
+        for (let i = 0; i < n; i++) {
+            for (let j = i + 1; j < n; j++) {
+                if (vis[i].debut < vis[j].fin && vis[j].debut < vis[i].fin) {
+                    adj[i].push(j); adj[j].push(i);
+                }
+            }
+        }
+        const visited = new Array(n).fill(false);
+        for (let s = 0; s < n; s++) {
+            if (visited[s]) continue;
+            const comp = [];
+            const q = [s]; visited[s] = true;
+            while (q.length) {
+                const node = q.shift(); comp.push(node);
+                adj[node].forEach(nb => { if (!visited[nb]) { visited[nb] = true; q.push(nb); } });
+            }
+            if (comp.length <= 1) continue;
+            const total = Math.max(...comp.map(i => vis[i].lane)) + 1;
+            comp.forEach(i => {
+                const {card, lane} = vis[i];
+                const pct = 100 / total;
+                card.style.left  = `calc(${lane * pct}% + 1px)`;
+                card.style.right = `calc(${(total - lane - 1) * pct}% + 1px)`;
+            });
+        }
     });
 }
 
