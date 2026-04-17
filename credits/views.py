@@ -116,7 +116,6 @@ def regler_credit(request, institut_code, credit_id):
 
     try:
         # Récupérer les données
-        montant = Decimal(request.POST.get('montant', 0))
         mode_paiement = request.POST.get('mode', 'especes')
         carte_cadeau_id = request.POST.get('carte_cadeau_id')
 
@@ -135,18 +134,24 @@ def regler_credit(request, institut_code, credit_id):
 
         date_paiement_dt = timezone.make_aware(datetime.combine(date_paiement, time(12, 0, 0)))
 
-        # Validation
-        if montant <= 0:
-            return JsonResponse({
-                'success': False,
-                'message': 'Le montant doit être supérieur à 0'
-            }, status=400)
+        # Mode offert : solde tout le crédit sans encaissement
+        if mode_paiement == 'offert':
+            montant = Decimal(credit.reste_a_payer)
+        else:
+            montant = Decimal(request.POST.get('montant', 0))
 
-        if montant > credit.reste_a_payer:
-            return JsonResponse({
-                'success': False,
-                'message': f'Le montant ne peut pas dépasser le reste à payer ({credit.reste_a_payer} CFA)'
-            }, status=400)
+            # Validation
+            if montant <= 0:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Le montant doit être supérieur à 0'
+                }, status=400)
+
+            if montant > credit.reste_a_payer:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Le montant ne peut pas dépasser le reste à payer ({credit.reste_a_payer} CFA)'
+                }, status=400)
 
         utilisation = None
 

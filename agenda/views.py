@@ -136,11 +136,11 @@ def index(request, institut_code):
         rendez_vous__statut='valide'
     ).exclude(mode__in=['carte_cadeau', 'forfait', 'offert']).aggregate(total=Sum('montant'))['total'] or 0
 
-    # Crédits encaissés ce jour pour cet institut
+    # Crédits encaissés ce jour pour cet institut (hors carte cadeau et offert)
     credits_encaisses = PaiementCredit.objects.filter(
         credit__institut=institut,
         date__date=date_selectionnee
-    ).aggregate(total=Sum('montant'))['total'] or 0
+    ).exclude(mode__in=['carte_cadeau', 'offert']).aggregate(total=Sum('montant'))['total'] or 0
 
     # Forfaits vendus ce jour pour cet institut
     forfaits_du_jour = ForfaitClient.objects.filter(
@@ -945,6 +945,14 @@ def api_rdv_supprimer(request, institut_code, rdv_id):
         }, status=403)
 
     try:
+        # Libérer la séance de forfait avant suppression
+        if rdv.est_seance_forfait:
+            try:
+                seance = SeanceForfait.objects.get(rendez_vous=rdv)
+                seance.annuler()
+            except SeanceForfait.DoesNotExist:
+                pass
+
         rdv.delete()
         return JsonResponse({
             'success': True,

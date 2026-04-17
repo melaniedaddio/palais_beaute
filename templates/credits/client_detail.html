@@ -231,6 +231,7 @@
             </div>
             <div class="modal-actions">
                 <button type="button" class="btn-modal btn-modal-secondary" onclick="fermerModalReglement()">Annuler</button>
+                <button type="button" id="btn-offert-paiement" class="btn-modal" style="background:var(--warning,#f59e0b);color:white;" onclick="reglerOffert()">Offert</button>
                 <button type="submit" id="btn-enregistrer-paiement" class="btn-modal btn-modal-primary">Enregistrer le paiement</button>
             </div>
         </form>
@@ -335,6 +336,24 @@ function toggleCarteCadeau() {
         document.getElementById('montant').max = currentResteAPayer;
         document.getElementById('montant').value = currentResteAPayer;
     }
+}
+
+async function reglerOffert() {
+    if (!confirm('Offrir ce crédit ? Le solde restant sera soldé à 0 sans encaissement.')) return;
+    const datePaiement = document.getElementById('date-paiement').value;
+    if (!datePaiement) { showWarning('Veuillez saisir une date'); return; }
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    formData.append('mode', 'offert');
+    formData.append('date_paiement', datePaiement);
+    const btn = document.getElementById('btn-offert-paiement');
+    showLoader(btn, 'Enregistrement...');
+    try {
+        const response = await fetch(`/credits/{{ institut.code }}/api/credit/${currentCreditId}/regler/`, { method: 'POST', body: formData });
+        const data = await response.json();
+        if (data.success) { showSuccess(data.message); setTimeout(() => location.reload(), 1000); }
+        else { hideLoader(btn); showError(data.message); }
+    } catch (error) { hideLoader(btn); showError('Erreur : ' + error.message); }
 }
 
 document.getElementById('modalReglement').addEventListener('click', function(e) {
