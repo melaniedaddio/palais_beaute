@@ -1626,7 +1626,7 @@ def cloture_caisse(request, institut_code):
         forfaits_vendus = ForfaitClient.objects.filter(
             institut=institut,
             date_achat__date=date_selectionnee,
-            date_achat__gte=heure_debut,
+            date_creation__gte=heure_debut,
         )
         nb_forfaits_vendus = forfaits_vendus.count()
         total_forfaits_vendus = forfaits_vendus.aggregate(
@@ -2093,6 +2093,26 @@ def api_forfait_acheter(request, institut_code):
         remise_pourcent = max(0, min(99, int(request.POST.get('remise_pourcent', 0) or 0)))
         notes = request.POST.get('notes', '').strip()
 
+        # Date d'achat (saisie par l'utilisateur, défaut = aujourd'hui)
+        from datetime import date, datetime, time as dtime
+        from django.utils import timezone as tz
+        date_achat_str = request.POST.get('date_achat', '').strip()
+        if date_achat_str:
+            try:
+                date_achat_d = datetime.strptime(date_achat_str, '%Y-%m-%d').date()
+            except ValueError:
+                return JsonResponse({'success': False, 'message': 'Date d\'achat invalide'}, status=400)
+        else:
+            date_achat_d = date.today()
+
+        if date_achat_d > date.today():
+            return JsonResponse({'success': False, 'message': 'La date ne peut pas être dans le futur'}, status=400)
+
+        if date_achat_d < date.today():
+            date_achat_dt = tz.make_aware(datetime.combine(date_achat_d, dtime(23, 59, 59)))
+        else:
+            date_achat_dt = tz.now().replace(second=0, microsecond=0)
+
         # Validation
         client = get_object_or_404(Client, id=client_id)
         prestation = get_object_or_404(Prestation, id=prestation_id)
@@ -2105,16 +2125,15 @@ def api_forfait_acheter(request, institut_code):
         utilisateur = request.user.utilisateur
 
         # Créer le forfait client (utiliser comme RDV fictif pour les paiements)
-        from datetime import date, datetime
         rdv_forfait = RendezVous.objects.create(
             institut=institut,
             client=client,
             employe=institut.employes.first(),
             prestation=prestation,
             famille=prestation.famille,
-            date=date.today(),
-            heure_debut=datetime.now().time(),
-            heure_fin=datetime.now().time(),
+            date=date_achat_d,
+            heure_debut=date_achat_dt.time(),
+            heure_fin=date_achat_dt.time(),
             prix_base=prix_forfait,
             prix_options=0,
             prix_total=prix_forfait,
@@ -2181,6 +2200,7 @@ def api_forfait_acheter(request, institut_code):
             vendu_par=utilisateur,
             notes=notes or None,
             rdv_achat=rdv_forfait,
+            date_achat=date_achat_dt,
         )
 
         # Créer les séances individuelles

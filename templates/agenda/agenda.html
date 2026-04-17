@@ -482,6 +482,12 @@
                     </div>
                 </div>
 
+                <!-- Date d'achat -->
+                <div class="form-group">
+                    <label>Date d'achat</label>
+                    <input type="date" id="forfait-date-achat" name="date_achat" class="form-control">
+                </div>
+
                 <!-- Commentaire -->
                 <div class="form-group">
                     <label>Commentaire</label>
@@ -3610,8 +3616,6 @@ function calculerStats() {
         });
     });
 
-    // Ajouter le CA réel des forfaits vendus ce jour
-    ca += {{ ca_forfaits_reel|default:0 }};
     // Exclure les paiements par carte cadeau (cash déjà reçu lors de la vente)
     ca -= {{ ca_carte_cadeau_utilisation|default:0 }};
     // Ajouter les ventes de cartes cadeaux du jour (cash réellement reçu)
@@ -4790,6 +4794,9 @@ function proposerVenteForfait(prestationId, prestationNom, prix, nbSeances) {
     document.getElementById('forfait-details').style.display = 'none';
     document.getElementById('forfait-montant-container').style.display = 'none';
 
+    // Date d'achat = aujourd'hui par défaut
+    _initForfaitDateAujourdhui();
+
     // Afficher le modal
     document.getElementById('modal-forfait').style.display = 'flex';
 
@@ -4960,6 +4967,13 @@ function annulerSelectionForfait() {
     }
 }
 
+function _initForfaitDateAujourdhui() {
+    const now = new Date();
+    const today = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    const el = document.getElementById('forfait-date-achat');
+    if (el) { el.value = today; el.max = today; }
+}
+
 function ouvrirModalForfait() {
     // Pas de contexte RDV pour l'ouverture directe
     venteForfaitContext = null;
@@ -4978,6 +4992,9 @@ function ouvrirModalForfait() {
     clearValidation('forfait-client-search');
     clearValidation('forfait-prestation');
     clearValidation('forfait-montant');
+
+    // Date d'achat = aujourd'hui par défaut
+    _initForfaitDateAujourdhui();
 
     // Charger les forfaits disponibles
     chargerForfaitsDisponibles();
@@ -5322,6 +5339,8 @@ function acheterForfait() {
     formData.append('montant', montant);
     formData.append('remise_pourcent', remisePourcent);
     if (forfaitNotes) formData.append('notes', forfaitNotes);
+    const forfaitDateAchat = document.getElementById('forfait-date-achat')?.value;
+    if (forfaitDateAchat) formData.append('date_achat', forfaitDateAchat);
 
     // Ajouter les cartes cadeaux sélectionnées
     const cartesChecks = document.querySelectorAll('.forfait-carte-cadeau-check:checked');
@@ -5564,6 +5583,7 @@ function proposerVenteForfaitReservation(blocIndex, prestationId, prestationNom,
     document.getElementById('forfait-client-search').value = '';
     document.getElementById('forfait-details').style.display = 'none';
     document.getElementById('forfait-montant-container').style.display = 'none';
+    _initForfaitDateAujourdhui();
     document.getElementById('modal-forfait').style.display = 'flex';
     document.getElementById('forfait-client-id').value = clientId;
     document.getElementById('forfait-client-search').value = clientNom;
@@ -5695,6 +5715,7 @@ function proposerVenteForfaitAjout(prestationId, prestationNom, prix, nbSeances)
     document.getElementById('forfait-client-search').value = '';
     document.getElementById('forfait-details').style.display = 'none';
     document.getElementById('forfait-montant-container').style.display = 'none';
+    _initForfaitDateAujourdhui();
     document.getElementById('modal-forfait').style.display = 'flex';
     document.getElementById('forfait-client-id').value = clientId;
     document.getElementById('forfait-client-search').value = clientNom;

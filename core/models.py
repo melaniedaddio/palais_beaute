@@ -1640,6 +1640,7 @@ class ForfaitClient(models.Model):
 
     # Dates
     date_achat = models.DateTimeField(default=timezone.now)
+    date_creation = models.DateTimeField(auto_now_add=True, null=True, help_text="Timestamp réel de création (pour le filtrage clôture)")
     date_derniere_seance = models.DateTimeField(null=True, blank=True)
     date_fin = models.DateTimeField(null=True, blank=True, help_text="Date de fin quand toutes les séances sont utilisées")
 
