@@ -154,7 +154,8 @@ def index(request, institut_code):
     from core.models import CarteCadeau as _CarteCadeau
     ca_ventes_cartes_jour = _CarteCadeau.objects.filter(
         institut_achat=institut,
-        date_achat__date=date_selectionnee
+        date_achat__date=date_selectionnee,
+        hors_caisse=False,
     ).aggregate(total=Sum('montant_initial'))['total'] or 0
 
     # Utilisation de cartes cadeaux pour des RDV (déjà compté lors de la vente)
@@ -2341,7 +2342,10 @@ def api_rdv_valider_groupe(request, institut_code):
         remise_pourcent = max(0, min(99, int(request.POST.get('remise_pourcent', 0) or 0)))
         prix_effectif_global = math.ceil(prix_base_global * (100 - remise_pourcent) / 100 / 1000) * 1000
 
-        # 1. Traiter les cartes cadeaux sur le prix effectif (après remise)
+        # Suivi de la couverture par RDV (FIFO : couvre chaque RDV complètement avant le suivant)
+        rdv_covered = {rdv.id: 0 for rdv in rdvs}
+
+        # 1. Traiter les cartes cadeaux en FIFO sur le prix effectif (après remise)
         montant_total_cartes = 0
         montant_restant_prix = prix_effectif_global
         if cartes_json:
@@ -2358,16 +2362,10 @@ def api_rdv_valider_groupe(request, institut_code):
                     montant_restant_prix,
                 )
                 if montant_a_utiliser > 0:
-                    # Créer une utilisation pour chaque RDV proportionnellement
-                    rdvs_list = list(rdvs)
-                    total_carte_distribue = 0
-                    for idx_carte, rdv in enumerate(rdvs_list):
-                        if idx_carte == len(rdvs_list) - 1:
-                            # Dernier RDV : attribuer le reste pour éviter les erreurs d'arrondi
-                            montant_rdv = montant_a_utiliser - total_carte_distribue
-                        else:
-                            proportion = Decimal(str(rdv.prix_total)) / Decimal(str(prix_total_global))
-                            montant_rdv = int(montant_a_utiliser * proportion)
+                    restant_carte = montant_a_utiliser
+                    for rdv in rdvs:
+                        besoin = rdv.prix_total - rdv_covered[rdv.id]
+                        montant_rdv = min(restant_carte, besoin)
                         if montant_rdv > 0:
                             utilisation = UtilisationCarteCadeau.objects.create(
                                 carte=carte,
@@ -2382,7 +2380,10 @@ def api_rdv_valider_groupe(request, institut_code):
                                 montant=montant_rdv,
                                 utilisation_carte_cadeau=utilisation,
                             )
-                            total_carte_distribue += montant_rdv
+                            rdv_covered[rdv.id] += montant_rdv
+                            restant_carte -= montant_rdv
+                        if restant_carte == 0:
+                            break
                     carte.utiliser(montant_a_utiliser)
                     montant_total_cartes += montant_a_utiliser
                     montant_restant_prix -= montant_a_utiliser
@@ -2395,13 +2396,11 @@ def api_rdv_valider_groupe(request, institut_code):
         else:  # partiel
             montant_cash_total = min(int(montant_paiement_1 + montant_paiement_2), montant_restant_prix)
 
-        # 2. Valider chaque RDV et créer les paiements
-        # Filtrer les RDV non-forfait pour la répartition proportionnelle
-        rdvs_normaux = [rdv for rdv in rdvs if not rdv.est_seance_forfait]
-        total_distribue_1 = 0
-        total_distribue_2 = 0
+        # 2. Valider chaque RDV et créer les paiements cash en FIFO
+        restant_cash_1 = int(montant_paiement_1) if montant_paiement_1 > 0 else 0
+        restant_cash_2 = int(montant_paiement_2) if (utilise_double_paiement and montant_paiement_2 > 0) else 0
 
-        for idx, rdv in enumerate(rdvs):
+        for rdv in rdvs:
             rdv.statut = 'valide'
             rdv.remise_pourcent = remise_pourcent
             rdv.save()
@@ -2421,63 +2420,37 @@ def api_rdv_valider_groupe(request, institut_code):
                     montant=0,
                 )
 
-                # ✅ CORRECTION : Payer les options si présentes (non incluses dans le forfait)
-                if rdv.prix_options > 0 and prix_total_global > 0:
-                    if montant_paiement_1 > 0:
-                        proportion = Decimal(str(rdv.prix_options)) / Decimal(str(prix_total_global))
-                        montant_options_1 = int(montant_paiement_1 * proportion)
-                        if montant_options_1 > 0:
-                            Paiement.objects.create(
-                                rendez_vous=rdv,
-                                mode=moyen_paiement_1,
-                                montant=montant_options_1,
-                            )
-                            total_distribue_1 += montant_options_1
-
-                    if utilise_double_paiement and montant_paiement_2 > 0:
-                        proportion = Decimal(str(rdv.prix_options)) / Decimal(str(prix_total_global))
-                        montant_options_2 = int(montant_paiement_2 * proportion)
-                        if montant_options_2 > 0:
-                            Paiement.objects.create(
-                                rendez_vous=rdv,
-                                mode=moyen_paiement_2,
-                                montant=montant_options_2,
-                            )
-                            total_distribue_2 += montant_options_2
+                # Payer les options si présentes (non incluses dans le forfait) — FIFO
+                if rdv.prix_options > 0:
+                    besoin_options = rdv.prix_options
+                    if restant_cash_1 > 0 and besoin_options > 0:
+                        montant_options_1 = min(restant_cash_1, besoin_options)
+                        Paiement.objects.create(rendez_vous=rdv, mode=moyen_paiement_1, montant=montant_options_1)
+                        rdv_covered[rdv.id] += montant_options_1
+                        restant_cash_1 -= montant_options_1
+                        besoin_options -= montant_options_1
+                    if restant_cash_2 > 0 and besoin_options > 0:
+                        montant_options_2 = min(restant_cash_2, besoin_options)
+                        Paiement.objects.create(rendez_vous=rdv, mode=moyen_paiement_2, montant=montant_options_2)
+                        rdv_covered[rdv.id] += montant_options_2
+                        restant_cash_2 -= montant_options_2
 
                 continue  # Passer au RDV suivant
 
-            # Dernier RDV normal : attribuer le reste pour éviter les erreurs d'arrondi
-            est_dernier = (rdv == rdvs_normaux[-1])
+            # RDV normal : cash FIFO sur le montant restant non couvert
+            besoin = rdv.prix_total - rdv_covered[rdv.id]
+            if besoin > 0 and restant_cash_1 > 0:
+                montant_rdv_1 = min(restant_cash_1, besoin)
+                Paiement.objects.create(rendez_vous=rdv, mode=moyen_paiement_1, montant=montant_rdv_1)
+                rdv_covered[rdv.id] += montant_rdv_1
+                restant_cash_1 -= montant_rdv_1
+                besoin -= montant_rdv_1
 
-            # Créer les paiements proportionnels
-            if montant_paiement_1 > 0:
-                if est_dernier:
-                    montant_rdv_1 = int(montant_paiement_1) - total_distribue_1
-                else:
-                    proportion = Decimal(str(rdv.prix_total)) / Decimal(str(prix_total_global))
-                    montant_rdv_1 = int(montant_paiement_1 * proportion)
-                if montant_rdv_1 > 0:
-                    Paiement.objects.create(
-                        rendez_vous=rdv,
-                        mode=moyen_paiement_1,
-                        montant=montant_rdv_1,
-                    )
-                    total_distribue_1 += montant_rdv_1
-
-            if utilise_double_paiement and montant_paiement_2 > 0:
-                if est_dernier:
-                    montant_rdv_2 = int(montant_paiement_2) - total_distribue_2
-                else:
-                    proportion = Decimal(str(rdv.prix_total)) / Decimal(str(prix_total_global))
-                    montant_rdv_2 = int(montant_paiement_2 * proportion)
-                if montant_rdv_2 > 0:
-                    Paiement.objects.create(
-                        rendez_vous=rdv,
-                        mode=moyen_paiement_2,
-                        montant=montant_rdv_2,
-                    )
-                    total_distribue_2 += montant_rdv_2
+            if besoin > 0 and restant_cash_2 > 0:
+                montant_rdv_2 = min(restant_cash_2, besoin)
+                Paiement.objects.create(rendez_vous=rdv, mode=moyen_paiement_2, montant=montant_rdv_2)
+                rdv_covered[rdv.id] += montant_rdv_2
+                restant_cash_2 -= montant_rdv_2
 
         # 3. Si paiement partiel ou différé, créer un crédit global
         montant_effectif = montant_total_cartes + montant_cash_total

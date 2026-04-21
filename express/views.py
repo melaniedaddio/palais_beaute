@@ -117,6 +117,14 @@ def index(request):
         date__date=date_selectionnee
     ).exclude(mode__in=['carte_cadeau', 'offert']).aggregate(total=Sum('montant'))['total'] or 0
 
+    # Ventes de cartes cadeaux du jour (cash réellement reçu)
+    from core.models import CarteCadeau as _CarteCadeau
+    ca_ventes_cartes_jour = _CarteCadeau.objects.filter(
+        institut_achat=institut,
+        date_achat__date=date_selectionnee,
+        hors_caisse=False,
+    ).aggregate(total=Sum('montant_initial'))['total'] or 0
+
     # Ventes produits du jour (cash encaissé, hors carte_cadeau et différé)
     ventes_produits_jour = VenteProduit.objects.filter(
         institut=institut,
@@ -128,7 +136,7 @@ def index(request):
             continue  # déjà compté à la vente de la carte
         ca_ventes_produits_jour += vente.montant_total - vente.montant_carte_utilise
 
-    ca_encaisse = ca_paiements_rdv + credits_encaisses + ca_ventes_produits_jour
+    ca_encaisse = ca_paiements_rdv + credits_encaisses + ca_ventes_cartes_jour + ca_ventes_produits_jour
 
     context = {
         'institut': institut,
@@ -136,13 +144,14 @@ def index(request):
         'employes': employes,
         'familles': familles,
         'ventes': ventes_list,
-        'total_jour': (totaux['total'] or 0) + ca_ventes_produits_jour,
+        'total_jour': (totaux['total'] or 0) + ca_ventes_cartes_jour + ca_ventes_produits_jour,
         'total_especes': paiements_especes,
         'total_carte': paiements_carte,
         'ca_encaisse': ca_encaisse,
         'credits_encaisses': credits_encaisses,
         'caisse_cloturee': caisse_cloturee,
         'ca_ventes_produits_jour': ca_ventes_produits_jour,
+        'ca_ventes_cartes_jour': ca_ventes_cartes_jour,
     }
 
     return render(request, 'express/express.html', context)
