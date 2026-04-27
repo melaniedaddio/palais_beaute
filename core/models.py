@@ -1965,11 +1965,12 @@ class ClotureCaisse(models.Model):
             mode='wave'
         ).aggregate(Sum('montant'))['montant__sum'] or 0
 
-        # Ventes de cartes cadeaux du jour
+        # Ventes de cartes cadeaux du jour (hors_caisse=False = vraies ventes en caisse)
         ventes_cartes = CarteCadeau.objects.filter(
             institut_achat=self.institut,
             date_achat__date=self.date,
-        )
+            hors_caisse=False,
+        ).exclude(statut__in=['supprimee', 'annulee'])
         ventes_cartes_especes = ventes_cartes.filter(
             mode_paiement_achat='especes'
         ).aggregate(Sum('montant_initial'))['montant_initial__sum'] or 0
